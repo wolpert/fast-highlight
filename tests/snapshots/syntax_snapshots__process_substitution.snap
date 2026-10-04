@@ -1,0 +1,23 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "diff <(sort a) >(tee b) =(date) < <(ls)"
+spans:
+  5..7 process-substitution "<("
+  13..14 process-substitution ")"
+  15..17 process-substitution ">("
+  22..23 process-substitution ")"
+  24..26 process-substitution "=("
+  30..31 process-substitution ")"
+  32..33 redirection "<"
+  34..36 process-substitution "<("
+  38..39 process-substitution ")"
+commands:
+  "diff" | "<(sort a)" (expanded) | ">(tee b)" (expanded) | "=(date)" (expanded)
+  "sort" | "a"
+  "tee" | "b"
+  "date"
+  "ls"
+path words:
+  "<(ls)" (expanded)

@@ -1,0 +1,18 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "typeset -A m=([k]=v [k2]+=$x) && builtin export P=$P:/x Q"
+spans:
+  11..13 assignment "m="
+  13..14 assignment "("
+  14..18 assignment "[k]="
+  20..26 assignment "[k2]+="
+  26..28 parameter "$x"
+  28..29 assignment ")"
+  30..32 separator "&&"
+  48..50 assignment "P="
+  50..52 parameter "$P"
+commands:
+  "typeset" | "-A" | "m=([k]=v [k2]+=$x)" (expanded)
+  "builtin" | "export" | "P=$P:/x" (expanded) | "Q"

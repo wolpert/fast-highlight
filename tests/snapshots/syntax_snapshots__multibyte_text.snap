@@ -1,0 +1,15 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "echo \"héllo 世界\" ${名前} $名前 🎉 '😀' é* \\é ü{a,b}"
+spans:
+  5..20 double-quoted "\"héllo 世界\""
+  21..30 parameter "${名前}"
+  31..38 parameter "$名前"
+  44..50 single-quoted "'😀'"
+  53..54 glob "*"
+  55..58 escape "\\é"
+  61..66 brace-expansion "{a,b}"
+commands:
+  "echo" | "\"héllo 世界\"" (literal "héllo 世界") | "${名前}" (expanded) | "$名前" (expanded) | "🎉" | "'😀'" (literal "😀") | "é*" (expanded, glob) | "\\é" (literal "é") | "ü{a,b}" (expanded)

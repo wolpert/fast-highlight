@@ -1,0 +1,16 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, opts)"
+---
+input: "ls @(a|b) !(c) *(d)"
+options: ParseOptions { interactive_comments: false, extended_glob: false, ksh_glob: true }
+spans:
+  3..5 glob "@("
+  6..7 glob "|"
+  8..9 glob ")"
+  10..12 glob "!("
+  13..14 glob ")"
+  15..17 glob "*("
+  18..19 glob ")"
+commands:
+  "ls" | "@(a|b)" (expanded, glob) | "!(c)" (expanded, glob) | "*(d)" (expanded, glob)

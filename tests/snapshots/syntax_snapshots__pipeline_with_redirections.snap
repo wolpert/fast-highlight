@@ -1,0 +1,16 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "echo \"hello $USER\" | grep -i foo > out.txt 2>&1"
+spans:
+  5..18 double-quoted "\"hello $USER\""
+  12..17 parameter "$USER"
+  19..20 separator "|"
+  33..34 redirection ">"
+  43..47 redirection "2>&1"
+commands:
+  "echo" | "\"hello $USER\"" (expanded)
+  "grep" | "-i" | "foo"
+path words:
+  "out.txt"

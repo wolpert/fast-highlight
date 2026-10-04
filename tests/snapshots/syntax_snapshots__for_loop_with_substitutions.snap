@@ -1,0 +1,27 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "for x in a b *.c; do print -l $x[1] `date` $(ls -l; pwd); done"
+spans:
+  0..3 reserved-word "for"
+  6..8 reserved-word "in"
+  13..14 glob "*"
+  16..17 separator ";"
+  18..20 reserved-word "do"
+  30..35 parameter "$x[1]"
+  36..42 backquoted "`date`"
+  43..45 substitution "$("
+  50..51 separator ";"
+  55..56 substitution ")"
+  56..57 separator ";"
+  58..62 reserved-word "done"
+commands:
+  "print" | "-l" | "$x[1]" (expanded) | "`date`" (expanded) | "$(ls -l; pwd)" (expanded)
+  "date"
+  "ls" | "-l"
+  "pwd"
+path words:
+  "a"
+  "b"
+  "*.c" (expanded, glob)

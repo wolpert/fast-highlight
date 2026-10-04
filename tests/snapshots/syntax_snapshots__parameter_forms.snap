@@ -1,0 +1,21 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "echo $1 $? $#arr ${#x} ${+x} ${=x} ${x:-\"d $y\"} ${${x}[1]} $f:t:r ${x/a/b} $ end"
+spans:
+  5..7 parameter "$1"
+  8..10 parameter "$?"
+  11..16 parameter "$#arr"
+  17..22 parameter "${#x}"
+  23..28 parameter "${+x}"
+  29..34 parameter "${=x}"
+  35..47 parameter "${x:-\"d $y\"}"
+  40..46 double-quoted "\"d $y\""
+  43..45 parameter "$y"
+  48..58 parameter "${${x}[1]}"
+  50..54 parameter "${x}"
+  59..65 parameter "$f:t:r"
+  66..74 parameter "${x/a/b}"
+commands:
+  "echo" | "$1" (expanded) | "$?" (expanded) | "$#arr" (expanded) | "${#x}" (expanded) | "${+x}" (expanded) | "${=x}" (expanded) | "${x:-\"d $y\"}" (expanded) | "${${x}[1]}" (expanded) | "$f:t:r" (expanded) | "${x/a/b}" (expanded) | "$" | "end"

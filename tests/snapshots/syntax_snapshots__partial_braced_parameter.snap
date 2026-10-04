@@ -1,0 +1,9 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "echo ${(j:,:)ar"
+spans:
+  5..15 parameter "${(j:,:)ar"
+commands:
+  "echo" | "${(j:,:)ar" (expanded)

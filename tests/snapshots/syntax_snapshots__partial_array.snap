@@ -1,0 +1,9 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "arr=(one two"
+spans:
+  0..4 assignment "arr="
+  4..5 assignment "("
+commands:

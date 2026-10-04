@@ -1,0 +1,27 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "if [[ -f ~/x && $a == b* ]]; then echo ${(j:,:)arr} $((1+$x)); fi"
+spans:
+  0..2 reserved-word "if"
+  3..5 reserved-word "[["
+  6..8 operator "-f"
+  13..15 operator "&&"
+  16..18 parameter "$a"
+  19..21 operator "=="
+  23..24 glob "*"
+  25..27 reserved-word "]]"
+  27..28 separator ";"
+  29..33 reserved-word "then"
+  39..51 parameter "${(j:,:)arr}"
+  52..61 arithmetic "$((1+$x))"
+  57..59 parameter "$x"
+  61..62 separator ";"
+  63..65 reserved-word "fi"
+commands:
+  "echo" | "${(j:,:)arr}" (expanded) | "$((1+$x))" (expanded)
+path words:
+  "~/x" (tilde)
+  "$a" (expanded)
+  "b*" (expanded, glob)

@@ -1,0 +1,30 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "while read -r line; do\n  if [[ $line == \\#* ]]; then\n    continue\n  fi\n  print -r -- $line\ndone < file"
+spans:
+  0..5 reserved-word "while"
+  18..19 separator ";"
+  20..22 reserved-word "do"
+  25..27 reserved-word "if"
+  28..30 reserved-word "[["
+  31..36 parameter "$line"
+  37..39 operator "=="
+  40..42 escape "\\#"
+  42..43 glob "*"
+  44..46 reserved-word "]]"
+  46..47 separator ";"
+  48..52 reserved-word "then"
+  68..70 reserved-word "fi"
+  85..90 parameter "$line"
+  91..95 reserved-word "done"
+  96..97 redirection "<"
+commands:
+  "read" | "-r" | "line"
+  "continue"
+  "print" | "-r" | "--" | "$line" (expanded)
+path words:
+  "$line" (expanded)
+  "\\#*" (expanded, glob)
+  "file"

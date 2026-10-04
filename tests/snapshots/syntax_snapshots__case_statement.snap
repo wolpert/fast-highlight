@@ -1,0 +1,24 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "case $x in (a|b) echo hi;; *.c) ;& *) ;| esac"
+spans:
+  0..4 reserved-word "case"
+  5..7 parameter "$x"
+  8..10 reserved-word "in"
+  11..12 grouping "("
+  13..14 separator "|"
+  15..16 grouping ")"
+  24..26 separator ";;"
+  27..28 glob "*"
+  30..31 grouping ")"
+  32..34 separator ";&"
+  35..36 glob "*"
+  36..37 grouping ")"
+  38..40 separator ";|"
+  41..45 reserved-word "esac"
+commands:
+  "echo" | "hi"
+path words:
+  "$x" (expanded)
