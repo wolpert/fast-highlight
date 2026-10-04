@@ -23,10 +23,15 @@ Environment:
                  stale       send an extra R frame with the previous id before each answer
                  error       answer H with E
                  die         write to stderr and exit before reading anything
-  MOCK_MARKER    marker file for crash-once
+                 die-once    like die while MOCK_MARKER does not exist (creating it), behave
+                             normally afterwards
+  MOCK_MARKER    marker file for crash-once and die-once
   MOCK_LOG       append one line per request to this file
   MOCK_NO_STYLES when set, `styles` fails with exit status 1
+  MOCK_STYLES_FAIL  when set, `styles` prints its table and then exits with status 1, as the
+                 real binary does on a broken config or theme
   MOCK_START_DELAY  seconds to sleep before serving
+  MOCK_STATE_DELAY  seconds to sleep before handling each S request (logged after the sleep)
 """
 
 import os
@@ -152,6 +157,11 @@ def serve():
     delay = os.environ.get("MOCK_START_DELAY")
     if delay:
         time.sleep(float(delay))
+    if mode == "die-once":
+        marker = os.environ["MOCK_MARKER"]
+        if not os.path.exists(marker):
+            open(marker, "w").close()
+            mode = "die"
     if mode == "die":
         sys.stderr.write("mock-daemon: dying at startup\n")
         sys.exit(1)
@@ -174,6 +184,9 @@ def serve():
             os.write(1, frame("E", rid, b"malformed request"))
             continue
         if kind == "S":
+            state_delay = os.environ.get("MOCK_STATE_DELAY")
+            if state_delay:
+                time.sleep(float(state_delay))
             log("S %d %s" % (rid, ",".join(order)))
             if "func" in fields:
                 names = [n.decode() for n in fields["func"].split(b"\0") if n]
@@ -242,6 +255,8 @@ def main():
         if os.environ.get("MOCK_NO_STYLES"):
             sys.exit(1)
         sys.stdout.write(STYLES)
+        if os.environ.get("MOCK_STYLES_FAIL"):
+            sys.exit(1)
     else:
         sys.stderr.write("usage: mock-daemon.py serve|styles\n")
         sys.exit(2)

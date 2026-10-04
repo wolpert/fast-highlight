@@ -431,13 +431,49 @@ test_reload() {
   t_check_output
 }
 
-# Without `styles` output the built-in table is used.
+# Writes the non-empty entries of FASTHL_STYLES, sorted, to $FHT_DIR/styles.txt.
+typeset -g T_DUMP_STYLES='() {
+  local k
+  for k in ${(ko)FASTHL_STYLES}; do
+    [[ -n $FASTHL_STYLES[$k] ]] && print -r -- "$k $FASTHL_STYLES[$k]"
+  done >$FHT_DIR/styles.txt
+}'
+
+# Without `styles` output the built-in table is used. It matches the binary's default theme.
 test_fallback_styles() {
   T_USE_MOCK=1
   T_ENV=(MOCK_NO_STYLES=1)
+  T_POST=$T_DUMP_STYLES
   t_spawn || return
   t_type 'ls'
   t_has '0 2 fg=green memo=fast-highlight' || t_fail "built-in style not used"
+  if [[ -n $TEST_BIN ]]; then
+    # An empty config directory selects the built-in default theme.
+    local out k
+    local -A want
+    out=$(env -i HOME=$T XDG_CONFIG_HOME=$T/no-config $TEST_BIN styles 2>&1) ||
+      t_fail "styles failed: $out"
+    eval "() { ${out/typeset -gA/local -A}; want=(\"\${(@kv)FASTHL_STYLES}\") }"
+    out=
+    for k in ${(ko)want}; do
+      [[ -n $want[$k] ]] && out+="$k $want[$k]"$'\n'
+    done
+    [[ $(<$T/styles.txt)$'\n' == "$out" ]] ||
+      t_fail "built-in table differs from the default theme:"$'\n'"$(diff <(print -rn -- $out) $T/styles.txt)"
+  else
+    t_log "no FASTHL_TEST_BIN: built-in table not compared with the default theme"
+  fi
+  t_check_output
+}
+
+# `styles` exits 1 on a broken config or theme but prints the theme it fell back to; that
+# table is used, not the built-in one.
+test_styles_failed_exit() {
+  T_USE_MOCK=1
+  T_ENV=(MOCK_STYLES_FAIL=1)
+  t_spawn || return
+  t_type 'ls'
+  t_has '0 2 fg=green,bold memo=fast-highlight' || t_fail "styles output of a failed run not used"
   t_check_output
 }
 
@@ -536,6 +572,44 @@ test_die_at_start() {
   local line
   for line in "${(@f)$(<$T/dt.log)}"; do
     (( ${line%% *} < 0.05 + SLACK )) || t_fail "a redraw blocked ${line%% *}s"
+  done
+  t_check_output
+}
+
+# A daemon that died before the first prompt is restarted by redraws of an empty command line,
+# so highlighting is ready before the first keystroke.
+test_restart_empty_line() {
+  T_USE_MOCK=1
+  T_ENV=(MOCK_MODE=die-once)
+  # t_wait_ready redraws the empty line with ^L until the daemon is ready.
+  t_spawn || return
+  t_pids
+  (( ${#reply} == 2 )) || t_fail "expected 2 start attempts, saw ${#reply}"
+  t_type 'ls'
+  t_has '0 2 fg=green,bold memo=fast-highlight' || t_fail "no highlighting after the restart"
+  t_check_output
+}
+
+# A daemon slow to process shell state is not a failed one: neither precmd nor the handshake
+# waits for the state ack, and highlighting works once the daemon has caught up.
+test_slow_state() {
+  T_USE_MOCK=1
+  T_ENV=(MOCK_STATE_DELAY=0.3)
+  t_spawn || return
+  # Requests queue behind the state, so let the initial one finish before Enter sends one.
+  local -F end=$(( EPOCHREALTIME + 5 ))
+  until t_log_has 'S <-> alias,*' || (( EPOCHREALTIME > end )); do t_sleep 0.02; done
+  t_run 'myfunc() { : }'
+  (( end = EPOCHREALTIME + 5 ))
+  until t_log_has 'S-func *myfunc*' || (( EPOCHREALTIME > end )); do t_sleep 0.02; done
+  t_log_has 'S-func *myfunc*' || t_fail "func update never processed"
+  t_type 'ls'
+  t_has '0 2 fg=green,bold memo=fast-highlight' || t_fail "no highlighting after slow state"
+  t_pids
+  (( ${#reply} == 1 )) || t_fail "slow state treated as a failure (${#reply} daemons)"
+  local x
+  for x in "${(@f)$(<$T/dt.log)}"; do
+    (( ${x%% *} < 0.05 + SLACK )) || t_fail "a redraw blocked ${x%% *}s"
   done
   t_check_output
 }

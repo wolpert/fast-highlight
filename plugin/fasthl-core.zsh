@@ -10,8 +10,13 @@
 #             only), or by a `zle -F` handler as soon as it arrives while ZLE is idle.
 #   ready     the ack was read, the FIFOs were unlinked, and requests flow.
 #
+# Every hook moves the lifecycle along, whether or not it has a buffer to highlight, so a
+# daemon that died at an empty prompt is restarted without waiting for a keystroke.
+#
 # Any timeout, EOF, framing error, or write error kills the daemon and moves to `dead` with an
-# exponential backoff (0.5 s doubling to 60 s, reset by a successful highlight).
+# exponential backoff (0.5 s doubling to 60 s, reset by a successful highlight). State (S)
+# requests are not waited for: the daemon answers in order, so the next highlight read skips
+# the ack, and a daemon still busy with the state shows up as a late answer to that highlight.
 
 autoload -Uz is-at-least add-zle-hook-widget add-zsh-hook
 is-at-least 5.8 || return 0
@@ -105,25 +110,27 @@ _fasthl_load_styles() {
   emulate -L zsh
   local out= k
   local -A theme
-  if [[ -n $_fasthl_bin ]]; then
-    out=$("$_fasthl_bin" styles </dev/null 2>/dev/null) || out=
-  fi
+  # `styles` exits 1 on a broken config or theme but still prints the theme it fell back to
+  # (the built-in default), so the output is used whatever the exit status.
+  [[ -n $_fasthl_bin ]] && out=$("$_fasthl_bin" styles </dev/null 2>/dev/null)
   _fasthl_tmp=()
   [[ -n $out ]] && _fasthl_eval_styles "$out"
   theme=("${(@)_fasthl_tmp}")
   if (( ! ${#theme} )); then
+    # Used only when `styles` printed no table at all. Keep in sync with themes/default.toml.
     theme=(
+      default              ''
       error                'fg=red,bold'
       reserved-word        'fg=yellow'
       alias                'fg=green'
-      suffix-alias         'fg=green,underline'
-      global-alias         'fg=cyan'
+      suffix-alias         'fg=magenta'
+      global-alias         'fg=magenta,bold'
       function             'fg=green'
       builtin              'fg=green'
       command              'fg=green'
       precommand           'fg=green,underline'
-      separator            ''
-      redirection          'fg=yellow'
+      separator            'bold'
+      redirection          'bold'
       heredoc              'fg=yellow'
       single-quoted        'fg=yellow'
       double-quoted        'fg=yellow'
@@ -133,17 +140,17 @@ _fasthl_load_styles() {
       parameter            'fg=cyan'
       substitution         'fg=magenta'
       process-substitution 'fg=magenta'
-      arithmetic           'fg=blue'
+      arithmetic           'fg=magenta'
       glob                 'fg=blue'
-      glob-qualifier       'fg=magenta'
+      glob-qualifier       'fg=blue,bold'
       brace-expansion      'fg=blue'
       history-expansion    'fg=blue'
-      comment              'fg=black,bold'
-      assignment           'fg=blue'
-      grouping             ''
+      comment              'fg=8'
+      assignment           ''
+      grouping             'fg=yellow'
       operator             'fg=yellow'
       path                 'underline'
-      path-directory       'underline'
+      path-directory       'bold,underline'
       path-prefix          'underline'
       subcommand           'fg=blue'
       option               'fg=cyan'
@@ -402,7 +409,11 @@ _fasthl_ensure() {
   _fasthl_handshake $1
 }
 
-# Send the parts of the shell's command namespace that changed, by time $1.
+# Send the parts of the shell's command namespace that changed, by time $1. The ack is not
+# read here: waiting for it would put the daemon's work on the state (a $PATH rescan, say) on
+# a deadline meant for a round trip, and there is nothing to do with the answer anyway (an E
+# means the daemon rejected the frame, and resending it would not help). _fasthl_read_frame
+# discards the ack when it reads the answer to a later request.
 _fasthl_sync_state() {
   emulate -L zsh
   setopt nomultibyte
@@ -427,9 +438,6 @@ _fasthl_sync_state() {
   if [[ -n $body ]]; then
     id=$(( ++_fasthl_id ))
     _fasthl_send S $id "$body" $1 || { _fasthl_fail; return 1 }
-    _fasthl_read_frame $id $1 || { _fasthl_fail; return 1 }
-    # An E answer means the daemon rejected the frame; resending it would not help.
-    [[ $_fasthl_rtype == [AE] ]] || { _fasthl_fail; return 1 }
     _fasthl_sent=("${(@kv)cur}")
   fi
   _fasthl_synced=1
@@ -513,6 +521,12 @@ _fasthl_highlight() {
   (( _fasthl_enabled )) || return 0
   if [[ -z $BUFFER || $CONTEXT == (select|vared) ]]; then
     _fasthl_apply
+    # Nothing to highlight, but a dead daemon is restarted (or a pending handshake polled) so
+    # it is ready by the time something is typed.
+    if [[ $_fasthl_state != ready ]] && _fasthl_ensure $(( EPOCHREALTIME + $2 )); then
+      _fasthl_timeout
+      (( ! _fasthl_synced )) && _fasthl_sync_state $(( EPOCHREALTIME + REPLY ))
+    fi
     return 0
   fi
   # ZLE counts characters of the locale whatever the MULTIBYTE option says (zshoptions(1)), so
@@ -626,10 +640,11 @@ _fasthl_precmd() {
   local -a reply match mbegin mend
   {
     if (( _fasthl_enabled )); then
-      local -F deadline
       _fasthl_timeout
-      (( deadline = EPOCHREALTIME + REPLY ))
-      _fasthl_ensure $deadline && _fasthl_sync_state $deadline
+      # A handshake may use the whole wait; sending the state gets a budget of its own.
+      if _fasthl_ensure $(( EPOCHREALTIME + REPLY )); then
+        _fasthl_sync_state $(( EPOCHREALTIME + REPLY ))
+      fi
     fi
   } 2>/dev/null
   return _fasthl_ret

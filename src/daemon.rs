@@ -50,6 +50,9 @@ pub trait Engine {
     fn highlight(&mut self, req: &HighlightRequest<'_>) -> Vec<Span>;
     /// Applies an `S` request.
     fn update_state(&mut self, update: StateUpdate);
+    /// Work deferred out of the requests, done after their responses are written: the daemon
+    /// is then between requests, and the plugin is not waiting on it.
+    fn idle(&mut self) {}
 }
 
 impl Engine for Highlighter {
@@ -57,11 +60,16 @@ impl Engine for Highlighter {
         Highlighter::highlight(self, req)
     }
 
-    /// Also brings the `$PATH` scan up to date, so a changed `PATH` is scanned while the shell
-    /// is between commands (the plugin sends state from `precmd`) rather than on the next
-    /// keystroke.
     fn update_state(&mut self, update: StateUpdate) {
         self.state.apply_update(update);
+    }
+
+    /// Brings the `$PATH` scan up to date. After the startup ping this scans the daemon's own
+    /// `PATH` (normally the shell's) while the plugin finishes the handshake; after an `S`
+    /// request that changed `PATH`, it rescans once the ack is out, while the shell is between
+    /// commands (the plugin sends state from `precmd`). A highlight request still scans first
+    /// when it arrives before this ran.
+    fn idle(&mut self) {
         self.state.refresh_path();
     }
 }
@@ -195,6 +203,12 @@ impl<E: Engine> Session<E> {
         &self.log
     }
 
+    /// Runs the engine's deferred work. A panic there has been logged and is otherwise ignored;
+    /// the next request retries the work.
+    pub fn idle(&mut self) {
+        let _ = catch(|| self.engine.idle());
+    }
+
     /// Handles one request and returns its response.
     pub fn handle(&mut self, request: Request) -> Reply {
         let started = Instant::now();
@@ -291,7 +305,8 @@ impl Exit {
 }
 
 /// Reads frames from `input` and writes one response per request to `output`, flushing after
-/// each, until the loop stops for one of the reasons in [`Exit`].
+/// each, until the loop stops for one of the reasons in [`Exit`]. Once every complete request
+/// read so far is answered, the session's deferred work runs before the next read.
 pub fn run<E: Engine, R: Read, W: Write>(
     session: &mut Session<E>,
     input: &mut R,
@@ -300,6 +315,7 @@ pub fn run<E: Engine, R: Read, W: Write>(
     let mut decoder = Decoder::new();
     let mut buf = vec![0u8; 64 * 1024];
     loop {
+        let mut answered = false;
         loop {
             match decoder.next_request() {
                 Ok(Some(request)) => match session.handle(request) {
@@ -308,11 +324,15 @@ pub fn run<E: Engine, R: Read, W: Write>(
                         if let Err(e) = output.write_all(&frame).and_then(|()| output.flush()) {
                             return Exit::Write(e);
                         }
+                        answered = true;
                     }
                 },
                 Ok(None) => break,
                 Err(e) => return Exit::Framing(e),
             }
+        }
+        if answered {
+            session.idle();
         }
         match input.read(&mut buf) {
             Ok(0) => return Exit::Eof,
@@ -443,6 +463,10 @@ impl Engine for LazyHighlighter {
 
     fn update_state(&mut self, update: StateUpdate) {
         Engine::update_state(self.get(), update);
+    }
+
+    fn idle(&mut self) {
+        Engine::idle(self.get());
     }
 }
 
@@ -903,7 +927,7 @@ mod tests {
     }
 
     #[test]
-    fn state_update_scans_path_before_the_next_highlight() {
+    fn idle_scans_path_after_a_state_update() {
         let dir = std::env::temp_dir().join(format!("fh-daemon-path-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
@@ -923,8 +947,117 @@ mod tests {
                 ..StateUpdate::default()
             },
         );
+        assert!(
+            !h.state.is_path_command("fh-tool"),
+            "the scan waits until the ack is out"
+        );
+        Engine::idle(&mut h);
         assert!(h.state.is_path_command("fh-tool"));
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// Records the order of engine calls and response writes in one list.
+    #[derive(Clone, Default)]
+    struct Events(std::rc::Rc<std::cell::RefCell<Vec<&'static str>>>);
+
+    impl Events {
+        fn push(&self, event: &'static str) {
+            self.0.borrow_mut().push(event);
+        }
+
+        fn take(&self) -> Vec<&'static str> {
+            std::mem::take(&mut self.0.borrow_mut())
+        }
+    }
+
+    struct RecordingEngine {
+        events: Events,
+        panic_in_idle: bool,
+    }
+
+    impl Engine for RecordingEngine {
+        fn highlight(&mut self, _: &HighlightRequest<'_>) -> Vec<Span> {
+            self.events.push("H");
+            Vec::new()
+        }
+
+        fn update_state(&mut self, _: StateUpdate) {
+            self.events.push("S");
+        }
+
+        fn idle(&mut self) {
+            self.events.push("idle");
+            if self.panic_in_idle {
+                panic!("idle exploded");
+            }
+        }
+    }
+
+    struct RecordingWriter(Events);
+
+    impl Write for RecordingWriter {
+        fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+            self.0.push("write");
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+
+    fn recording_session(events: &Events, panic_in_idle: bool) -> Session<RecordingEngine> {
+        let engine = RecordingEngine {
+            events: events.clone(),
+            panic_in_idle,
+        };
+        Session::new(engine, 1000, PathBuf::from("/"), Log::disabled())
+    }
+
+    #[test]
+    fn idle_work_runs_after_the_responses_are_written() {
+        let events = Events::default();
+        let mut s = recording_session(&events, false);
+        let mut input = encode_ping(1);
+        input.extend(encode_state(2, &StateUpdate::default()));
+        input.extend(hl(3, "ls", ""));
+        let exit = run(
+            &mut s,
+            &mut &input[..],
+            &mut RecordingWriter(events.clone()),
+        );
+        assert!(matches!(exit, Exit::Eof));
+        // One read delivers all three requests: idle work runs once, after the last answer,
+        // and never before the first request.
+        assert_eq!(
+            events.take(),
+            vec!["write", "S", "write", "H", "write", "idle"]
+        );
+
+        // Requests that arrive one at a time each get their answer before the idle work.
+        let mut input = encode_state(4, &StateUpdate::default());
+        input.extend(encode_ping(5));
+        let exit = run(
+            &mut s,
+            &mut Trickle(&input),
+            &mut RecordingWriter(events.clone()),
+        );
+        assert!(matches!(exit, Exit::Eof));
+        assert_eq!(events.take(), vec!["S", "write", "idle", "write", "idle"]);
+    }
+
+    #[test]
+    fn idle_panic_does_not_stop_the_loop() {
+        let events = Events::default();
+        let mut s = recording_session(&events, true);
+        let mut input = encode_ping(1);
+        input.extend(encode_ping(2));
+        let mut out = Vec::new();
+        let exit = run(&mut s, &mut Trickle(&input), &mut out);
+        assert!(matches!(exit, Exit::Eof));
+        let ids: Vec<_> = frames(&out).iter().map(|f| f.id).collect();
+        assert_eq!(ids, vec![1, 2]);
+        assert_eq!(events.take(), vec!["idle", "idle"]);
     }
 
     #[test]
