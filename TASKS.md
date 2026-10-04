@@ -408,8 +408,8 @@ Acceptance criteria:
 
 - The README and man pages contain the real repository URL.
 - Tag `v0.1.0` exists, with a release archive and its SHA-256 checksum published.
-- The Rust version in the README requirements table matches `rust-version` in `Cargo.toml`
-  (currently 1.85 and 1.88).
+- A check fails the build when the Rust version in the README requirements table differs from
+  `rust-version` in `Cargo.toml`.
 
 ### 34. Installation of plugin files and man pages
 

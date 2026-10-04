@@ -1,24 +1,24 @@
 # cargo-fuzz targets for fast-highlight. Not part of the main package or workspace.
 #
-# Requires a nightly toolchain and cargo-fuzz (`cargo install cargo-fuzz`). Run from the
-# repository root:
+# The targets require a nightly toolchain and cargo-fuzz (`cargo install cargo-fuzz`), and run
+# from the repository root:
 #
 #   cargo +nightly fuzz list
 #   cargo +nightly fuzz run lexer fuzz/corpus/lexer fuzz/seeds/lexer -- -max_len=4096
 #   cargo +nightly fuzz run highlight fuzz/corpus/highlight fuzz/seeds/highlight -- -max_len=4096
 #   cargo +nightly fuzz run protocol fuzz/corpus/protocol fuzz/seeds/protocol -- -max_len=4096
 #
-# libFuzzer writes new inputs to the first directory, so create it first
-# (`mkdir -p fuzz/corpus/<target>`) or start from a copy of the seeds
-# (`mkdir -p fuzz/corpus && cp -r fuzz/seeds/* fuzz/corpus/`). Add `-max_total_time=60` for a
-# time-limited run.
+# libFuzzer writes new inputs to the first directory, which must exist: an empty directory from
+# `mkdir -p fuzz/corpus/<target>` or a copy of the seeds from
+# `mkdir -p fuzz/corpus && cp -r fuzz/seeds/* fuzz/corpus/`. `-max_total_time=60` limits a run to
+# 60 seconds.
 #
-# fuzz/seeds/ is committed and is regenerated from the snapshot tests and the protocol examples
-# by `python3 fuzz/make_seeds.py`. fuzz/corpus/ and fuzz/artifacts/ are not committed.
+# `fuzz/seeds/` is committed and is regenerated from the snapshot tests and the protocol examples
+# by `python3 fuzz/make_seeds.py`. `fuzz/corpus/` and `fuzz/artifacts/` are not committed.
 #
-# Each target reads a small header from the start of the input; see the comment at the top of
-# its file under fuzz_targets/. To replay a crash: `cargo +nightly fuzz run <target> <file>`.
-# Reproducers for bugs found by fuzzing live in fuzz/regressions/<target>/.
+# Each target reads a small header from the start of the input, described in the comment at the
+# top of its file under `fuzz_targets/`. `cargo +nightly fuzz run <target> <file>` replays a crash.
+# Reproducers for bugs found by fuzzing live in `fuzz/regressions/<target>/`.
 
 [package]
 name = "fast-highlight-fuzz"

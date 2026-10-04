@@ -433,7 +433,7 @@ These overrides survive `fasthl-reload`. Unlike theme files, they are not valida
 
 ## Command specs
 
-A **spec** describes the subcommands and options of one command. The daemon uses specs to give
+A spec describes the subcommands and options of one command. The daemon uses specs to give
 known subcommands the `subcommand` type, known options the `option` type, and, where a spec says
 its list is complete, unknown ones the `error` type.
 
@@ -709,23 +709,23 @@ round trip is not logged.
 fast-highlight highlight --timing --repeat 1000 -- 'git commit -m "message" src/main.rs'
 ```
 
-It prints the ranges to standard output and a line such as `runs=1000 min=1.2us median=1.3us
-max=67.2us` to standard error. All runs share one process, so after the first run the filesystem
-checks come from the cache while it is valid.
+It prints the ranges to standard output and a line such as
+`runs=1000 min=1.2us median=1.3us max=67.2us` to standard error. All runs share one process, so
+after the first run the filesystem checks come from the cache while it is valid.
 
 ## Man pages
 
 The repository provides `man/man1/fast-highlight.1` for the binary and `man/man5/fast-highlight.5`
 for the configuration, theme, and spec formats. The `man` directory has the layout `man` expects,
-so either of two setups makes the pages available.
+so `MANPATH` can point at the clone directly:
 
-1. Point `MANPATH` at the clone in `~/.zshrc`, keeping the system default path after it:
+```zsh
+export MANPATH="/path/to/fast-highlight/man:$(manpath)"
+```
 
-   ```zsh
-   export MANPATH="/path/to/fast-highlight/man:$(manpath)"
-   ```
+A copy into a per-user manual directory works without a clone on `MANPATH`:
 
-   Alternatively, copy the pages into a directory that is already on the manual path:
+1. Copy the pages:
 
    ```sh
    mkdir -p ~/.local/share/man/man1 ~/.local/share/man/man5
@@ -733,10 +733,14 @@ so either of two setups makes the pages available.
    cp man/man5/fast-highlight.5 ~/.local/share/man/man5/
    ```
 
-2. Run `man fast-highlight`. If the copied page is not found, add `$HOME/.local/share/man` to
-   `MANPATH` in the same way.
+2. Run `man fast-highlight`. If the page is not found, add the directory to `MANPATH` in
+   `~/.zshrc`:
 
-3. Read the format page with `man 5 fast-highlight`.
+   ```zsh
+   export MANPATH="$HOME/.local/share/man:$(manpath)"
+   ```
+
+`man 5 fast-highlight` shows the format page.
 
 ## Troubleshooting
 
@@ -760,8 +764,8 @@ so either of two setups makes the pages available.
 ### Unexpected colours
 
 - A theme error makes the plugin use the built-in `default` theme. A `config.toml` error makes it
-  ignore the `theme` key and use `theme.toml` or the `default` theme. `fast-highlight
-  check-config` shows the error.
+  ignore the `theme` key and use `theme.toml` or the `default` theme. `fast-highlight check-config`
+  shows the error.
 - An entry assigned to `FASTHL_STYLES` in `.zshrc` overrides the theme.
 - zsh-syntax-highlighting or fast-syntax-highlighting is still loaded; see
   [Removal of other highlighters](#removal-of-other-highlighters).

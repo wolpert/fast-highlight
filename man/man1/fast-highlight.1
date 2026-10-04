@@ -1,5 +1,4 @@
 .\" fast-highlight(1): the fast-highlight command.
-.\" Written to style.md; section structure follows man(7) conventions.
 .TH FAST-HIGHLIGHT 1 2026-10-04 "fast-highlight 0.1.0" "User Commands"
 .SH NAME
 fast-highlight \- syntax highlighter for the zsh line editor
@@ -102,7 +101,7 @@ The daemon exits when it receives a
 .B Q
 request, when standard input reaches end of file, when it meets a framing error, when reading or
 writing fails, or when its parent process exits.
-The parent process counts as exited once the daemon's parent process id differs from the one it
+The parent process counts as exited once the daemon's parent process ID differs from the one it
 had at startup.
 The daemon checks this at least once per second while its input is idle.
 .IP
@@ -139,12 +138,12 @@ is resolved against the directory the daemon started in.
 .BI \-\-parent " pid"
 Watches the process
 .I pid
-in addition to the parent process, and exits once no process with that id exists.
+in addition to the parent process, and exits once no process with that ID exists.
 .I pid
 is a positive integer.
 A process that exists but that the daemon has no permission to signal counts as existing.
 The check runs at least once per second while the input is idle.
-The plugin passes the shell's process id, so the daemon also exits when the shell dies before
+The plugin passes the shell's process ID, so the daemon also exits when the shell dies before
 the daemon has recorded its parent, a case in which the recorded parent is already the process
 that adopted the daemon.
 .RE

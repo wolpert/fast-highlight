@@ -1,5 +1,4 @@
 .\" fast-highlight(5): configuration, theme, and command spec files.
-.\" Written to style.md; section structure follows man(7) conventions.
 .TH FAST-HIGHLIGHT 5 2026-10-04 "fast-highlight 0.1.0" "File Formats"
 .SH NAME
 fast-highlight \- configuration, theme, and command spec files for fast-highlight
@@ -152,8 +151,9 @@ Basic colours only, for dark and light terminals.
 .B truecolor
 24-bit colours for dark terminals, inheriting from
 .BR default .
-It needs a terminal with truecolor support, or the zsh/nearcolor module on 88- and 256-colour
-terminals.
+It needs a terminal with truecolor support, or the
+.B zsh/nearcolor
+module on 88- and 256-colour terminals.
 .PP
 .B fast-highlight styles
 prints the resolved styles of the active theme.
