@@ -1,0 +1,54 @@
+# A 24-bit colour theme for dark terminals. It needs a terminal with truecolor support, or the
+# zsh/nearcolor module on 88- and 256-colour terminals.
+#
+# Kinds not listed here fall back to the default theme.
+
+inherits = "default"
+
+[meta]
+name = "truecolor"
+description = "24-bit colours for dark terminals"
+
+[styles]
+error = { fg = "#f05f5f", bold = true }
+
+reserved-word = { fg = "#e5a55f" }
+alias = { fg = "#8fd18f" }
+suffix-alias = { fg = "#d787d7" }
+global-alias = { fg = "#d787d7", bold = true }
+function = { fg = "#5fd7af" }
+builtin = { fg = "#b5d75f" }
+command = { fg = "#8fd75f" }
+precommand = { fg = "#8fd75f", underline = true }
+
+separator = { fg = "#a8a8a8", bold = true }
+redirection = { fg = "#d7af87", bold = true }
+heredoc = { fg = "#d7d787" }
+
+single-quoted = { fg = "#d7d787" }
+double-quoted = { fg = "#e5c07b" }
+dollar-quoted = { fg = "#d7af5f" }
+backquoted = { fg = "#c678dd" }
+escape = { fg = "#56b6c2" }
+
+parameter = { fg = "#61afef" }
+substitution = { fg = "#c678dd" }
+process-substitution = { fg = "#c678dd" }
+arithmetic = { fg = "#d19a66" }
+
+glob = { fg = "#7f9fff" }
+glob-qualifier = { fg = "#7f9fff", bold = true }
+brace-expansion = { fg = "#9fbfff" }
+history-expansion = { fg = "#7f9fff", bold = true }
+
+comment = { fg = "#7a7a7a" }
+assignment = { fg = "#d7875f" }
+grouping = { fg = "#e5a55f" }
+operator = { fg = "#e5a55f" }
+
+path = { underline = true }
+path-directory = { fg = "#87afd7", underline = true }
+path-prefix = { fg = "#a8a8a8", underline = true }
+
+subcommand = { fg = "#5fafd7" }
+option = { fg = "#87d7d7" }
