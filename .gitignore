@@ -4,3 +4,4 @@
 /fuzz/artifacts
 *.snap.new
 *.pending-snap
+/.claude/
