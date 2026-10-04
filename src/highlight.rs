@@ -7,7 +7,7 @@
 //! the syntactic spans, so a syntactic span with the same range wins.
 
 use crate::config::{Config, Limits};
-use crate::paths::{FileStat, PathChecker, PathKind};
+use crate::paths::{FileStat, PathChecker, PathKind, Resolution};
 use crate::specs::{ArgInput, CommandSpec, SpecRegistry};
 use crate::state::{CommandClass, ShellState};
 use crate::syntax::{ParseOptions, ParseOutput, Word};
@@ -102,6 +102,11 @@ impl Highlighter {
     /// Returns the final spans for `req.text` in byte offsets, sorted and well nested. Spans may
     /// cover the `PREBUFFER` part; the caller clips them to the buffer.
     pub fn highlight(&mut self, req: &HighlightRequest<'_>) -> Vec<Span> {
+        self.highlight_at(req, Instant::now())
+    }
+
+    /// [`Highlighter::highlight`] with an explicit clock for the filesystem cache, for tests.
+    pub fn highlight_at(&mut self, req: &HighlightRequest<'_>, now: Instant) -> Vec<Span> {
         if req.text.len() > self.config.limits.hard_cap_bytes {
             return Vec::new();
         }
@@ -112,15 +117,7 @@ impl Highlighter {
             paths,
             specs,
         } = self;
-        run(
-            &config.limits,
-            state,
-            paths,
-            specs,
-            req,
-            parse,
-            Instant::now(),
-        )
+        run(&config.limits, state, paths, specs, req, parse, now)
     }
 
     /// [`Highlighter::highlight`] for an existing parse of `req.text`, with an explicit spec
@@ -160,7 +157,9 @@ fn run(
     if len > limits.lex_only_bytes {
         return parse.spans;
     }
-    state.refresh_path_at(now);
+    // Only a pending PATH change or `rehash` rescans here; the periodic mtime check runs
+    // between requests (see `Engine::idle`).
+    state.scan_path_if_dirty(now);
     paths.begin_request(now, limits);
     let mut pass = Pass {
         req,
@@ -174,7 +173,7 @@ fn run(
     }
     for w in &parse.path_words {
         if !pass.global_alias(w) {
-            pass.path_arg(w);
+            pass.path_arg(w, false);
         }
     }
     let spans = merge(pass.out, &parse.spans, req.text);
@@ -325,16 +324,22 @@ impl Pass<'_, '_> {
     ///   - a name that is a prefix of a known alias, reserved word, function, builtin, or
     ///     `$PATH` command, or an unresolvable `~user` prefix, gets no span. Marking it as an
     ///     error on every keystroke until the name is complete would only flash red.
-    /// - When the per-request filesystem budget is exhausted, the word gets no span rather
-    ///   than a possibly wrong error.
+    /// - When the per-request filesystem budget is exhausted (or a `~user` lookup is deferred,
+    ///   see [`PathChecker::resolve`]), or a prefix check could not tell, the word gets no span
+    ///   rather than a possibly wrong error.
     /// - Anything else is an error.
     fn unknown_command(&mut self, cmd: &Word, name: &str) -> Option<TokenKind> {
         let typing = self.typing(cmd);
         let has_slash = name.contains('/');
         let auto_cd = self.req.opts.auto_cd;
         if (has_slash || auto_cd) && crate::paths::could_be_path(name) {
-            let resolved = crate::paths::resolve(name, cmd.tilde, self.req.cwd, self.state);
-            if let Some(abs) = resolved {
+            let resolved = self
+                .paths
+                .resolve(name, cmd.tilde, self.req.cwd, self.state, typing);
+            if let Resolution::Deferred = resolved {
+                return None;
+            }
+            if let Resolution::Path(abs) = resolved {
                 match self.paths.stat(&abs) {
                     None => return None,
                     Some(FileStat::File { executable: true }) if has_slash => {
@@ -358,25 +363,29 @@ impl Pass<'_, '_> {
     }
 
     /// Arguments of a non-precommand: global aliases, then spec classification, then path
-    /// checks.
+    /// checks. After a `--` argument, words starting with `-` are operands and path-checked
+    /// too.
     fn args(&mut self, spec: Option<&dyn Spec>, args: &[Word], inputs: &[ArgInput<'_>]) {
         if args.is_empty() {
             return;
         }
         let kinds = spec.map(|s| s.classify_args(inputs));
+        let mut options_ended = false;
         for (i, w) in args.iter().enumerate() {
+            let after_dashdash = options_ended;
+            options_ended |= w.literal.as_deref() == Some("--");
             if self.global_alias(w) {
                 continue;
             }
             let (Some(s), Some(kinds)) = (spec, kinds.as_ref()) else {
-                self.path_arg(w);
+                self.path_arg(w, after_dashdash);
                 continue;
             };
             match self.spec_kind(s, inputs, kinds, i, w) {
                 Some(k) => self.push(w, k),
                 // A suppressed error is a subcommand or option being typed, not a path.
                 None if kinds.get(i) == Some(&Some(TokenKind::Error)) => {}
-                None => self.path_arg(w),
+                None => self.path_arg(w, after_dashdash),
             }
         }
     }
@@ -399,8 +408,9 @@ impl Pass<'_, '_> {
     }
 
     /// Checks a literal word as a path. Only the word being typed can be a path-prefix; a
-    /// missing path gets no span.
-    fn path_arg(&mut self, w: &Word) {
+    /// missing path gets no span. A word starting with `-` is an option and not checked unless
+    /// `options_ended` (it follows `--`).
+    fn path_arg(&mut self, w: &Word, options_ended: bool) {
         // Spans wholly inside PREBUFFER are clipped away, so skip the filesystem work.
         if w.end <= self.req.buffer_start || w.has_glob {
             return;
@@ -408,10 +418,13 @@ impl Pass<'_, '_> {
         let Some(lit) = w.literal.as_deref() else {
             return;
         };
-        let allow_prefix = self.typing(w);
+        if lit.starts_with('-') && !options_ended {
+            return;
+        }
+        let typing = self.typing(w);
         let kind = self
             .paths
-            .check_word(lit, w.tilde, self.req.cwd, self.state, allow_prefix);
+            .check_word(lit, w.tilde, self.req.cwd, self.state, typing);
         let kind = match kind {
             PathKind::File => TokenKind::Path,
             PathKind::Directory => TokenKind::PathDirectory,
@@ -1096,7 +1109,7 @@ mod tests {
     }
 
     #[test]
-    fn size_thresholds() {
+    fn size_thresholds_on_a_parse() {
         let mut f = fixture();
         let text = "ls src";
         let syntactic = vec![Span::new(3, 6, K::Glob)];
@@ -1229,8 +1242,6 @@ mod tests {
         }
         text.push_str("ech");
         let cwd = f.cwd();
-        let parse = parse_of(&text);
-        // Warm the caches, then time repeated requests within one TTL.
         let req = HighlightRequest {
             text: &text,
             buffer_start: 0,
@@ -1238,14 +1249,94 @@ mod tests {
             cwd: &cwd,
             opts: RequestOptions::default(),
         };
-        f.h.highlight_parsed(&req, parse.clone(), &f.specs, f.now);
-        let start = Instant::now();
-        let n = 200;
-        for _ in 0..n {
-            f.h.highlight_parsed(&req, parse.clone(), &f.specs, f.now);
+        let ttl = Duration::from_millis(f.h.config.limits.path_cache_ttl_ms + 1);
+        // The full request, parse included. Each iteration moves the clock past the cache TTL,
+        // so every path check goes to the filesystem again.
+        let mut times = Vec::new();
+        for _ in 0..200 {
+            f.now += ttl;
+            let start = Instant::now();
+            let spans = f.h.highlight_at(&req, f.now);
+            times.push(start.elapsed());
+            assert!(spans.iter().any(|s| s.kind == K::Path));
         }
-        let per = start.elapsed() / n;
-        // Generous for unoptimised builds; release builds are far below 1 ms.
-        assert!(per < Duration::from_millis(5), "{per:?} per request");
+        times.sort_unstable();
+        let median = times[times.len() / 2];
+        let limit = if cfg!(debug_assertions) {
+            Duration::from_millis(10)
+        } else {
+            Duration::from_millis(1)
+        };
+        assert!(median < limit, "median {median:?} per request");
+    }
+
+    #[test]
+    fn dash_words_after_double_dash_are_paths() {
+        let mut f = fixture();
+        f.dir.file("work/-dash.txt", 0o644);
+        assert_eq!(f.run("ls -dash.txt"), spans(&[("ls", K::Command)]));
+        assert_eq!(
+            f.run("ls -l -- -dash.txt -nope notes.txt"),
+            spans(&[
+                ("ls", K::Command),
+                ("-dash.txt", K::Path),
+                ("notes.txt", K::Path)
+            ])
+        );
+        assert_eq!(
+            f.run_typing("ls -- -da"),
+            spans(&[("ls", K::Command), ("-da", K::PathPrefix)])
+        );
+    }
+
+    #[test]
+    fn user_lookups_are_bounded_per_request() {
+        let mut f = fixture();
+        // Names no system has; the lookups fail and are cached as unknown.
+        let text = "ls ~fh_nouser_hl1/x ; ~fh_nouser_hl2/bin/tool";
+        // The argument's lookup uses this request's one uncached lookup, so the command word
+        // cannot be resolved yet: no span rather than an error.
+        assert_eq!(f.run(text), spans(&[("ls", K::Command)]));
+        // The next request may look the second name up; it does not exist, so error.
+        f.now += Duration::from_millis(10);
+        assert_eq!(
+            f.run(text),
+            spans(&[("ls", K::Command), ("~fh_nouser_hl2/bin/tool", K::Error)])
+        );
+    }
+
+    #[test]
+    fn user_lookup_skipped_for_the_word_being_typed() {
+        let mut f = fixture();
+        // While typing, an uncached name is not looked up: no span, and nothing cached, so the
+        // same name still gets no span (not an error) when typed as a command word.
+        assert_eq!(f.run_typing("~fh_nouser_hl3/x"), vec![]);
+        assert_eq!(
+            f.run_typing("ls ~fh_nouser_hl3/x"),
+            spans(&[("ls", K::Command)])
+        );
+        assert_eq!(f.run_typing("~fh_nouser_hl3/x"), vec![]);
+        // Once the cursor moves away the lookup happens.
+        f.now += Duration::from_millis(10);
+        assert_eq!(
+            f.run("~fh_nouser_hl3/x"),
+            spans(&[("~fh_nouser_hl3/x", K::Error)])
+        );
+    }
+
+    #[test]
+    fn truncated_listing_is_not_an_unknown_command() {
+        let mut f = fixture();
+        for i in 0..crate::paths::MAX_LISTING_NAMES + 5 {
+            f.dir.file(&format!("work/big/f{i:04}"), 0o644);
+        }
+        // Not in the part of the directory that was read, so the prefix check cannot tell.
+        assert_eq!(f.run_typing("./big/zz"), vec![]);
+        assert_eq!(
+            f.run_typing("./big/f"),
+            spans(&[("./big/f", K::PathPrefix)])
+        );
+        // A small directory still gives a definite answer.
+        assert_eq!(f.run_typing("./src/zz"), spans(&[("./src/zz", K::Error)]));
     }
 }

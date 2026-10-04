@@ -42,6 +42,8 @@ struct Daemon {
     stdin: Option<ChildStdin>,
     frames: Receiver<Result<Frame, String>>,
     log: PathBuf,
+    /// The scratch directory, which is also the directory the daemon was started in.
+    dir: PathBuf,
 }
 
 impl Daemon {
@@ -53,6 +55,7 @@ impl Daemon {
             .arg("--log")
             .arg(&log)
             .args(extra)
+            .current_dir(&dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -94,6 +97,7 @@ impl Daemon {
             stdin,
             frames: rx,
             log,
+            dir,
         }
     }
 
@@ -290,14 +294,137 @@ fn highlight_gets_a_response_and_daemon_survives() {
 
 #[test]
 fn hard_cap_returns_empty_result() {
-    // The default hard cap is 256 KiB; the engine is never consulted.
+    // The default hard cap is 64 KiB; the engine is never consulted above it.
     let mut d = Daemon::spawn("hard-cap", &[]);
-    let big = "x".repeat(300 * 1024);
-    d.send(&highlight(1, &big));
+    let at_cap = format!("echo '{}'", "x".repeat(64 * 1024 - 7));
+    d.send(&highlight(1, &at_cap));
     let f = d.recv();
-    assert_eq!((f.kind, f.id, f.body.len()), (b'R', 1, 0));
+    assert_eq!((f.kind, f.id), (b'R', 1));
+    assert!(!f.body.is_empty(), "lex-only spans at the cap");
+    let over_cap = format!("{at_cap} ");
+    d.send(&highlight(2, &over_cap));
+    let f = d.recv();
+    assert_eq!((f.kind, f.id, f.body.len()), (b'R', 2, 0));
+    d.send(&encode_quit(3));
+    assert!(d.wait().success());
+}
+
+#[test]
+fn result_is_cut_to_max_spans() {
+    // 1500 commands and separators: the default limit of 500 spans applies.
+    let mut d = Daemon::spawn("max-spans", &[]);
+    let buf = ": ;".repeat(1500);
+    d.send(&highlight(1, &buf));
+    let f = d.recv();
+    let spans = result_spans(&f.body);
+    assert_eq!(spans.len(), 500);
     d.send(&encode_quit(2));
     assert!(d.wait().success());
+}
+
+/// The daemon leaves the directory it was started in (so that file system can be unmounted)
+/// but keeps resolving relative paths against it until a request names another.
+#[cfg(target_os = "linux")]
+#[test]
+fn daemon_runs_in_root_but_remembers_its_start_directory() {
+    let mut d = Daemon::spawn("chdir", &[]);
+    std::fs::write(d.dir.join("notes.txt"), "").unwrap();
+    d.send(&encode_ping(1));
+    assert_eq!(d.recv().kind, b'A');
+    let cwd = std::fs::read_link(format!("/proc/{}/cwd", d.child.id())).unwrap();
+    assert_eq!(cwd, PathBuf::from("/"));
+    d.send(&highlight(2, "cat notes.txt"));
+    let spans = result_spans(&d.recv().body);
+    assert!(spans.contains(&(4, 13, "path".to_string())), "{spans:?}");
+    d.send(&encode_quit(3));
+    assert!(d.wait().success());
+}
+
+#[test]
+fn relative_log_path_is_in_the_start_directory() {
+    let dir = scratch("relative-log");
+    let mut cmd = Command::new(BIN);
+    cmd.args(["serve", "--timing", "--log", "rel.log"])
+        .current_dir(&dir)
+        .stdin(Stdio::piped())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    isolate(&mut cmd, &dir);
+    let mut child = cmd.spawn().unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    stdin.write_all(&encode_ping(1)).unwrap();
+    stdin.write_all(&encode_quit(2)).unwrap();
+    drop(stdin);
+    assert!(child.wait().unwrap().success());
+    let log = std::fs::read_to_string(dir.join("rel.log")).unwrap();
+    assert!(log.contains("id=1 type=P"), "{log}");
+}
+
+#[test]
+fn malformed_named_dirs_still_ack_and_apply_the_rest() {
+    let mut d = Daemon::spawn("nameddirs", &[]);
+    let body = b"alias 5\nzzfh\0\nnameddirs 2\nx\0\n";
+    d.send(&encode_frame(b'S', 1, body));
+    assert_eq!(d.recv().kind, b'A');
+    d.send(&highlight(2, "zzfh x"));
+    let spans = result_spans(&d.recv().body);
+    assert!(spans.contains(&(0, 4, "alias".to_string())), "{spans:?}");
+    d.send(&encode_quit(3));
+    let log = d.log.clone();
+    assert!(d.wait().success());
+    let text = std::fs::read_to_string(log).unwrap();
+    assert!(text.contains("nameddirs"), "log: {text}");
+}
+
+/// The latency target, measured by the daemon itself: 300 requests for a buffer of about 200
+/// characters, sent one at a time as the plugin does, with the per-request times taken from
+/// the `--timing` log. Release builds only; debug builds are far slower.
+#[cfg(not(debug_assertions))]
+#[test]
+fn latency_for_a_200_char_buffer() {
+    let mut d = Daemon::spawn("latency", &["--timing"]);
+    for file in ["notes.txt", "Cargo.toml", "src/main.rs"] {
+        let path = d.dir.join(file);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, "").unwrap();
+    }
+    // Let the startup PATH scan finish between requests, as it does in a shell.
+    d.send(&encode_ping(1));
+    assert_eq!(d.recv().kind, b'A');
+    let mut buf = String::new();
+    while buf.chars().count() < 200 {
+        buf.push_str("git commit -m \"$msg\" notes.txt && ls -la src/ | grep -v '^d' > out; ");
+    }
+    buf.truncate(200);
+    let n = 300;
+    for id in 2..2 + n {
+        let fields = HighlightFields {
+            buffer: buf.as_bytes().to_vec(),
+            cwd: (id == 2).then(|| d.dir.to_string_lossy().as_bytes().to_vec()),
+            opts: "u".to_string(),
+            ..HighlightFields::default()
+        };
+        d.send(&encode_highlight(id, &fields));
+        assert_eq!(d.recv().kind, b'R');
+    }
+    d.send(&encode_quit(n + 2));
+    let log = d.log.clone();
+    assert!(d.wait().success());
+    let text = std::fs::read_to_string(log).unwrap();
+    let mut times: Vec<u64> = text
+        .lines()
+        .filter(|line| line.contains(" type=H "))
+        .map(|line| {
+            let us = line.rsplit("us=").next().unwrap();
+            us.trim().parse().unwrap()
+        })
+        .collect();
+    assert_eq!(times.len(), n as usize, "{text}");
+    times.sort_unstable();
+    let median = times[times.len() / 2];
+    let p99 = times[times.len() * 99 / 100];
+    assert!(median < 1000, "median {median} us, p99 {p99} us");
+    assert!(p99 < 2000, "median {median} us, p99 {p99} us");
 }
 
 #[test]

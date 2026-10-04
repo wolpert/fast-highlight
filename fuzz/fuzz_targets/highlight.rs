@@ -22,9 +22,9 @@
 use fast_highlight::config::{Config, Limits};
 use fast_highlight::daemon::new_highlighter;
 use fast_highlight::highlight::{HighlightRequest, Highlighter, RequestOptions};
-use fast_highlight::protocol::{StateUpdate, WireSpan};
+use fast_highlight::protocol::StateUpdate;
 use fast_highlight::syntax::ParseOptions;
-use fast_highlight::text::{RequestText, Unit};
+use fast_highlight::text::{RequestText, Unit, check_wire_spans};
 use fast_highlight::token::check_spans;
 use libfuzzer_sys::fuzz_target;
 use std::fs;
@@ -106,37 +106,6 @@ fn setup() -> Env {
     }
 }
 
-/// Checks a wire span list against a buffer of `len` units: non-empty, in bounds, sorted by
-/// ascending start then descending end, and well nested.
-fn check_wire(spans: &[WireSpan], len: usize) -> Result<(), String> {
-    let mut stack: Vec<&WireSpan> = Vec::new();
-    let mut prev: Option<&WireSpan> = None;
-    for s in spans {
-        if s.start >= s.end {
-            return Err(format!("empty wire span {s:?}"));
-        }
-        if s.end > len {
-            return Err(format!("wire span {s:?} out of bounds (len {len})"));
-        }
-        if let Some(p) = prev
-            && (s.start < p.start || (s.start == p.start && s.end > p.end))
-        {
-            return Err(format!("wire span {s:?} out of order after {p:?}"));
-        }
-        while stack.last().is_some_and(|top| top.end <= s.start) {
-            stack.pop();
-        }
-        if let Some(top) = stack.last()
-            && s.end > top.end
-        {
-            return Err(format!("wire span {s:?} partially overlaps {top:?}"));
-        }
-        stack.push(s);
-        prev = Some(s);
-    }
-    Ok(())
-}
-
 fuzz_target!(|data: &[u8]| {
     let Some((header, rest)) = data.split_first_chunk::<5>() else {
         return;
@@ -195,7 +164,7 @@ fuzz_target!(|data: &[u8]| {
         (Unit::Chars, s[bs..].chars().count()),
     ] {
         let wire = text.wire_spans(&spans, unit);
-        if let Err(e) = check_wire(&wire, len) {
+        if let Err(e) = check_wire_spans(&wire, len) {
             panic!(
                 "{unit:?} wire spans invalid: {e}\ntext: {s:?}\nspans: {spans:?}\nwire: {wire:?}"
             );

@@ -195,6 +195,9 @@ fn parse_highlight(args: &[OsString]) -> Result<Command, String> {
 }
 
 fn execute(command: Command) -> i32 {
+    if !matches!(command, Command::Serve(_)) {
+        restore_default_sigpipe();
+    }
     match command {
         Command::Serve(opts) => daemon::serve(opts),
         Command::Styles => cmd_styles(),
@@ -209,6 +212,18 @@ fn execute(command: Command) -> i32 {
             print!("{USAGE}");
             0
         }
+    }
+}
+
+/// Gives SIGPIPE back its default action, which the Rust runtime sets to "ignore" before `main`.
+/// With it ignored, writing to a closed pipe (`fast-highlight check-config | head -1`) fails
+/// with EPIPE and `println!` panics; with the default action the process just ends quietly,
+/// like any other filter. Only `serve` keeps it ignored, to turn a vanished reader into a
+/// write error it can log.
+fn restore_default_sigpipe() {
+    // SAFETY: setting a signal disposition to SIG_DFL has no preconditions.
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
 }
 
@@ -321,6 +336,8 @@ fn cmd_highlight(args: HighlightArgs) -> i32 {
         opts.push('u');
     }
 
+    // Allocate as the daemon does, so --timing reports what `serve` would take.
+    daemon::tune_allocator();
     let (config, _) = load_config();
     let (mut highlighter, warnings) = daemon::new_highlighter(&config);
     for warning in warnings {
@@ -330,8 +347,7 @@ fn cmd_highlight(args: HighlightArgs) -> i32 {
         path: Some(std::env::var("PATH").unwrap_or_default()),
         ..StateUpdate::default()
     });
-    let hard_cap = config.limits.hard_cap_bytes;
-    let mut session = Session::new(highlighter, hard_cap, cwd, Log::disabled());
+    let mut session = Session::new(highlighter, &config.limits, cwd, Log::disabled());
     let fields = HighlightFields {
         buffer: input,
         opts,
@@ -449,7 +465,8 @@ struct Style {
     standout: bool,
 }
 
-/// Parses a zsh highlight spec such as `fg=red,bold` or `fg=#ff8800,bg=236,underline`.
+/// Parses a zsh highlight spec such as `fg=red,bold`, `fg=#f80`, or
+/// `fg=#ff8800,bg=236,underline`.
 /// Unrecognised parts are ignored.
 fn parse_style(spec: &str) -> Style {
     let mut style = Style::default();
@@ -482,11 +499,19 @@ fn parse_color(name: &str) -> Option<Color> {
         return Some(Color::Basic(i as u8));
     }
     if let Some(hex) = name.strip_prefix('#') {
-        if hex.len() != 6 || !hex.is_ascii() {
+        if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
             return None;
         }
-        let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).ok();
-        return Some(Color::Rgb(byte(0)?, byte(2)?, byte(4)?));
+        let digit = |i: usize| u8::from_str_radix(&hex[i..=i], 16).ok();
+        return match hex.len() {
+            // zsh reads `#rgb` as `#rrggbb`.
+            3 => Some(Color::Rgb(digit(0)? * 17, digit(1)? * 17, digit(2)? * 17)),
+            6 => {
+                let byte = |i: usize| u8::from_str_radix(&hex[i..i + 2], 16).ok();
+                Some(Color::Rgb(byte(0)?, byte(2)?, byte(4)?))
+            }
+            _ => None,
+        };
     }
     name.parse::<u8>().ok().map(Color::Indexed)
 }
@@ -675,6 +700,13 @@ mod tests {
         );
         assert_eq!(parse_style("none"), Style::default());
         assert_eq!(parse_style("fg=#zz0000,fg=300,blink").fg, None);
+        assert_eq!(parse_style("fg=#f80").fg, Some(Color::Rgb(255, 136, 0)));
+        assert_eq!(parse_style("bg=#0aF").bg, Some(Color::Rgb(0, 170, 255)));
+        for bad in [
+            "#", "#ab", "#abcd", "#abcde", "#abcdefa", "#ggg", "#+12", "#é1",
+        ] {
+            assert_eq!(parse_color(bad), None, "{bad}");
+        }
         assert_eq!(parse_style("bg=default").bg, Some(Color::Default));
     }
 
@@ -682,6 +714,7 @@ mod tests {
     fn sgr_codes() {
         let style = parse_style("fg=green,bg=#010203,bold");
         assert_eq!(sgr(&style), "\x1b[0;1;32;48;2;1;2;3m");
+        assert_eq!(sgr(&parse_style("fg=#123")), "\x1b[0;38;2;17;34;51m");
         assert_eq!(sgr(&parse_style("fg=208")), "\x1b[0;38;5;208m");
     }
 

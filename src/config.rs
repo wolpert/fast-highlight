@@ -4,7 +4,8 @@
 //! theme = "default"            # optional
 //! [limits]
 //! lex-only-bytes = 10240
-//! hard-cap-bytes = 262144
+//! hard-cap-bytes = 65536
+//! max-spans = 500
 //! max-path-checks = 64
 //! path-cache-ttl-ms = 1000
 //! [log]
@@ -26,6 +27,9 @@ pub struct Limits {
     pub lex_only_bytes: usize,
     /// Above this many bytes of text, return no highlighting at all.
     pub hard_cap_bytes: usize,
+    /// The most spans the daemon returns for one request. A longer list is cut to its first
+    /// `max_spans` entries (a prefix of a sorted, well-nested list is still both).
+    pub max_spans: usize,
     /// Maximum number of filesystem checks per highlight request.
     pub max_path_checks: usize,
     /// How long a cached filesystem check result stays valid, in milliseconds.
@@ -36,7 +40,8 @@ impl Default for Limits {
     fn default() -> Limits {
         Limits {
             lex_only_bytes: 10 * 1024,
-            hard_cap_bytes: 256 * 1024,
+            hard_cap_bytes: 64 * 1024,
+            max_spans: 500,
             max_path_checks: 64,
             path_cache_ttl_ms: 1000,
         }
@@ -236,6 +241,11 @@ fn validate_limits(limits: &Limits) -> Result<(), ConfigError> {
             limits.hard_cap_bytes, limits.lex_only_bytes
         )));
     }
+    if limits.max_spans == 0 {
+        return Err(ConfigError(
+            "limits.max-spans must be greater than 0".into(),
+        ));
+    }
     Ok(())
 }
 
@@ -297,10 +307,11 @@ mod tests {
             (
                 l.lex_only_bytes,
                 l.hard_cap_bytes,
+                l.max_spans,
                 l.max_path_checks,
                 l.path_cache_ttl_ms
             ),
-            (10240, 262144, 64, 1000)
+            (10240, 65536, 500, 64, 1000)
         );
         let c = Config::default();
         assert_eq!(c.theme, None);
@@ -321,6 +332,7 @@ theme = "truecolor"
 [limits]
 lex-only-bytes = 100
 hard-cap-bytes = 200
+max-spans = 7
 max-path-checks = 0
 path-cache-ttl-ms = 0
 [log]
@@ -335,6 +347,7 @@ file = "~/logs/fh.log"
             Limits {
                 lex_only_bytes: 100,
                 hard_cap_bytes: 200,
+                max_spans: 7,
                 max_path_checks: 0,
                 path_cache_ttl_ms: 0
             }
@@ -394,6 +407,16 @@ file = "~/logs/fh.log"
         let e = parse_err("[limits]\nlex-only-bytes = 0\nhard-cap-bytes = 0\n");
         assert!(e.contains("hard-cap-bytes must be greater than 0"), "{e}");
         assert!(parse("[limits]\nlex-only-bytes = 0\n").is_ok());
+    }
+
+    #[test]
+    fn max_spans_must_be_nonzero() {
+        let e = parse_err("[limits]\nmax-spans = 0\n");
+        assert!(e.contains("max-spans must be greater than 0"), "{e}");
+        assert_eq!(
+            parse("[limits]\nmax-spans = 1\n").unwrap().limits.max_spans,
+            1
+        );
     }
 
     #[test]

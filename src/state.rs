@@ -1,9 +1,11 @@
 //! The daemon's copy of the shell's command namespace, plus its own `$PATH` scan.
 //!
 //! The zsh side sends aliases, functions, builtins, reserved words, and named directories with
-//! state requests. The daemon scans `$PATH` itself and keeps the executable names in a cache
-//! that it rebuilds when `PATH` changes or when the modification time of a listed directory
-//! changes (checked at most once per [`PATH_RECHECK_INTERVAL`]).
+//! state requests. The daemon scans `$PATH` itself and caches the command names per directory.
+//! It rebuilds the cache when `PATH` changes or on `rehash`, and rereads a single directory when
+//! its modification time changes. Highlight requests never compare mtimes; the daemon does that
+//! between requests, at most once per [`PATH_RECHECK_INTERVAL`] (see
+//! [`ShellState::refresh_path`]).
 
 use crate::protocol::StateUpdate;
 use std::collections::{BTreeSet, HashMap};
@@ -169,24 +171,30 @@ const DEFAULT_BUILTINS: &[&str] = &[
     "zstyle",
 ];
 
-/// One directory of the `$PATH` scan and the modification time it had when it was read.
+/// One directory of the `$PATH` scan: the modification time it had when it was read, and the
+/// command names found in it.
 #[derive(Debug, Clone)]
 struct ScannedDir {
     dir: PathBuf,
     /// `None` when the directory did not exist (or could not be read) at scan time.
     mtime: Option<SystemTime>,
+    names: Vec<String>,
 }
 
-/// The executable names found in `$PATH`.
+/// The command names found in `$PATH`, cached per directory and keyed by its mtime.
 #[derive(Debug, Default)]
 struct PathCache {
     /// The `PATH` value the cache describes.
     path: String,
-    /// The cache must be rebuilt before the next lookup (PATH changed or was never scanned).
+    /// The directory list must be rebuilt from `path` before the next lookup (PATH changed,
+    /// `rehash`, or never scanned).
     dirty: bool,
+    /// The next rebuild rereads every directory whatever its mtime (`rehash`).
+    force: bool,
     dirs: Vec<ScannedDir>,
+    /// The union of the names of every directory in `dirs`.
     commands: BTreeSet<String>,
-    /// When the directory mtimes were last compared (or the last scan finished).
+    /// When the directory mtimes were last compared (or the last rebuild finished).
     last_check: Option<Instant>,
 }
 
@@ -198,30 +206,58 @@ impl PathCache {
         }
     }
 
-    /// Rescans when dirty, or when a directory's mtime changed and the last check is at least
-    /// [`PATH_RECHECK_INTERVAL`] old. Returns true when a scan happened.
-    fn refresh(&mut self, now: Instant) -> bool {
+    /// Schedules a rebuild that rereads every directory.
+    fn invalidate(&mut self) {
+        self.dirty = true;
+        self.force = true;
+    }
+
+    /// Rebuilds when dirty, without looking at directory mtimes. This is all a highlight
+    /// request does, so a keystroke never pays for the mtime checks. Returns true when the
+    /// cache was rebuilt.
+    fn scan_if_dirty(&mut self, now: Instant) -> bool {
         if !self.dirty {
-            let due = self
-                .last_check
-                .is_none_or(|t| now.saturating_duration_since(t) >= PATH_RECHECK_INTERVAL);
-            if !due {
-                return false;
-            }
-            self.last_check = Some(now);
-            if self.dirs.iter().all(|d| dir_mtime(&d.dir) == d.mtime) {
-                return false;
-            }
+            return false;
         }
-        self.scan();
-        self.dirty = false;
-        self.last_check = Some(now);
+        self.rebuild(now);
         true
     }
 
-    fn scan(&mut self) {
-        self.dirs.clear();
-        self.commands.clear();
+    /// Rebuilds when dirty; otherwise, when the last check is at least
+    /// [`PATH_RECHECK_INTERVAL`] old, compares each directory's mtime with the one it had when
+    /// it was read and rereads only the directories that changed. Returns true when any
+    /// directory was read.
+    fn refresh(&mut self, now: Instant) -> bool {
+        if self.dirty {
+            self.rebuild(now);
+            return true;
+        }
+        let due = self
+            .last_check
+            .is_none_or(|t| now.saturating_duration_since(t) >= PATH_RECHECK_INTERVAL);
+        if !due {
+            return false;
+        }
+        self.last_check = Some(now);
+        let mut changed = false;
+        for d in &mut self.dirs {
+            let mtime = dir_mtime(&d.dir);
+            if mtime != d.mtime {
+                d.names = read_names(&d.dir, mtime);
+                d.mtime = mtime;
+                changed = true;
+            }
+        }
+        if changed {
+            self.collect_commands();
+        }
+        changed
+    }
+
+    /// Rebuilds the directory list from `path`, reusing the names of every directory whose
+    /// mtime is unchanged since it was read (unless `force` is set).
+    fn rebuild(&mut self, now: Instant) {
+        let mut old = std::mem::take(&mut self.dirs);
         for entry in self.path.split(':') {
             // zsh treats an empty entry and `.` as the current directory; the daemon cannot
             // follow the shell's cwd for a cached scan, so relative entries are skipped.
@@ -232,13 +268,31 @@ impl PathCache {
             if self.dirs.iter().any(|d| d.dir == dir) {
                 continue;
             }
-            // Record the mtime before reading, so a change during the read triggers a rescan.
+            // Record the mtime before reading, so a change during the read triggers a reread.
             let mtime = dir_mtime(&dir);
-            if mtime.is_some() {
-                scan_dir(&dir, &mut self.commands);
-            }
-            self.dirs.push(ScannedDir { dir, mtime });
+            let reuse = old.iter().position(|d| d.dir == dir);
+            let scanned = match reuse.map(|i| old.swap_remove(i)) {
+                Some(d) if !self.force && d.mtime == mtime => d,
+                _ => ScannedDir {
+                    names: read_names(&dir, mtime),
+                    dir,
+                    mtime,
+                },
+            };
+            self.dirs.push(scanned);
         }
+        self.collect_commands();
+        self.dirty = false;
+        self.force = false;
+        self.last_check = Some(now);
+    }
+
+    fn collect_commands(&mut self) {
+        self.commands = self
+            .dirs
+            .iter()
+            .flat_map(|d| d.names.iter().cloned())
+            .collect();
     }
 }
 
@@ -246,30 +300,22 @@ fn dir_mtime(dir: &Path) -> Option<SystemTime> {
     std::fs::metadata(dir).and_then(|m| m.modified()).ok()
 }
 
-/// Adds the names of executable regular files (or symlinks to them) in `dir` to `out`.
-fn scan_dir(dir: &Path, out: &mut BTreeSet<String>) {
-    let Ok(entries) = std::fs::read_dir(dir) else {
-        return;
-    };
-    for entry in entries.flatten() {
-        // The entry's file type usually comes from the directory listing itself; only files and
-        // symlinks need a stat to learn executability (and, for symlinks, the target type).
-        let Ok(ft) = entry.file_type() else {
-            continue;
-        };
-        if ft.is_dir() {
-            continue;
-        }
-        let Ok(name) = entry.file_name().into_string() else {
-            continue;
-        };
-        if out.contains(&name) {
-            continue;
-        }
-        if is_executable_file(&entry.path()) {
-            out.insert(name);
-        }
+/// The command names in `dir` (nothing when `mtime` says it is missing), with zsh's default
+/// rules (`HASH_EXECUTABLES_ONLY` unset): every entry that is not a directory counts, whatever
+/// its permissions, including symlinks (not followed). The type comes from the directory
+/// listing itself, so this costs no `stat` per entry on file systems that report entry types.
+fn read_names(dir: &Path, mtime: Option<SystemTime>) -> Vec<String> {
+    if mtime.is_none() {
+        return Vec::new();
     }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    entries
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|ft| !ft.is_dir()))
+        .filter_map(|e| e.file_name().into_string().ok())
+        .collect()
 }
 
 /// True when `path` (following symlinks) is a regular file with any execute bit set.
@@ -311,7 +357,7 @@ fn has_prefix(set: &BTreeSet<String>, prefix: &str) -> bool {
 impl ShellState {
     /// A state with the built-in builtin and reserved-word lists, `PATH` taken from the daemon's
     /// own environment, and `HOME` from the environment. The `$PATH` scan runs lazily on the
-    /// first [`ShellState::refresh_path`].
+    /// first [`ShellState::refresh_path`] or [`ShellState::scan_path_if_dirty`].
     pub fn new() -> ShellState {
         let mut path = PathCache::default();
         path.set_path(std::env::var("PATH").unwrap_or_default());
@@ -331,7 +377,8 @@ impl ShellState {
     }
 
     /// Replaces each part of the state whose field in `update` is `Some`. A changed `path`
-    /// schedules a rescan on the next [`ShellState::refresh_path`].
+    /// schedules a rescan, and `rehash` a full rescan, on the next
+    /// [`ShellState::refresh_path`] or [`ShellState::scan_path_if_dirty`].
     pub fn apply_update(&mut self, update: StateUpdate) {
         let StateUpdate {
             aliases,
@@ -342,6 +389,7 @@ impl ShellState {
             reserved_words,
             named_dirs,
             path,
+            rehash,
         } = update;
         let replace = |dst: &mut BTreeSet<String>, src: Option<Vec<String>>| {
             if let Some(v) = src {
@@ -364,22 +412,35 @@ impl ShellState {
         if let Some(p) = path {
             self.path.set_path(p);
         }
+        if rehash {
+            self.invalidate_path();
+        }
     }
 
-    /// Brings the `$PATH` cache up to date; call once per request before classifying.
+    /// Brings the `$PATH` cache up to date: rescans after a `PATH` change or `rehash`, and
+    /// otherwise, at most once per [`PATH_RECHECK_INTERVAL`], rereads the directories whose
+    /// modification time changed. The daemon calls this between requests, never while a
+    /// highlight request waits.
     pub fn refresh_path(&mut self) {
         self.refresh_path_at(Instant::now());
     }
 
-    /// [`ShellState::refresh_path`] with an explicit clock, for tests. Returns true when the
-    /// directories were rescanned.
+    /// [`ShellState::refresh_path`] with an explicit clock, for tests. Returns true when any
+    /// directory was read.
     pub fn refresh_path_at(&mut self, now: Instant) -> bool {
         self.path.refresh(now)
     }
 
-    /// Forces a full rescan on the next refresh (for an explicit `rehash`).
+    /// Rescans only when a `PATH` change or `rehash` is pending, without comparing directory
+    /// mtimes; call before classifying in a highlight request. Returns true when it rescanned.
+    pub fn scan_path_if_dirty(&mut self, now: Instant) -> bool {
+        self.path.scan_if_dirty(now)
+    }
+
+    /// Forces a full rescan, rereading every directory whatever its mtime (for an explicit
+    /// `rehash`).
     pub fn invalidate_path(&mut self) {
-        self.path.dirty = true;
+        self.path.invalidate();
     }
 
     /// The directory `hash -d` maps `name` to.
@@ -402,7 +463,7 @@ impl ShellState {
         self.global_aliases.contains(word)
     }
 
-    /// True when `word` names an executable found by the last `$PATH` scan.
+    /// True when `word` names a command found by the last `$PATH` scan.
     pub fn is_path_command(&self, word: &str) -> bool {
         !word.contains('/') && self.path.commands.contains(word)
     }
@@ -541,6 +602,7 @@ pub(crate) mod tests {
             reserved_words: strings(&[]),
             named_dirs: Some(vec![]),
             path: Some(path.to_owned()),
+            rehash: false,
         });
         s.refresh_path_at(Instant::now());
         s
@@ -611,8 +673,10 @@ pub(crate) mod tests {
         );
     }
 
+    /// zsh's default (`HASH_EXECUTABLES_ONLY` unset) hashes every entry of a `$PATH` directory
+    /// that is not a directory, whatever its permissions, and symlinks without following them.
     #[test]
-    fn path_scan_finds_executables_only() {
+    fn path_scan_follows_zsh_hash_rules() {
         let t = TempDir::new("scan");
         t.file("a/run", 0o755);
         t.file("a/data", 0o644);
@@ -622,6 +686,7 @@ pub(crate) mod tests {
         std::os::unix::fs::symlink(t.path().join("a/run"), t.path().join("a/link")).unwrap();
         std::os::unix::fs::symlink(t.path().join("a/data"), t.path().join("a/datalink")).unwrap();
         std::os::unix::fs::symlink(t.path().join("nowhere"), t.path().join("a/dangling")).unwrap();
+        std::os::unix::fs::symlink(t.path().join("a/subdir"), t.path().join("a/dirlink")).unwrap();
         let a = t.path().join("a");
         let b = t.path().join("b");
         let path = format!(
@@ -632,14 +697,17 @@ pub(crate) mod tests {
             a.display()
         );
         let s = empty_state(&path);
-        for name in ["run", "other", "link"] {
+        // A symlink to a directory counts too: telling it apart would need a stat per entry.
+        for name in [
+            "run", "other", "link", "data", "datalink", "dangling", "dirlink",
+        ] {
             assert_eq!(
                 s.classify_name(name, false),
                 CommandClass::External,
                 "{name}"
             );
         }
-        for name in ["data", "subdir", "datalink", "dangling", "missing"] {
+        for name in ["subdir", "missing"] {
             assert_eq!(
                 s.classify_name(name, false),
                 CommandClass::Unknown,
@@ -714,15 +782,110 @@ pub(crate) mod tests {
         assert!(s.is_path_command("tool"));
     }
 
+    /// Adds an executable to `dir` without changing the directory's mtime, so only a forced
+    /// reread can find it.
+    fn add_hidden(t: &TempDir, dir: &Path, name: &str) {
+        let before = fs::metadata(dir).unwrap().modified().unwrap();
+        t.file(
+            &format!("{}/{name}", dir.file_name().unwrap().to_str().unwrap()),
+            0o755,
+        );
+        fs::File::open(dir).unwrap().set_modified(before).unwrap();
+    }
+
     #[test]
     fn invalidate_forces_rescan() {
         let t = TempDir::new("rehash");
         let a = t.dir("a");
         let mut s = empty_state(&a.to_string_lossy());
-        t.file("a/x", 0o755);
+        let t0 = s.path.last_check.unwrap();
+        add_hidden(&t, &a, "x");
+        // The mtime is unchanged, so the periodic check finds nothing.
+        assert!(!s.refresh_path_at(t0 + Duration::from_secs(2)));
+        assert!(!s.is_path_command("x"));
         s.invalidate_path();
-        assert!(s.refresh_path_at(Instant::now()));
+        assert!(s.refresh_path_at(t0 + Duration::from_secs(2)));
         assert!(s.is_path_command("x"));
+    }
+
+    #[test]
+    fn rehash_in_a_state_update_forces_rescan() {
+        let t = TempDir::new("rehash-update");
+        let a = t.dir("a");
+        let mut s = empty_state(&a.to_string_lossy());
+        add_hidden(&t, &a, "x");
+        s.apply_update(StateUpdate {
+            rehash: true,
+            ..Default::default()
+        });
+        assert!(s.scan_path_if_dirty(Instant::now()));
+        assert!(s.is_path_command("x"));
+        // Without `rehash`, an update leaves the cache alone.
+        add_hidden(&t, &a, "y");
+        s.apply_update(StateUpdate::default());
+        assert!(!s.scan_path_if_dirty(Instant::now()));
+        assert!(!s.is_path_command("y"));
+    }
+
+    #[test]
+    fn only_changed_directories_are_reread() {
+        let t = TempDir::new("perdir");
+        let a = t.dir("a");
+        let b = t.dir("b");
+        set_mtime(&a, 1_000_000);
+        set_mtime(&b, 1_000_000);
+        let mut s = empty_state(&format!("{}:{}", a.display(), b.display()));
+        let t0 = s.path.last_check.unwrap();
+        add_hidden(&t, &b, "in_b");
+        t.file("a/in_a", 0o755);
+        set_mtime(&a, 2_000_000);
+        assert!(s.refresh_path_at(t0 + Duration::from_secs(2)));
+        assert!(s.is_path_command("in_a"));
+        assert!(!s.is_path_command("in_b"), "b's mtime did not change");
+    }
+
+    #[test]
+    fn path_change_reuses_unchanged_directories() {
+        let t = TempDir::new("reuse");
+        let a = t.dir("a");
+        t.file("b/in_b", 0o755);
+        let mut s = empty_state(&a.to_string_lossy());
+        add_hidden(&t, &a, "in_a");
+        s.apply_update(StateUpdate {
+            path: Some(format!("{}:{}", a.display(), t.path().join("b").display())),
+            ..Default::default()
+        });
+        assert!(s.scan_path_if_dirty(Instant::now()));
+        assert!(s.is_path_command("in_b"), "a new directory is read");
+        assert!(
+            !s.is_path_command("in_a"),
+            "an unchanged directory is reused"
+        );
+        // Dropping a directory from PATH drops its names.
+        s.apply_update(StateUpdate {
+            path: Some(t.path().join("b").to_string_lossy().into_owned()),
+            ..Default::default()
+        });
+        s.scan_path_if_dirty(Instant::now());
+        assert!(s.is_path_command("in_b"));
+        assert_eq!(s.path.dirs.len(), 1);
+    }
+
+    #[test]
+    fn highlight_path_scan_skips_mtime_checks() {
+        let t = TempDir::new("nocheck");
+        let a = t.dir("a");
+        set_mtime(&a, 1_000_000);
+        let mut s = empty_state(&a.to_string_lossy());
+        let t0 = s.path.last_check.unwrap();
+        t.file("a/new", 0o755);
+        set_mtime(&a, 2_000_000);
+        // Long after the interval, the request-path scan still does not compare mtimes...
+        assert!(!s.scan_path_if_dirty(t0 + Duration::from_secs(10)));
+        assert!(!s.is_path_command("new"));
+        // ...which is left to the periodic refresh between requests.
+        assert!(s.refresh_path_at(t0 + Duration::from_secs(10)));
+        assert!(s.is_path_command("new"));
     }
 
     #[test]

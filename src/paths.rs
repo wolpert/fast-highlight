@@ -4,6 +4,14 @@
 //! [`PathChecker`]: results are cached by absolute path for a short TTL, and the number of
 //! uncached filesystem calls per request is capped. A check that would exceed the cap is not
 //! made; the word simply gets no path highlight.
+//!
+//! Two kinds of check have extra bounds because a single one can be slow:
+//!
+//! - A directory listing (for prefix detection) reads at most [`MAX_LISTING_NAMES`] entries.
+//!   A name not found in a truncated listing is "unknown", never "no such prefix".
+//! - A `~user` lookup in the password database (which may query NSS, LDAP, and so on) is made
+//!   at most once per request, never for the word being typed, and counts against the check
+//!   budget. Results are cached for the life of the process.
 
 use crate::config::Limits;
 use crate::state::ShellState;
@@ -40,8 +48,12 @@ pub enum FileStat {
 const MAX_STAT_ENTRIES: usize = 4096;
 /// Maximum number of cached directory listings (used for prefix detection).
 const MAX_LISTINGS: usize = 64;
-/// Maximum number of names read from one directory for prefix detection.
-const MAX_LISTING_NAMES: usize = 16384;
+/// Maximum number of names read from one directory for prefix detection. Reading a directory
+/// costs roughly 0.2-0.4 us per entry on ext4, so this bounds a listing to a few hundred
+/// microseconds; a larger directory gets an incomplete listing.
+pub const MAX_LISTING_NAMES: usize = 512;
+/// Maximum number of uncached `~user` lookups per request.
+const MAX_USER_LOOKUPS: usize = 1;
 /// Maximum number of cached `~user` lookups.
 const MAX_USER_ENTRIES: usize = 256;
 
@@ -59,6 +71,20 @@ struct Listing {
     at: Instant,
     /// Entry names, sorted bytewise. Empty when the directory could not be read.
     names: Vec<Box<[u8]>>,
+    /// False when the directory had more than [`MAX_LISTING_NAMES`] entries and `names` holds
+    /// only some of them.
+    complete: bool,
+}
+
+/// The outcome of resolving a shell word to an absolute path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Resolution {
+    Path(PathBuf),
+    /// The tilde cannot be expanded: an unknown user, `~-`, a directory stack entry, or no
+    /// home directory.
+    Unresolvable,
+    /// Expanding `~user` needs a password database lookup that this request may not make.
+    Deferred,
 }
 
 /// Cached filesystem checks with a per-request budget.
@@ -70,6 +96,7 @@ pub struct PathChecker {
     ttl: Duration,
     max_checks: usize,
     checks_left: usize,
+    user_lookups_left: usize,
     now: Instant,
     last_sweep: Instant,
     // Keyed by the raw path bytes: `PathBuf` equality ignores a trailing `/`, which matters
@@ -91,6 +118,7 @@ impl PathChecker {
             ttl: Duration::from_millis(limits.path_cache_ttl_ms),
             max_checks: limits.max_path_checks,
             checks_left: limits.max_path_checks,
+            user_lookups_left: MAX_USER_LOOKUPS,
             now,
             last_sweep: now,
             stats: HashMap::new(),
@@ -104,6 +132,7 @@ impl PathChecker {
         self.ttl = Duration::from_millis(limits.path_cache_ttl_ms);
         self.max_checks = limits.max_path_checks;
         self.checks_left = self.max_checks;
+        self.user_lookups_left = MAX_USER_LOOKUPS;
         self.now = now;
         if now.saturating_duration_since(self.last_sweep) >= self.ttl {
             self.sweep();
@@ -164,8 +193,9 @@ impl PathChecker {
     }
 
     /// True when the final component of `abs` is a proper or complete prefix of an entry in its
-    /// parent directory. `None` when the budget is exhausted. A path ending in `/` has no
-    /// final component and is never a prefix.
+    /// parent directory. `None` when that is unknown: the budget is exhausted, or the parent
+    /// has more than [`MAX_LISTING_NAMES`] entries and none of those read matches. A path
+    /// ending in `/` has no final component and is never a prefix.
     pub fn is_prefix(&mut self, abs: &Path) -> Option<bool> {
         let bytes = abs.as_os_str().as_bytes();
         let Some(slash) = bytes.iter().rposition(|&b| b == b'/') else {
@@ -181,7 +211,7 @@ impl PathChecker {
             if !self.spend() {
                 return None;
             }
-            let names = list_dir(Path::new(parent));
+            let (names, complete) = list_dir(Path::new(parent));
             if self.listings.len() >= MAX_LISTINGS {
                 self.sweep();
                 if self.listings.len() >= MAX_LISTINGS {
@@ -193,12 +223,14 @@ impl PathChecker {
                 Listing {
                     at: self.now,
                     names,
+                    complete,
                 },
             );
         }
-        let names = &self.listings[parent].names;
-        let i = names.partition_point(|n| &n[..] < name);
-        Some(names.get(i).is_some_and(|n| n.starts_with(name)))
+        let listing = &self.listings[parent];
+        let i = listing.names.partition_point(|n| &n[..] < name);
+        let found = listing.names.get(i).is_some_and(|n| n.starts_with(name));
+        (found || listing.complete).then_some(found)
     }
 
     /// Checks an absolute path. With `allow_prefix`, a missing path whose final component
@@ -215,29 +247,66 @@ impl PathChecker {
         }
     }
 
-    /// Resolves a shell word (see [`resolve`]) and checks it. Words that cannot be paths
-    /// cheaply (empty, starting with `-`, longer than `PATH_MAX`) are [`PathKind::Missing`].
+    /// Resolves a shell word (see [`PathChecker::resolve`]) and checks it. `typing` means the
+    /// cursor is at the end of the word: a missing path may then be [`PathKind::Prefix`], and
+    /// an uncached `~user` is not looked up. Words that cannot be paths cheaply (empty, longer
+    /// than `PATH_MAX`) are [`PathKind::Missing`]. A word starting with `-` is checked like any
+    /// other; whether it is an option is for the caller to decide.
     pub fn check_word(
         &mut self,
         word: &str,
         tilde: bool,
         cwd: &Path,
         state: &ShellState,
-        allow_prefix: bool,
+        typing: bool,
     ) -> PathKind {
-        if !could_be_path(word) {
+        if !is_checkable(word) {
             return PathKind::Missing;
         }
-        match resolve(word, tilde, cwd, state) {
-            Some(abs) => self.check(&abs, allow_prefix),
-            None => PathKind::Missing,
+        match self.resolve(word, tilde, cwd, state, typing) {
+            Resolution::Path(abs) => self.check(&abs, typing),
+            Resolution::Unresolvable | Resolution::Deferred => PathKind::Missing,
         }
+    }
+
+    /// [`resolve`] within this request's budget. A `~user` not in the cache is looked up only
+    /// when the word is not being typed (`typing` false), no other uncached lookup happened in
+    /// this request, and the check budget has room; otherwise the result is
+    /// [`Resolution::Deferred`].
+    pub fn resolve(
+        &mut self,
+        word: &str,
+        tilde: bool,
+        cwd: &Path,
+        state: &ShellState,
+        typing: bool,
+    ) -> Resolution {
+        resolve_with(word, tilde, cwd, state, |name| {
+            if !is_user_name(name) {
+                return Resolution::Unresolvable;
+            }
+            if let Some(home) = cached_user_home(name) {
+                return home.map_or(Resolution::Unresolvable, Resolution::Path);
+            }
+            if typing || self.user_lookups_left == 0 || !self.spend() {
+                return Resolution::Deferred;
+            }
+            self.user_lookups_left -= 1;
+            user_home(name).map_or(Resolution::Unresolvable, Resolution::Path)
+        })
     }
 }
 
-/// True unless `word` obviously is not a path worth a filesystem check.
+/// True unless `word` obviously cannot name a file: empty, longer than `PATH_MAX`, or holding a
+/// NUL byte.
+fn is_checkable(word: &str) -> bool {
+    !word.is_empty() && word.len() <= PATH_MAX && !word.contains('\0')
+}
+
+/// True unless `word` obviously is not a path worth a filesystem check: like
+/// [`PathChecker::check_word`]'s rule, and also not starting with `-` (an option).
 pub fn could_be_path(word: &str) -> bool {
-    !word.is_empty() && !word.starts_with('-') && word.len() <= PATH_MAX && !word.contains('\0')
+    is_checkable(word) && !word.starts_with('-')
 }
 
 fn stat_uncached(abs: &Path) -> FileStat {
@@ -252,17 +321,21 @@ fn stat_uncached(abs: &Path) -> FileStat {
     }
 }
 
-fn list_dir(dir: &Path) -> Vec<Box<[u8]>> {
+/// Up to [`MAX_LISTING_NAMES`] entry names of `dir`, sorted, and whether that is all of them.
+/// An unreadable directory is complete and empty.
+fn list_dir(dir: &Path) -> (Vec<Box<[u8]>>, bool) {
     let Ok(entries) = std::fs::read_dir(dir) else {
-        return Vec::new();
+        return (Vec::new(), true);
     };
+    let mut entries = entries.flatten();
     let mut names: Vec<Box<[u8]>> = entries
-        .flatten()
+        .by_ref()
         .take(MAX_LISTING_NAMES)
         .map(|e| e.file_name().as_bytes().into())
         .collect();
+    let complete = names.len() < MAX_LISTING_NAMES || entries.next().is_none();
     names.sort_unstable();
-    names
+    (names, complete)
 }
 
 /// Expands a leading tilde (when `tilde` is true and the word starts with `~`) and resolves the
@@ -273,7 +346,24 @@ fn list_dir(dir: &Path) -> Vec<Box<[u8]>> {
 /// - `~-` (`$OLDPWD`) and the directory stack forms `~N`, `~+N`, `~-N` are unknown to the
 ///   daemon.
 /// - `~name` is a `hash -d` named directory, else the home directory of user `name`.
+///
+/// The `~user` lookup is uncached and unbounded; the highlighter uses [`PathChecker::resolve`].
 pub fn resolve(word: &str, tilde: bool, cwd: &Path, state: &ShellState) -> Option<PathBuf> {
+    let lookup = |name: &str| user_home(name).map_or(Resolution::Unresolvable, Resolution::Path);
+    match resolve_with(word, tilde, cwd, state, lookup) {
+        Resolution::Path(path) => Some(path),
+        Resolution::Unresolvable | Resolution::Deferred => None,
+    }
+}
+
+/// [`resolve`] with the `~user` lookup supplied by `user_home`, which is called at most once.
+fn resolve_with(
+    word: &str,
+    tilde: bool,
+    cwd: &Path,
+    state: &ShellState,
+    user_home: impl FnOnce(&str) -> Resolution,
+) -> Resolution {
     let expanded;
     let path: &Path = if tilde && let Some(rest) = word.strip_prefix('~') {
         let (head, tail) = match rest.find('/') {
@@ -281,14 +371,20 @@ pub fn resolve(word: &str, tilde: bool, cwd: &Path, state: &ShellState) -> Optio
             None => (rest, ""),
         };
         let base: PathBuf = match head {
-            "" => state.home()?.to_path_buf(),
+            "" => match state.home() {
+                Some(home) => home.to_path_buf(),
+                None => return Resolution::Unresolvable,
+            },
             "+" => cwd.to_path_buf(),
             h if h.starts_with(['+', '-']) || h.bytes().all(|b| b.is_ascii_digit()) => {
-                return None;
+                return Resolution::Unresolvable;
             }
             h => match state.named_dir(h) {
                 Some(d) => d.to_path_buf(),
-                None => user_home(h)?,
+                None => match user_home(h) {
+                    Resolution::Path(home) => home,
+                    other => return other,
+                },
             },
         };
         expanded = if tail.is_empty() && !rest.ends_with('/') {
@@ -304,7 +400,7 @@ pub fn resolve(word: &str, tilde: bool, cwd: &Path, state: &ShellState) -> Optio
     } else {
         Path::new(word)
     };
-    Some(if path.is_absolute() {
+    Resolution::Path(if path.is_absolute() {
         path.to_path_buf()
     } else {
         cwd.join(path)
@@ -313,23 +409,34 @@ pub fn resolve(word: &str, tilde: bool, cwd: &Path, state: &ShellState) -> Optio
 
 static USER_HOMES: Mutex<Option<HashMap<String, Option<PathBuf>>>> = Mutex::new(None);
 
+/// True when `name` could be a user name worth looking up.
+fn is_user_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
+}
+
+/// The cached result of an earlier [`user_home`] call for `name`, if any.
+fn cached_user_home(name: &str) -> Option<Option<PathBuf>> {
+    let guard = USER_HOMES.lock().unwrap_or_else(|e| e.into_inner());
+    guard.as_ref()?.get(name).cloned()
+}
+
 /// The home directory of user `name`, cached for the life of the process (negative results
 /// too). Names that cannot be user names are rejected without a lookup.
 pub fn user_home(name: &str) -> Option<PathBuf> {
-    if name.is_empty()
-        || name.len() > 64
-        || !name
-            .bytes()
-            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'))
-    {
+    if !is_user_name(name) {
         return None;
     }
+    if let Some(home) = cached_user_home(name) {
+        return home;
+    }
+    // Look up without holding the lock: the password database may be slow (NSS, LDAP).
+    let home = lookup_user_home(name);
     let mut guard = USER_HOMES.lock().unwrap_or_else(|e| e.into_inner());
     let cache = guard.get_or_insert_with(HashMap::new);
-    if let Some(home) = cache.get(name) {
-        return home.clone();
-    }
-    let home = lookup_user_home(name);
     if cache.len() >= MAX_USER_ENTRIES {
         cache.clear();
     }
@@ -651,6 +758,98 @@ mod tests {
         assert_eq!(
             c.check_word("f4", false, t.path(), &s, false),
             PathKind::File
+        );
+    }
+
+    #[test]
+    fn listing_is_capped_and_a_miss_in_a_truncated_listing_is_unknown() {
+        let t = TempDir::new("biglisting");
+        for i in 0..MAX_LISTING_NAMES + 3 {
+            t.file(&format!("big/f{i:04}"), 0o644);
+        }
+        for i in 0..MAX_LISTING_NAMES {
+            t.file(&format!("full/f{i:04}"), 0o644);
+        }
+        let mut c = checker(64, 1000, Instant::now());
+        let big = t.path().join("big");
+        assert_eq!(c.is_prefix(&big.join("f")), Some(true));
+        assert_eq!(c.is_prefix(&big.join("zz")), None);
+        assert_eq!(c.listings[big.as_os_str()].names.len(), MAX_LISTING_NAMES);
+        // Exactly at the cap, the listing is complete and a miss is definite.
+        let full = t.path().join("full");
+        assert_eq!(c.is_prefix(&full.join("zz")), Some(false));
+        assert_eq!(c.is_prefix(&full.join("f0511")), Some(true));
+        let s = empty_state("");
+        assert_eq!(
+            c.check_word("big/zz", false, t.path(), &s, true),
+            PathKind::Missing
+        );
+    }
+
+    #[test]
+    fn user_lookups_are_bounded() {
+        let s = empty_state("");
+        let cwd = Path::new("/");
+        let l = limits(64, 1000);
+        let t0 = Instant::now();
+        let mut c = checker(64, 1000, t0);
+        // One uncached lookup per request, and it uses a unit of the check budget.
+        assert_eq!(
+            c.resolve("~fh_nouser_p1/x", true, cwd, &s, false),
+            Resolution::Unresolvable
+        );
+        assert_eq!(c.checks_left, 63);
+        assert_eq!(
+            c.resolve("~fh_nouser_p2/x", true, cwd, &s, false),
+            Resolution::Deferred
+        );
+        // Cached results stay available.
+        assert_eq!(
+            c.resolve("~fh_nouser_p1", true, cwd, &s, false),
+            Resolution::Unresolvable
+        );
+        c.begin_request(t0 + Duration::from_millis(1), &l);
+        assert_eq!(
+            c.resolve("~fh_nouser_p2/x", true, cwd, &s, false),
+            Resolution::Unresolvable
+        );
+        // Never for the word being typed, and not over the check budget.
+        c.begin_request(t0 + Duration::from_millis(2), &l);
+        assert_eq!(
+            c.resolve("~fh_nouser_p3", true, cwd, &s, true),
+            Resolution::Deferred
+        );
+        assert_eq!(cached_user_home("fh_nouser_p3"), None, "no lookup happened");
+        let mut broke = checker(0, 1000, t0);
+        assert_eq!(
+            broke.resolve("~fh_nouser_p3", true, cwd, &s, false),
+            Resolution::Deferred
+        );
+        // Named directories, `~`, and invalid names need no lookup.
+        assert_eq!(
+            c.resolve("~bad name", true, cwd, &s, false),
+            Resolution::Unresolvable
+        );
+        assert_eq!(c.checks_left, 64);
+    }
+
+    #[test]
+    fn user_lookup_while_typing_uses_the_cache() {
+        let Some((name, home)) = current_user() else {
+            return;
+        };
+        let s = empty_state("");
+        let mut c = checker(64, 1000, Instant::now());
+        let word = format!("~{name}");
+        // Whatever an earlier test cached, a lookup outside typing fills the cache...
+        assert_eq!(
+            c.resolve(&word, true, Path::new("/"), &s, false),
+            Resolution::Path(home.clone())
+        );
+        // ...and the word being typed then resolves from it.
+        assert_eq!(
+            c.resolve(&word, true, Path::new("/"), &s, true),
+            Resolution::Path(home)
         );
     }
 

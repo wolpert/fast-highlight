@@ -147,12 +147,21 @@ impl RequestText {
     ///
     /// The cost is one pass over the buffer text plus a sort of the span boundaries.
     pub fn wire_spans(&self, spans: &[Span], unit: Unit) -> Vec<WireSpan> {
+        self.wire_spans_prefix(spans, unit, usize::MAX)
+    }
+
+    /// [`RequestText::wire_spans`] for at most the first `max` spans that are not clipped away,
+    /// so the cost of a long span list is bounded by `max`. For spans on character boundaries
+    /// (as the highlighter emits) the result is the first `max` entries of
+    /// [`RequestText::wire_spans`]; a prefix of a sorted, well-nested list is still both.
+    pub fn wire_spans_prefix(&self, spans: &[Span], unit: Unit, max: usize) -> Vec<WireSpan> {
         let bs = self.buffer_start;
         let len = self.text.len();
         let clipped: Vec<Span> = spans
             .iter()
             .map(|s| Span::new(s.start.max(bs), s.end.min(len), s.kind))
             .filter(|s| s.start < s.end)
+            .take(max)
             .collect();
 
         let identity = match unit {
@@ -212,6 +221,38 @@ impl RequestText {
     fn on_boundaries(&self, s: &Span) -> bool {
         self.text.is_char_boundary(s.start) && self.text.is_char_boundary(s.end)
     }
+}
+
+/// Checks the invariants of a wire span list for a buffer of `len` units (the counterpart of
+/// [`crate::token::check_spans`] after conversion): non-empty, in bounds, sorted by ascending
+/// start then descending end, and well nested. Returns a description of the first violation.
+pub fn check_wire_spans(spans: &[WireSpan], len: usize) -> Result<(), String> {
+    let mut stack: Vec<&WireSpan> = Vec::new();
+    let mut prev: Option<&WireSpan> = None;
+    for s in spans {
+        if s.start >= s.end {
+            return Err(format!("empty wire span {s:?}"));
+        }
+        if s.end > len {
+            return Err(format!("wire span {s:?} out of bounds (len {len})"));
+        }
+        if let Some(p) = prev
+            && (s.start < p.start || (s.start == p.start && s.end > p.end))
+        {
+            return Err(format!("wire span {s:?} out of order after {p:?}"));
+        }
+        while stack.last().is_some_and(|top| top.end <= s.start) {
+            stack.pop();
+        }
+        if let Some(top) = stack.last()
+            && s.end > top.end
+        {
+            return Err(format!("wire span {s:?} partially overlaps {top:?}"));
+        }
+        stack.push(s);
+        prev = Some(s);
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -504,6 +545,75 @@ mod tests {
         assert_eq!(out[99_999], w(99_999, 100_000, Default));
         let out = t.wire_spans(&spans, Unit::Bytes);
         assert_eq!(out[99_999], w(299_997, 300_000, Default));
+    }
+
+    #[test]
+    fn combining_marks_and_zwj_count_as_separate_chars() {
+        // zsh counts code points: `e` + U+0301 is two characters, and the ZWJ family emoji is
+        // three (man, ZWJ, woman), whatever a terminal draws.
+        let text = "echo e\u{301} \u{1F468}\u{200D}\u{1F469} $HOME";
+        let t = RequestText::new(b"", text.as_bytes());
+        let parse = crate::syntax::parse(text, &crate::syntax::ParseOptions::default());
+        let param = parse
+            .spans
+            .iter()
+            .find(|s| s.kind == Parameter)
+            .expect("a parameter span");
+        assert_eq!(&text[param.start..param.end], "$HOME");
+        let wire = t.wire_spans(std::slice::from_ref(param), Unit::Chars);
+        assert_eq!(wire, vec![w(12, 17, Parameter)]);
+        let wire = t.wire_spans(std::slice::from_ref(param), Unit::Bytes);
+        assert_eq!(wire, vec![w(21, 26, Parameter)]);
+        // The cursor in characters lands on the same code points.
+        assert_eq!(t.cursor_offset(Some(12), Unit::Chars), param.start);
+        assert_eq!(t.cursor_offset(Some(7), Unit::Chars), "echo e\u{301}".len());
+    }
+
+    #[test]
+    fn wire_span_checks() {
+        assert_eq!(check_wire_spans(&[], 0), Ok(()));
+        let good = [
+            w(0, 6, DoubleQuoted),
+            w(1, 3, Parameter),
+            w(3, 6, Parameter),
+        ];
+        assert_eq!(check_wire_spans(&good, 6), Ok(()));
+        assert_eq!(
+            check_wire_spans(&good[..2], 6),
+            Ok(()),
+            "prefixes stay valid"
+        );
+        for (bad, len) in [
+            (vec![w(1, 1, Glob)], 5),
+            (vec![w(0, 6, Glob)], 5),
+            (vec![w(2, 3, Glob), w(1, 3, Glob)], 5),
+            (vec![w(0, 2, Glob), w(0, 3, Glob)], 5),
+            (vec![w(0, 3, Glob), w(2, 4, Glob)], 5),
+        ] {
+            assert!(check_wire_spans(&bad, len).is_err(), "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn wire_span_prefix_skips_clipped_spans() {
+        let pre = "**\n";
+        let buf = "a日 b c";
+        let t = RequestText::new(pre.as_bytes(), buf.as_bytes());
+        let bs = t.buffer_start();
+        let spans = [
+            s(0, 1, Glob),
+            s(1, 2, Glob),
+            s(0, bs + 4, Default),
+            s(bs, bs + 1, Escape),
+            s(bs + 5, bs + 6, Path),
+            s(bs + 7, bs + 8, Path),
+        ];
+        let all = t.wire_spans(&spans, Unit::Chars);
+        assert_eq!(all.len(), 4);
+        for max in 0..=5 {
+            let prefix = t.wire_spans_prefix(&spans, Unit::Chars, max);
+            assert_eq!(prefix, all[..max.min(all.len())], "max {max}");
+        }
     }
 
     #[test]

@@ -90,8 +90,10 @@ An `H` request asks for the spans of one editor state.
 | `cwd` | The shell's current directory (`$PWD`).                                  | unchanged  |
 | `opt` | A string of option letters, described below.                             | empty      |
 
-The daemon remembers the last `cwd` it received and uses it when a request omits the field. The
-plugin `SHOULD` send `cwd` only when it changes.
+The daemon remembers the last `cwd` it received and uses it when a request omits the field. Before
+the first `cwd`, it uses the directory it was started in. The daemon process itself changes its
+working directory to `/` at startup, so it never holds a file system busy. The plugin `SHOULD`
+send `cwd` only when it changes.
 
 The `opt` field holds one letter per enabled option:
 
@@ -126,7 +128,9 @@ kind    = 1*( ALPHA / "-" )
 - Spans are sorted by ascending `start` and then descending `end`. Any two spans are either
   disjoint or nested. A later span takes precedence over an earlier span that contains it.
 
-When the text exceeds the hard size limit, the body is empty.
+When the text exceeds the hard size limit (`limits.hard-cap-bytes`), the body is empty. The body
+holds at most `limits.max-spans` span lines; a longer span list is cut to its first
+`limits.max-spans` spans, which are still sorted and well nested.
 
 ## State request
 
@@ -144,9 +148,21 @@ entirely.
 | `reswords`  | List of reserved words.                                            |
 | `nameddirs` | List of alternating entries: a name, then the directory it names.  |
 | `path`      | The value of `$PATH`.                                              |
+| `rehash`    | Any value, usually empty. Present: a full `$PATH` rescan.          |
 
-When `path` changes, the daemon rescans the listed directories. The daemon also rescans when the
-modification time of any listed directory changes, checking at most once per second.
+A `nameddirs` value with an odd number of entries is malformed. The daemon ignores that field,
+logs a warning, applies the other fields of the request, and answers `A`.
+
+The daemon caches the command names of each `$PATH` directory together with the directory's
+modification time. When `path` changes, it reads the directories it has not read before and
+reuses the others whose modification time is unchanged. Between requests, at most once per
+second, it compares the modification time of each listed directory with the cached one and
+rereads only the directories that changed; a highlight request never waits for that check. A
+`rehash` field rereads every directory whatever its modification time, for changes the
+modification time does not show. The plugin sends it after the user runs `rehash` or `hash -r`.
+
+Every entry of a `$PATH` directory that is not a directory names a command, as in zsh with
+`HASH_EXECUTABLES_ONLY` unset: permissions are not checked, and symbolic links are not followed.
 
 ## Request identifiers and stale responses
 

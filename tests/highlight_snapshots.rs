@@ -116,6 +116,7 @@ impl Fixture {
             ("src/lib.rs", 0o644),
             ("日本語.txt", 0o644),
             ("my file.txt", 0o644),
+            ("-notes.txt", 0o644),
         ] {
             write_file(&cwd.join(rel), mode);
         }
@@ -147,6 +148,7 @@ impl Fixture {
                 root.join("proj").to_string_lossy().into_owned(),
             )]),
             path: Some(root.join("bin").to_string_lossy().into_owned()),
+            rehash: false,
         });
         let (specs, warnings) = SpecRegistry::load(&config_dir);
         assert!(warnings.is_empty(), "{warnings:?}");
@@ -428,11 +430,86 @@ fn paths() {
             idle("ls ~proj ~proj/Cargo.toml ~proj/src ~proj/nope"),
             at_end("ls ~proj/Car"),
             idle("ls 'my file.txt' my\\ file.txt \"my file.txt\""),
-            idle("ls '~'/x"),
+            idle("ls '~'/.zshrc"),
             idle("ls -- -notes.txt"),
             idle("cat docs/guide/ ./docs ../work/notes.txt"),
         ],
     );
+}
+
+/// A quoted `~` is literal: `'~'/.zshrc` names `./~/.zshrc`, which does not exist, even though
+/// `~/.zshrc` does.
+#[test]
+fn quoted_tilde_is_not_expanded() {
+    let mut f = Fixture::new("quoted_tilde_is_not_expanded");
+    let kinds = |spans: Vec<WireSpan>| spans.into_iter().map(|s| s.kind).collect::<Vec<_>>();
+    assert_eq!(
+        kinds(f.wire("", "ls ~/.zshrc", Some(0), "u")),
+        vec![TokenKind::Command, TokenKind::Path]
+    );
+    assert_eq!(
+        kinds(f.wire("", "ls '~'/.zshrc", Some(0), "u")),
+        vec![TokenKind::Command, TokenKind::SingleQuoted]
+    );
+}
+
+/// After `--`, a word starting with `-` is an operand and is checked as a path; before it, the
+/// word is an option.
+#[test]
+fn dash_operand_after_double_dash_is_a_path() {
+    let mut f = Fixture::new("dash_operand_after_double_dash_is_a_path");
+    let triples = |spans: Vec<WireSpan>| -> Vec<(usize, usize, TokenKind)> {
+        spans
+            .into_iter()
+            .map(|s| (s.start, s.end, s.kind))
+            .collect()
+    };
+    assert_eq!(
+        triples(f.wire("", "ls -- -notes.txt", Some(0), "u")),
+        vec![(0, 2, TokenKind::Command), (6, 16, TokenKind::Path)]
+    );
+    assert_eq!(
+        triples(f.wire("", "ls -notes.txt", Some(0), "u")),
+        vec![(0, 2, TokenKind::Command)]
+    );
+}
+
+/// The size thresholds with the default config: above `lex-only-bytes` (10 KiB) only syntax is
+/// highlighted, and above `hard-cap-bytes` (64 KiB) nothing is.
+#[test]
+fn default_size_thresholds() {
+    let mut f = Fixture::new("default_size_thresholds");
+    let limits = Config::default().limits;
+    let buffer_of = |len: usize| {
+        let head = "cat notes.txt ; : ";
+        format!("{head}{}", "x".repeat(len - head.len()))
+    };
+    let semantic = |k: TokenKind| {
+        matches!(
+            k,
+            TokenKind::Command | TokenKind::Path | TokenKind::PathPrefix
+        )
+    };
+
+    let at_threshold = f.wire("", &buffer_of(limits.lex_only_bytes), Some(0), "u");
+    assert!(
+        at_threshold.iter().any(|s| s.kind == TokenKind::Command),
+        "{at_threshold:?}"
+    );
+    assert!(at_threshold.iter().any(|s| s.kind == TokenKind::Path));
+
+    let lex_only = f.wire("", &buffer_of(limits.lex_only_bytes + 1), Some(0), "u");
+    assert!(!lex_only.iter().any(|s| semantic(s.kind)), "{lex_only:?}");
+    assert!(
+        lex_only.iter().any(|s| s.kind == TokenKind::Separator),
+        "syntax is still highlighted: {lex_only:?}"
+    );
+
+    let at_cap = f.wire("", &buffer_of(limits.hard_cap_bytes), Some(0), "u");
+    assert!(!at_cap.is_empty());
+    assert!(!at_cap.iter().any(|s| semantic(s.kind)));
+    let over_cap = f.wire("", &buffer_of(limits.hard_cap_bytes + 1), Some(0), "u");
+    assert_eq!(over_cap, vec![]);
 }
 
 /// Absolute paths. The offsets depend on where the fixture lives, so they are checked against

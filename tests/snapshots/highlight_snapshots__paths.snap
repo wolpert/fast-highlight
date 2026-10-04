@@ -58,7 +58,7 @@ cursor: 0
   30..43 path "\"my file.txt\""
   30..43 double-quoted "\"my file.txt\""
 
-input: "ls '~'/x"
+input: "ls '~'/.zshrc"
 cursor: 0
   0..2 command "ls"
   3..6 single-quoted "'~'"
@@ -66,6 +66,7 @@ cursor: 0
 input: "ls -- -notes.txt"
 cursor: 0
   0..2 command "ls"
+  6..16 path "-notes.txt"
 
 input: "cat docs/guide/ ./docs ../work/notes.txt"
 cursor: 0

@@ -308,7 +308,7 @@ fn validate_color(color: &str) -> Result<(), String> {
         Ok(())
     } else {
         Err(format!(
-            "invalid color `{color}`; expected one of {}, a number 0-255, or #rrggbb",
+            "invalid color `{color}`; expected one of {}, a number 0-255, #rgb, or #rrggbb",
             COLOR_NAMES.join(", ")
         ))
     }
@@ -540,6 +540,7 @@ mod tests {
             ("{ fg = 256 }", "out of range"),
             ("{ fg = -1 }", "out of range"),
             ("{ fg = \"grren\" }", "invalid color `grren`"),
+            ("{ fg = \"#ab\" }", "#rgb, or #rrggbb"),
             ("{ fg = true }", "must be a string or a number"),
             ("{ bold = \"yes\" }", "must be true or false"),
             ("{ italic = true }", "does not support italic"),

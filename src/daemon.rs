@@ -10,7 +10,7 @@
 //! error. Diagnostics (panics, startup problems, the reason for an abnormal exit, and the
 //! optional per-request timing lines) go to the log file.
 
-use crate::config::{Config, config_dir};
+use crate::config::{Config, Limits, config_dir};
 use crate::highlight::{HighlightRequest, Highlighter, RequestOptions};
 use crate::paths::PathChecker;
 use crate::protocol::{
@@ -50,8 +50,9 @@ pub trait Engine {
     fn highlight(&mut self, req: &HighlightRequest<'_>) -> Vec<Span>;
     /// Applies an `S` request.
     fn update_state(&mut self, update: StateUpdate);
-    /// Work deferred out of the requests, done after their responses are written: the daemon
-    /// is then between requests, and the plugin is not waiting on it.
+    /// Work deferred out of the requests: done after their responses are written, and about
+    /// once per second while no input arrives. The daemon is then between requests, and the
+    /// plugin is not waiting on it.
     fn idle(&mut self) {}
 }
 
@@ -66,9 +67,11 @@ impl Engine for Highlighter {
 
     /// Brings the `$PATH` scan up to date. After the startup ping this scans the daemon's own
     /// `PATH` (normally the shell's) while the plugin finishes the handshake; after an `S`
-    /// request that changed `PATH`, it rescans once the ack is out, while the shell is between
-    /// commands (the plugin sends state from `precmd`). A highlight request still scans first
-    /// when it arrives before this ran.
+    /// request that changed `PATH` or asked for `rehash`, it rescans once the ack is out, while
+    /// the shell is between commands (the plugin sends state from `precmd`). It is also where
+    /// the directories' modification times are compared, at most once per second, so a
+    /// highlight request never pays for that. A highlight request still scans first when a
+    /// rescan is pending.
     fn idle(&mut self) {
         self.state.refresh_path();
     }
@@ -175,17 +178,20 @@ pub struct Session<E> {
     engine: E,
     cwd: PathBuf,
     hard_cap_bytes: usize,
+    max_spans: usize,
     log: Log,
 }
 
 impl<E: Engine> Session<E> {
     /// A session whose remembered current directory starts as `cwd`. Highlight requests whose
-    /// text exceeds `hard_cap_bytes` get an empty result without reaching the engine.
-    pub fn new(engine: E, hard_cap_bytes: usize, cwd: PathBuf, log: Log) -> Session<E> {
+    /// text exceeds `limits.hard_cap_bytes` get an empty result without reaching the engine,
+    /// and results are cut to `limits.max_spans` spans.
+    pub fn new(engine: E, limits: &Limits, cwd: PathBuf, log: Log) -> Session<E> {
         Session {
             engine,
             cwd,
-            hard_cap_bytes,
+            hard_cap_bytes: limits.hard_cap_bytes,
+            max_spans: limits.max_spans,
             log,
         }
     }
@@ -226,7 +232,14 @@ impl<E: Engine> Session<E> {
                     }
                 }
             }
-            Request::State { id, update } => {
+            Request::State {
+                id,
+                update,
+                warnings,
+            } => {
+                for warning in &warnings {
+                    self.log.line(&format!("state request {id}: {warning}"));
+                }
                 let reply = match catch(|| self.engine.update_state(update)) {
                     Ok(()) => encode_ack(id),
                     Err(message) => encode_error(id, &message),
@@ -243,9 +256,9 @@ impl<E: Engine> Session<E> {
         }
     }
 
-    /// Highlights one request and returns its wire spans, or a diagnostic when the engine
-    /// panicked. A present `cwd` field replaces the remembered directory, even when the text is
-    /// over the hard cap.
+    /// Highlights one request and returns its wire spans (at most `max_spans` of them), or a
+    /// diagnostic when the engine panicked. A present `cwd` field replaces the remembered
+    /// directory, even when the text is over the hard cap.
     pub fn highlight(&mut self, fields: &HighlightFields) -> Result<Vec<WireSpan>, String> {
         if let Some(cwd) = &fields.cwd {
             self.cwd = PathBuf::from(OsStr::from_bytes(cwd));
@@ -263,7 +276,7 @@ impl<E: Engine> Session<E> {
             opts: request_options(&fields.opts),
         };
         let spans = catch(|| self.engine.highlight(&req))?;
-        Ok(text.wire_spans(&spans, unit))
+        Ok(text.wire_spans_prefix(&spans, unit, self.max_spans))
     }
 }
 
@@ -306,7 +319,9 @@ impl Exit {
 
 /// Reads frames from `input` and writes one response per request to `output`, flushing after
 /// each, until the loop stops for one of the reasons in [`Exit`]. Once every complete request
-/// read so far is answered, the session's deferred work runs before the next read.
+/// read so far is answered, the session's deferred work runs before the next read. It runs too
+/// whenever a read fails with [`io::ErrorKind::TimedOut`], which [`serve`]'s input reports
+/// after a second without input; the loop then reads again.
 pub fn run<E: Engine, R: Read, W: Write>(
     session: &mut Session<E>,
     input: &mut R,
@@ -338,6 +353,7 @@ pub fn run<E: Engine, R: Read, W: Write>(
             Ok(0) => return Exit::Eof,
             Ok(n) => decoder.feed(&buf[..n]),
             Err(e) if e.kind() == io::ErrorKind::Interrupted => {}
+            Err(e) if e.kind() == io::ErrorKind::TimedOut => session.idle(),
             Err(e) => return Exit::Read(e),
         }
     }
@@ -351,9 +367,10 @@ fn process_gone(pid: libc::pid_t) -> bool {
 }
 
 /// Standard input read through `poll` with a one-second timeout, so the parent process can be
-/// checked while the input is idle. Reads fail once the parent pid differs from the one
-/// recorded at startup (the parent exited and this process was reparented), or once the
-/// watched process, if any, no longer exists.
+/// checked while the input is idle. A read that times out fails with
+/// [`io::ErrorKind::TimedOut`], so the serve loop can run its idle work. Reads fail for good
+/// once the parent pid differs from the one recorded at startup (the parent exited and this
+/// process was reparented), or once the watched process, if any, no longer exists.
 struct PollStdin {
     parent: libc::pid_t,
     watched: Option<libc::pid_t>,
@@ -381,7 +398,7 @@ impl Read for PollStdin {
                 return Err(e);
             }
             if ready == 0 {
-                continue;
+                return Err(io::ErrorKind::TimedOut.into());
             }
             // Readable, hung up, or in error: read reports which.
             // SAFETY: `buf` is valid for writes of `buf.len()` bytes.
@@ -470,8 +487,27 @@ impl Engine for LazyHighlighter {
     }
 }
 
+/// Keeps the memory of large requests in the heap between requests, on glibc.
+///
+/// The parse of a buffer near the hard cap holds tens of thousands of spans and words. With
+/// glibc's defaults the blocks behind them are mapped and unmapped (or trimmed from the heap)
+/// on every such request, and the page faults alone roughly double the request time (about
+/// 5.8 ms instead of 2.7 ms for 64 KiB of `a|a|...`). Blocks up to 4 MiB therefore come from
+/// the heap, and up to 32 MiB of free heap is kept instead of being returned to the system.
+/// Other platforms' allocators are left alone.
+pub fn tune_allocator() {
+    #[cfg(all(target_os = "linux", target_env = "gnu"))]
+    // SAFETY: mallopt only changes allocator parameters; it is called before any other thread
+    // exists.
+    unsafe {
+        libc::mallopt(libc::M_MMAP_THRESHOLD, 4 << 20);
+        libc::mallopt(libc::M_TRIM_THRESHOLD, 32 << 20);
+    }
+}
+
 /// Runs the daemon on standard input and output. Returns the process exit status.
 pub fn serve(opts: ServeOptions) -> i32 {
+    tune_allocator();
     // SAFETY: setting signal dispositions to SIG_IGN has no preconditions. Ignoring SIGPIPE
     // makes a write to a closed pipe fail with EPIPE instead of killing the process; ignoring
     // SIGINT keeps a stray Ctrl-C sent to the process group from killing it.
@@ -481,6 +517,13 @@ pub fn serve(opts: ServeOptions) -> i32 {
     }
     // SAFETY: getppid has no preconditions.
     let parent = unsafe { libc::getppid() };
+    // The daemon changes to `/` below; a relative `--log` names a file in the starting
+    // directory.
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
+    let opts = ServeOptions {
+        log: opts.log.map(|log| cwd.join(log)),
+        ..opts
+    };
 
     let early_log_path = opts.log.clone().or_else(default_log_path);
     install_panic_hook(early_log_path.clone());
@@ -520,8 +563,12 @@ pub fn serve(opts: ServeOptions) -> i32 {
         engine.get();
     });
 
-    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
-    let mut session = Session::new(engine, config.limits.hard_cap_bytes, cwd, log);
+    // The starting directory is the remembered cwd until a request names one. Holding it as
+    // the process's own working directory would keep its file system busy (`umount` fails)
+    // for the life of the shell, so move to the root; every path the daemon checks is
+    // resolved against the remembered cwd anyway.
+    let _ = std::env::set_current_dir("/");
+    let mut session = Session::new(engine, &config.limits, cwd, log);
     let mut input = PollStdin {
         parent,
         watched: opts.parent,
@@ -587,8 +634,20 @@ mod tests {
         }
     }
 
+    fn limits(hard_cap_bytes: usize) -> Limits {
+        Limits {
+            hard_cap_bytes,
+            ..Limits::default()
+        }
+    }
+
     fn session(engine: FakeEngine) -> Session<FakeEngine> {
-        Session::new(engine, 1000, PathBuf::from("/start"), Log::disabled())
+        Session::new(
+            engine,
+            &limits(1000),
+            PathBuf::from("/start"),
+            Log::disabled(),
+        )
     }
 
     fn frames(bytes: &[u8]) -> Vec<Frame> {
@@ -602,7 +661,7 @@ mod tests {
         out
     }
 
-    fn run_bytes(session: &mut Session<FakeEngine>, input: &[u8]) -> (Exit, Vec<Frame>) {
+    fn run_bytes<E: Engine>(session: &mut Session<E>, input: &[u8]) -> (Exit, Vec<Frame>) {
         let mut out = Vec::new();
         let exit = run(session, &mut &input[..], &mut out);
         (exit, frames(&out))
@@ -747,7 +806,7 @@ mod tests {
             spans: vec![Span::new(5, 6, TokenKind::Error)],
             ..FakeEngine::default()
         };
-        let mut s = Session::new(engine, 10, PathBuf::from("/"), Log::disabled());
+        let mut s = Session::new(engine, &limits(10), PathBuf::from("/"), Log::disabled());
         let at_cap = HighlightFields {
             buffer: b"12345".to_vec(),
             prebuffer: b"67890".to_vec(),
@@ -765,6 +824,125 @@ mod tests {
         assert_eq!((out[1].kind, out[1].id, out[1].body.len()), (b'R', 2, 0));
         assert_eq!(s.engine().seen.len(), 1);
         assert_eq!(s.cwd(), Path::new("/new"), "cwd still updated over the cap");
+    }
+
+    #[test]
+    fn results_are_cut_to_max_spans() {
+        let engine = FakeEngine {
+            spans: vec![
+                Span::new(0, 6, TokenKind::DoubleQuoted),
+                Span::new(1, 3, TokenKind::Parameter),
+                Span::new(3, 5, TokenKind::Parameter),
+                Span::new(7, 8, TokenKind::Glob),
+            ],
+            ..FakeEngine::default()
+        };
+        let limits = Limits {
+            max_spans: 3,
+            ..limits(1000)
+        };
+        let mut s = Session::new(engine, &limits, PathBuf::from("/"), Log::disabled());
+        let (_, out) = run_bytes(&mut s, &hl(1, "\"$a$b\" *", ""));
+        assert_eq!(
+            out[0].body,
+            b"0 6 double-quoted\n1 3 parameter\n3 5 parameter\n"
+        );
+    }
+
+    #[test]
+    fn prebuffer_spans_do_not_count_against_max_spans() {
+        let engine = FakeEngine {
+            // Two spans wholly inside the 3-byte prebuffer, then two in the buffer.
+            spans: vec![
+                Span::new(0, 1, TokenKind::Glob),
+                Span::new(1, 2, TokenKind::Glob),
+                Span::new(3, 4, TokenKind::Glob),
+                Span::new(4, 5, TokenKind::Glob),
+            ],
+            ..FakeEngine::default()
+        };
+        let limits = Limits {
+            max_spans: 1,
+            ..limits(1000)
+        };
+        let mut s = Session::new(engine, &limits, PathBuf::from("/"), Log::disabled());
+        let fields = HighlightFields {
+            prebuffer: b"**\n".to_vec(),
+            buffer: b"**".to_vec(),
+            ..HighlightFields::default()
+        };
+        let (_, out) = run_bytes(&mut s, &encode_highlight(1, &fields));
+        assert_eq!(out[0].body, b"0 1 glob\n");
+    }
+
+    #[test]
+    fn state_warnings_are_logged_and_the_rest_applies() {
+        let dir = std::env::temp_dir().join(format!("fh-daemon-warn-{}", std::process::id()));
+        let path = dir.join("w.log");
+        let _ = fs::remove_dir_all(&dir);
+        let mut s = Session::new(
+            FakeEngine::default(),
+            &limits(1000),
+            PathBuf::from("/"),
+            Log::new(Some(path.clone()), false),
+        );
+        let body = b"alias 3\nll\0\nnameddirs 2\nx\0\n";
+        let (_, out) = run_bytes(&mut s, &encode_frame(b'S', 9, body));
+        assert_eq!((out[0].kind, out[0].id), (b'A', 9));
+        assert_eq!(
+            s.engine().updates,
+            vec![StateUpdate {
+                aliases: Some(vec!["ll".into()]),
+                ..StateUpdate::default()
+            }]
+        );
+        let log = fs::read_to_string(&path).unwrap();
+        assert!(log.contains("state request 9: nameddirs"), "{log}");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn rehash_finds_a_command_added_without_an_mtime_change() {
+        let dir = std::env::temp_dir().join(format!("fh-daemon-rehash-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let mut h = Highlighter {
+            config: Config::default(),
+            state: ShellState::new(),
+            paths: PathChecker::default(),
+            specs: SpecRegistry::default(),
+        };
+        h.state.apply_update(StateUpdate {
+            path: Some(dir.to_string_lossy().into_owned()),
+            ..StateUpdate::default()
+        });
+        let mut s = Session::new(h, &limits(1000), PathBuf::from("/"), Log::disabled());
+        let (_, out) = run_bytes(&mut s, &hl(1, "fh-new-tool", ""));
+        assert_eq!(out[0].body, b"0 11 error\n");
+
+        // Install the tool but put the directory's mtime back, as a copy that preserves
+        // timestamps or a coarse-grained file system might.
+        let before = fs::metadata(&dir).unwrap().modified().unwrap();
+        let tool = dir.join("fh-new-tool");
+        fs::write(&tool, b"#!/bin/sh\n").unwrap();
+        fs::set_permissions(&tool, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        fs::File::open(&dir).unwrap().set_modified(before).unwrap();
+        let (_, out) = run_bytes(&mut s, &hl(2, "fh-new-tool", ""));
+        assert_eq!(
+            out[0].body, b"0 11 error\n",
+            "the mtime check sees no change"
+        );
+
+        let rehash = StateUpdate {
+            rehash: true,
+            ..StateUpdate::default()
+        };
+        let mut input = encode_state(3, &rehash);
+        input.extend(hl(4, "fh-new-tool", ""));
+        let (_, out) = run_bytes(&mut s, &input);
+        assert_eq!((out[0].kind, out[0].id), (b'A', 3));
+        assert_eq!(out[1].body, b"0 11 command\n");
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -801,6 +979,7 @@ mod tests {
         let req = Request::State {
             id: 5,
             update: update.clone(),
+            warnings: vec![],
         };
         let (_, out) = run_bytes(&mut s, &encode_request(&req).unwrap());
         assert_eq!((out[0].kind, out[0].id), (b'A', 5));
@@ -893,7 +1072,7 @@ mod tests {
                 spans: vec![Span::new(0, 1, TokenKind::Glob)],
                 ..FakeEngine::default()
             },
-            1000,
+            &limits(1000),
             PathBuf::from("/"),
             Log::new(Some(path.clone()), true),
         );
@@ -918,7 +1097,7 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         let mut s = Session::new(
             FakeEngine::default(),
-            1000,
+            &limits(1000),
             PathBuf::from("/"),
             Log::new(Some(path.clone()), false),
         );
@@ -1011,7 +1190,7 @@ mod tests {
             events: events.clone(),
             panic_in_idle,
         };
-        Session::new(engine, 1000, PathBuf::from("/"), Log::disabled())
+        Session::new(engine, &limits(1000), PathBuf::from("/"), Log::disabled())
     }
 
     #[test]
@@ -1044,6 +1223,43 @@ mod tests {
         );
         assert!(matches!(exit, Exit::Eof));
         assert_eq!(events.take(), vec!["S", "write", "idle", "write", "idle"]);
+    }
+
+    /// Times out once before each chunk of its input, as the daemon's polled stdin does while
+    /// the plugin is quiet.
+    struct Sleepy<'a> {
+        chunks: Vec<&'a [u8]>,
+        timed_out: bool,
+    }
+
+    impl Read for Sleepy<'_> {
+        fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+            if !self.timed_out {
+                self.timed_out = true;
+                return Err(io::ErrorKind::TimedOut.into());
+            }
+            self.timed_out = false;
+            if self.chunks.is_empty() {
+                return Ok(0);
+            }
+            let chunk = self.chunks.remove(0);
+            buf[..chunk.len()].copy_from_slice(chunk);
+            Ok(chunk.len())
+        }
+    }
+
+    #[test]
+    fn idle_work_runs_when_the_input_times_out() {
+        let events = Events::default();
+        let mut s = recording_session(&events, false);
+        let ping = encode_ping(1);
+        let mut input = Sleepy {
+            chunks: vec![&ping],
+            timed_out: false,
+        };
+        let exit = run(&mut s, &mut input, &mut RecordingWriter(events.clone()));
+        assert!(matches!(exit, Exit::Eof));
+        assert_eq!(events.take(), vec!["idle", "write", "idle", "idle"]);
     }
 
     #[test]

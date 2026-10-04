@@ -49,6 +49,8 @@ pub struct StateUpdate {
     /// `(name, directory)` pairs.
     pub named_dirs: Option<Vec<(String, String)>>,
     pub path: Option<String>,
+    /// A `rehash` field was present: rescan every `$PATH` directory, whatever its mtime.
+    pub rehash: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -60,6 +62,10 @@ pub enum Request {
     State {
         id: u64,
         update: StateUpdate,
+        /// Problems with individual fields that were skipped while the rest of the request was
+        /// applied (for example, a `nameddirs` list with an odd number of entries). The daemon
+        /// logs them.
+        warnings: Vec<String>,
     },
     Ping {
         id: u64,
@@ -306,8 +312,15 @@ pub fn decode_request(frame: &Frame) -> Request {
             Ok(fields) => Request::Highlight { id, fields },
             Err(reason) => invalid(reason),
         },
-        b'S' => match parse_fields(&frame.body).and_then(|f| state_update(&f)) {
-            Ok(update) => Request::State { id, update },
+        b'S' => match parse_fields(&frame.body) {
+            Ok(fields) => {
+                let (update, warnings) = state_update(&fields);
+                Request::State {
+                    id,
+                    update,
+                    warnings,
+                }
+            }
             Err(reason) => invalid(reason),
         },
         // Ping and quit bodies are specified as empty; any body is ignored.
@@ -384,8 +397,11 @@ fn highlight_fields(fields: &Fields<'_>) -> Result<HighlightFields, String> {
     Ok(out)
 }
 
-fn state_update(fields: &Fields<'_>) -> Result<StateUpdate, String> {
+/// Decodes the fields of an `S` body. A field whose value is malformed is skipped with a warning;
+/// the other fields still apply.
+fn state_update(fields: &Fields<'_>) -> (StateUpdate, Vec<String>) {
     let mut out = StateUpdate::default();
+    let mut warnings = Vec::new();
     for &(name, value) in fields {
         match name {
             b"alias" => out.aliases = Some(parse_list(value)),
@@ -396,8 +412,12 @@ fn state_update(fields: &Fields<'_>) -> Result<StateUpdate, String> {
             b"reswords" => out.reserved_words = Some(parse_list(value)),
             b"nameddirs" => {
                 let list = parse_list(value);
-                if list.len() % 2 != 0 {
-                    return Err("nameddirs has an odd number of entries".to_string());
+                if !list.len().is_multiple_of(2) {
+                    warnings.push(format!(
+                        "nameddirs has an odd number of entries ({}); field ignored",
+                        list.len()
+                    ));
+                    continue;
                 }
                 let mut pairs = Vec::with_capacity(list.len() / 2);
                 let mut it = list.into_iter();
@@ -407,13 +427,16 @@ fn state_update(fields: &Fields<'_>) -> Result<StateUpdate, String> {
                 out.named_dirs = Some(pairs);
             }
             b"path" => out.path = Some(String::from_utf8_lossy(value).into_owned()),
+            b"rehash" => out.rehash = true,
             _ => {}
         }
     }
-    Ok(out)
+    (out, warnings)
 }
 
-/// Splits a list value into NUL-terminated entries; a final unterminated entry is accepted.
+/// Splits a list value into entries, each terminated by a NUL byte. A final entry without its
+/// terminating NUL is accepted, and an empty value is an empty list. So `a\0b\0` and `a\0b` are
+/// both `[a, b]`, `\0` is one empty entry, and `a\0\0` is `[a, ""]`.
 fn parse_list(value: &[u8]) -> Vec<String> {
     if value.is_empty() {
         return Vec::new();
@@ -541,6 +564,9 @@ pub fn encode_state(id: u64, update: &StateUpdate) -> Vec<u8> {
     if let Some(path) = &update.path {
         push_field(&mut body, "path", path.as_bytes());
     }
+    if update.rehash {
+        push_field(&mut body, "rehash", b"");
+    }
     encode_frame(b'S', id, &body)
 }
 
@@ -555,11 +581,11 @@ pub fn encode_quit(id: u64) -> Vec<u8> {
 }
 
 /// Encodes any request except [`Request::Invalid`], which has no wire form of its own and
-/// yields `None`.
+/// yields `None`. The warnings of a [`Request::State`] are not encoded.
 pub fn encode_request(request: &Request) -> Option<Vec<u8>> {
     match request {
         Request::Highlight { id, fields } => Some(encode_highlight(*id, fields)),
-        Request::State { id, update } => Some(encode_state(*id, update)),
+        Request::State { id, update, .. } => Some(encode_state(*id, update)),
         Request::Ping { id } => Some(encode_ping(*id)),
         Request::Quit { id } => Some(encode_quit(*id)),
         Request::Invalid { .. } => None,
@@ -633,6 +659,7 @@ mod tests {
             Request::State {
                 id: 2,
                 update: StateUpdate::default(),
+                warnings: vec![],
             },
             Request::State {
                 id: 3,
@@ -645,7 +672,9 @@ mod tests {
                     reserved_words: Some(vec!["if".into(), "[[".into()]),
                     named_dirs: Some(vec![("proj".into(), "/home/u/proj".into())]),
                     path: Some("/usr/bin:/bin".into()),
+                    rehash: true,
                 },
+                warnings: vec![],
             },
             Request::Quit { id: 99 },
         ]
@@ -945,8 +974,6 @@ mod tests {
             body_is_invalid(b'H', body);
         }
         body_is_invalid(b'S', b"alias 2\nab");
-        body_is_invalid(b'S', b"nameddirs 2\na\0\n");
-        body_is_invalid(b'S', b"nameddirs 6\na\0b\0c\0\n");
     }
 
     #[test]
@@ -990,7 +1017,21 @@ mod tests {
 
     fn state(body: &[u8]) -> StateUpdate {
         match decode_one(&encode_frame(b'S', 1, body)) {
-            Request::State { update, .. } => update,
+            Request::State {
+                update, warnings, ..
+            } => {
+                assert_eq!(warnings, Vec::<String>::new());
+                update
+            }
+            other => panic!("expected state, got {other:?}"),
+        }
+    }
+
+    fn state_with_warnings(body: &[u8]) -> (StateUpdate, Vec<String>) {
+        match decode_one(&encode_frame(b'S', 1, body)) {
+            Request::State {
+                update, warnings, ..
+            } => (update, warnings),
             other => panic!("expected state, got {other:?}"),
         }
     }
@@ -1005,6 +1046,71 @@ mod tests {
         assert_eq!(state(b"alias 4\na\0\0b\n").aliases, s(&["a", "", "b"]));
         assert_eq!(state(b"func 4\na\0b\0\n").functions, s(&["a", "b"]));
         assert_eq!(state(b"func 5\na\0b\0\0\n").functions, s(&["a", "b", ""]));
+    }
+
+    /// `docs/protocol.md`: each entry is terminated by NUL, a final unterminated entry is
+    /// accepted, and an empty value is an empty list.
+    #[test]
+    fn parse_list_matches_the_spec() {
+        let cases: &[(&[u8], &[&str])] = &[
+            (b"", &[]),
+            (b"\0", &[""]),
+            (b"\0\0", &["", ""]),
+            (b"a", &["a"]),
+            (b"a\0", &["a"]),
+            (b"a\0b", &["a", "b"]),
+            (b"a\0b\0", &["a", "b"]),
+            (b"a\0\0", &["a", ""]),
+            (b"\0a\0", &["", "a"]),
+            (b"a\0\0b\0", &["a", "", "b"]),
+            (b"\xff\0", &["\u{FFFD}"]),
+        ];
+        for (value, want) in cases {
+            assert_eq!(parse_list(value), *want, "{value:?}");
+        }
+    }
+
+    #[test]
+    fn named_dir_with_empty_directory_is_a_pair() {
+        // The plugin terminates every entry, so an empty directory is an empty final entry.
+        assert_eq!(
+            state(b"nameddirs 8\nd\0/x\0e\0\0\n").named_dirs,
+            Some(vec![
+                ("d".to_string(), "/x".to_string()),
+                ("e".to_string(), String::new())
+            ])
+        );
+    }
+
+    #[test]
+    fn malformed_named_dirs_are_skipped_and_the_rest_applies() {
+        let body = b"alias 3\nll\0\nnameddirs 2\na\0\npath 4\n/bin\nrehash 0\n\n";
+        let (update, warnings) = state_with_warnings(body);
+        assert_eq!(update.named_dirs, None);
+        assert_eq!(update.aliases, Some(vec!["ll".to_string()]));
+        assert_eq!(update.path.as_deref(), Some("/bin"));
+        assert!(update.rehash);
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(warnings[0].contains("nameddirs"), "{warnings:?}");
+
+        let (update, warnings) = state_with_warnings(b"nameddirs 6\na\0b\0c\0\n");
+        assert_eq!(update, StateUpdate::default());
+        assert_eq!(warnings.len(), 1);
+    }
+
+    #[test]
+    fn rehash_presence_is_the_value() {
+        assert!(state(b"rehash 0\n\n").rehash);
+        assert!(state(b"rehash 3\nyes\n").rehash);
+        assert!(!state(b"path 4\n/bin\n").rehash);
+        let encoded = encode_state(
+            1,
+            &StateUpdate {
+                rehash: true,
+                ..StateUpdate::default()
+            },
+        );
+        assert_eq!(encoded, b"FH1 S 1 10\nrehash 0\n\n");
     }
 
     #[test]
@@ -1025,6 +1131,7 @@ mod tests {
         assert_eq!(update.path.as_deref(), Some("/bin"));
         assert_eq!(update.aliases, None);
         assert_eq!(update.named_dirs, None);
+        assert!(!update.rehash);
     }
 
     #[test]

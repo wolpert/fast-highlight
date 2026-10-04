@@ -6,7 +6,8 @@
 //!   is decoded three ways (all at once, in pseudo-random chunks of 1 to 64 bytes, and one byte
 //!   at a time), and all three must yield the same sequence of requests and framing errors and
 //!   leave the same number of bytes pending. A framing error must be sticky. Every decoded
-//!   request except `Invalid` must survive `encode_request` and decoding unchanged.
+//!   request except `Invalid` must survive `encode_request` and decoding unchanged (apart from
+//!   the warnings of a `State` request, whose skipped fields are not re-encoded).
 //! - Odd: round-trip mode. The rest is turned into a list of requests with `arbitrary`; they are
 //!   encoded with `encode_request`, concatenated, decoded in chunks seeded by byte 0, and must
 //!   come back equal and leave nothing pending.
@@ -88,6 +89,18 @@ fn decode_one(bytes: &[u8]) -> Request {
     r
 }
 
+/// `r` with the warnings of a `State` request removed.
+fn without_warnings(r: Request) -> Request {
+    match r {
+        Request::State { id, update, .. } => Request::State {
+            id,
+            update,
+            warnings: Vec::new(),
+        },
+        other => other,
+    }
+}
+
 fn stream_mode(seed: u8, bytes: &[u8]) {
     let whole = decode(bytes, || usize::MAX);
     let mut chunks = Chunks::new(seed);
@@ -105,8 +118,8 @@ fn stream_mode(seed: u8, bytes: &[u8]) {
     for r in whole.0.iter().flatten() {
         if let Some(frame) = encode_request(r) {
             assert_eq!(
-                &decode_one(&frame),
-                r,
+                without_warnings(decode_one(&frame)),
+                without_warnings(r.clone()),
                 "request did not survive re-encoding"
             );
         }
@@ -133,6 +146,7 @@ enum MirrorRequest {
         reserved_words: Option<Vec<String>>,
         named_dirs: Option<Vec<(String, String)>>,
         path: Option<String>,
+        rehash: bool,
     },
     Ping {
         id: u64,
@@ -177,6 +191,7 @@ impl From<MirrorRequest> for Request {
                 reserved_words,
                 named_dirs,
                 path,
+                rehash,
             } => Request::State {
                 id,
                 update: StateUpdate {
@@ -192,7 +207,9 @@ impl From<MirrorRequest> for Request {
                             .collect()
                     }),
                     path,
+                    rehash,
                 },
+                warnings: Vec::new(),
             },
             MirrorRequest::Ping { id } => Request::Ping { id },
             MirrorRequest::Quit { id } => Request::Quit { id },

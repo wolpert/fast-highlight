@@ -120,6 +120,7 @@ def protocol_streams():
     yield "id-overflow", b"FH1 P 18446744073709551616 0\n"
     yield "too-long", frame(b"P", 9, b"") + b"FH1 P 1 " + b"9" * 60 + b"\n"
     yield "body-too-big", b"FH1 H 1 16777217\n"
+    yield "state-rehash", frame(b"S", 10, field(b"path", b"/bin") + field(b"rehash", b""))
 
 
 def write(target, name, data):
