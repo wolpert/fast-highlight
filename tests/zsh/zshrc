@@ -1,0 +1,55 @@
+# .zshrc of the shell under test. lib.zsh sets FHT_DIR (the test directory) and FHT_PLUGIN.
+#
+# _t_pre runs before the plugin's zle-line-pre-redraw hook and _t_post after it. _t_post
+# writes the buffer, region_highlight, and the time spent between the two to $FHT_DIR/dump.
+
+PS1='$ '
+RPS1=
+PROMPT_EOL_MARK=''
+unset HISTFILE
+print -r -- $$ >$FHT_DIR/shell.pid
+zmodload zsh/datetime
+zmodload -F zsh/files b:zf_mv
+autoload -Uz add-zle-hook-widget
+
+typeset -gF _t_t0=0
+typeset -gi _t_n=0 _t_foreign=0
+
+_t_pre() {
+  _t_t0=$EPOCHREALTIME
+  if (( _t_foreign )); then
+    region_highlight=("${(@)region_highlight:#*memo=t-foreign}" "P0 1 underline memo=t-foreign")
+  fi
+}
+
+_t_post() {
+  local -F dt=$(( EPOCHREALTIME - _t_t0 ))
+  local f=$FHT_DIR/dump
+  {
+    print -r -- "n=$(( ++_t_n ))"
+    print -r -- "dt=$dt"
+    print -r -- "buf=${BUFFER//$'\n'/\\n}"
+    print -r -- "state=${_fasthl_state-}"
+    print -rl -- "rh="${^region_highlight}
+  } >$f.tmp && zf_mv -f $f.tmp $f
+  [[ -n $BUFFER ]] && print -r -- "$dt ${BUFFER//$'\n'/\\n}" >>$FHT_DIR/dt.log
+}
+
+# A new prompt is drawn without a pre-redraw call; dump there too so tests can tell that a
+# command finished.
+_t_init() {
+  _t_t0=$EPOCHREALTIME
+  _t_post
+}
+
+zle -N _t_pre
+zle -N _t_post
+zle -N _t_init
+add-zle-hook-widget zle-line-pre-redraw _t_pre
+add-zle-hook-widget zle-line-init _t_init
+
+FASTHL_BIN=$FHT_DIR/bin/fast-highlight
+[[ -r $FHT_DIR/pre.zsh ]] && source $FHT_DIR/pre.zsh
+source $FHT_PLUGIN
+[[ -r $FHT_DIR/post.zsh ]] && source $FHT_DIR/post.zsh
+add-zle-hook-widget zle-line-pre-redraw _t_post
