@@ -33,16 +33,26 @@ pub(super) enum Term {
 enum Last {
     /// Start of a list, or after `;`, `&`, or a newline.
     Start,
-    /// After `|`, `|&`, `&&`, or `||`: a command must follow.
+    /// After `&&` or `||`. Another list operator may not follow, but zsh accepts a separator.
     Op,
+    /// After `|` or `|&`: a command must follow.
+    Pipe,
     /// After a reserved word that must be followed by a command (`if`, `then`, `do`, `{`, ...).
     Kw,
+    /// After the header of a function definition, before its body. `parens` is set for the
+    /// `name ()` and `()` forms, which a separator may not follow.
+    FuncBody { anon: bool, parens: bool },
+    /// After `always`: only the `{` of the always block may follow.
+    Always,
     /// Inside a simple command.
     Cmd,
     /// Right after the end of a compound command (`fi`, `}`, `)`, `]]`, `))`, ...). Only a
     /// separator, a redirection, or a reserved word that continues an enclosing construct may
-    /// follow.
-    Compound,
+    /// follow, and `always` when the construct was a plain `{ ... }` group.
+    Compound { always: bool },
+    /// After the body of an anonymous function: the words up to the next separator are the
+    /// function's arguments.
+    Args,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -88,14 +98,163 @@ enum CaseState {
     Body,
 }
 
+/// What a `{ ... }` group is the body of.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum BraceKind {
+    /// A plain group, which `always { ... }` may follow.
+    Plain,
+    /// The body of a short-form `if`, `while`, `for`, `select`, or `repeat`.
+    Short,
+    /// The body of a named function.
+    Func,
+    /// The body of an anonymous function, which arguments may follow.
+    Anon,
+    /// The block after `always`.
+    Always,
+}
+
 /// An open compound construct awaiting its closer.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Open {
     If(IfState),
     Loop(LoopKind, LoopState),
-    Case { brace: bool, state: CaseState },
-    Brace { short: bool },
+    Case {
+        brace: bool,
+        state: CaseState,
+    },
+    Brace(BraceKind),
+    /// A subshell; `anon` when it is the body of an anonymous function.
+    Paren {
+        anon: bool,
+    },
+}
+
+/// The open constructs a closer or continuation word searches the stack for.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Class {
+    /// `then`: an `if` or `elif` condition.
+    Then,
+    /// `elif` and `else`: an `if` body or a completed short-form `if`.
+    Else,
+    /// `fi`: any `if`.
+    Fi,
+    /// `do`: a `while` condition or a `for` header.
+    Do,
+    /// `done`: any `while`, `until`, `for`, `select`, or `repeat`.
+    Done,
+    /// `end`: a `foreach`.
+    End,
+    /// `esac`: a `case ... in`.
+    Esac,
+    /// `;;`, `;&`, `;|`: the body of a case item.
+    CaseSep,
+    /// `}`: a group or a `case ... {`.
+    RBrace,
+    /// `)`: a subshell.
     Paren,
+}
+
+const CLASS_COUNT: usize = 10;
+
+impl Open {
+    /// The classes this construct belongs to, as a bit set indexed by [`Class`].
+    fn classes(self) -> u16 {
+        let bit = |c: Class| 1u16 << c as u16;
+        match self {
+            Open::If(state) => {
+                bit(Class::Fi)
+                    | match state {
+                        IfState::Cond { .. } => bit(Class::Then),
+                        IfState::Body | IfState::ShortDone => bit(Class::Else),
+                        _ => 0,
+                    }
+            }
+            Open::Loop(LoopKind::Foreach, _) => bit(Class::End),
+            Open::Loop(_, state) => {
+                bit(Class::Done)
+                    | match state {
+                        LoopState::Cond { .. } | LoopState::ExpectDo => bit(Class::Do),
+                        _ => 0,
+                    }
+            }
+            Open::Case { brace, state } => {
+                (if brace {
+                    bit(Class::RBrace)
+                } else {
+                    bit(Class::Esac)
+                }) | if state == CaseState::Body {
+                    bit(Class::CaseSep)
+                } else {
+                    0
+                }
+            }
+            Open::Brace(_) => bit(Class::RBrace),
+            Open::Paren { .. } => bit(Class::Paren),
+        }
+    }
+}
+
+/// The stack of open constructs in one list, with a count of the constructs in each [`Class`]
+/// so that a search for a closer that matches nothing costs constant time instead of a scan of
+/// the whole stack. A successful search discards everything above the match, so searches are
+/// amortised constant time as well.
+#[derive(Default)]
+struct Stack {
+    items: Vec<Open>,
+    counts: [u32; CLASS_COUNT],
+}
+
+impl Stack {
+    fn count(&mut self, o: Open, add: bool) {
+        let bits = o.classes();
+        for (i, n) in self.counts.iter_mut().enumerate() {
+            if bits & (1 << i) != 0 {
+                if add {
+                    *n += 1;
+                } else {
+                    *n -= 1;
+                }
+            }
+        }
+    }
+
+    fn last(&self) -> Option<Open> {
+        self.items.last().copied()
+    }
+
+    fn push(&mut self, o: Open) {
+        self.count(o, true);
+        self.items.push(o);
+    }
+
+    fn pop(&mut self) -> Option<Open> {
+        let o = self.items.pop()?;
+        self.count(o, false);
+        Some(o)
+    }
+
+    /// Replaces the innermost construct.
+    fn set_last(&mut self, o: Open) {
+        if self.pop().is_some() {
+            self.push(o);
+        }
+    }
+
+    /// Finds the innermost construct in `class` and discards everything above it, so the
+    /// match ends up on top. Returns `Some(true)` when it already was on top, `Some(false)` when
+    /// constructs had to be discarded (an error), and `None` when nothing matches.
+    fn find(&mut self, class: Class) -> Option<bool> {
+        if self.counts[class as usize] == 0 {
+            return None;
+        }
+        let bit = 1u16 << class as u16;
+        let idx = self.items.iter().rposition(|o| o.classes() & bit != 0)?;
+        let top = idx + 1 == self.items.len();
+        while self.items.len() > idx + 1 {
+            self.pop();
+        }
+        Some(top)
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -151,6 +310,22 @@ fn keyword(s: &str) -> Option<Kw> {
 }
 
 impl Kw {
+    /// Reserved words that begin a command which `time` may precede.
+    fn begins_compound(self) -> bool {
+        matches!(
+            self,
+            Kw::If
+                | Kw::Case
+                | Kw::For
+                | Kw::While
+                | Kw::Repeat
+                | Kw::Foreach
+                | Kw::LBrace
+                | Kw::Bang
+                | Kw::CondOpen
+        )
+    }
+
     /// Reserved words that may directly follow the end of a compound command.
     fn continues_compound(self) -> bool {
         matches!(
@@ -197,16 +372,35 @@ const COND_OPERATORS: &[&str] = &[
 #[derive(Default)]
 struct Cmd {
     words: Vec<Word>,
-    /// Assignments or redirections were seen before the command word.
-    prefix: bool,
+    /// Assignments were seen before the command word.
+    assign: bool,
+    /// Redirections were seen before the command word.
+    redir: bool,
     /// The command is a declaration builtin, so `name=value` arguments are assignments.
     decl: bool,
+    /// The declaration builtin is reached through a precommand (`builtin export`), so it is an
+    /// ordinary builtin and its `name=value` arguments are globbed like any other word.
+    decl_globbed: bool,
+    /// Every word so far is a precommand modifier (`builtin`, `command`, ...).
+    chain: bool,
     /// Words are lexed but no command is recorded (after `^old^new`).
     suppressed: bool,
 }
 
+impl Cmd {
+    /// Assignments or redirections were seen before the command word.
+    fn prefix(&self) -> bool {
+        self.assign || self.redir
+    }
+
+    /// The command so far is the single word `time`, which may precede a compound command.
+    fn is_time(&self) -> bool {
+        !self.prefix() && self.words.len() == 1 && self.words[0].literal.as_deref() == Some("time")
+    }
+}
+
 struct Frame {
-    stack: Vec<Open>,
+    stack: Stack,
     last: Last,
     cmd: Cmd,
     term: Term,
@@ -215,7 +409,7 @@ struct Frame {
 impl Frame {
     fn new(term: Term) -> Frame {
         Frame {
-            stack: Vec::new(),
+            stack: Stack::default(),
             last: Last::Start,
             cmd: Cmd::default(),
             term,
@@ -231,16 +425,6 @@ impl Frame {
             })
         )
     }
-}
-
-/// Finds the innermost open construct matching `pred` and discards everything above it, so the
-/// match ends up on top. Returns `Some(true)` when it already was on top, `Some(false)` when
-/// constructs had to be discarded (an error), and `None` when nothing matches.
-fn find_open(stack: &mut Vec<Open>, pred: impl Fn(&Open) -> bool) -> Option<bool> {
-    let idx = stack.iter().rposition(pred)?;
-    let top = idx + 1 == stack.len();
-    stack.truncate(idx + 1);
-    Some(top)
 }
 
 /// A here-document whose body starts after the next newline.
@@ -297,12 +481,100 @@ pub(super) struct Parser<'a> {
     commands: Vec<SimpleCommand>,
     pub(super) path_words: Vec<Word>,
     heredocs: Vec<PendingHeredoc>,
-    /// A `[` scan from inside this range is known to find no closing `]`.
+    /// Only spans are wanted: no commands, path words, or word literals are built, except the
+    /// literals the grammar itself depends on.
+    pub(super) spans_only: bool,
+    /// The range and limit of the last failed `[` scan; see [`Parser::bracket_end`].
     pub(super) bracket_fail: (usize, usize, usize),
+    /// The `[`s inside `bracket_fail` from which a scan is known to fail, in order.
+    pub(super) bracket_fail_at: Vec<usize>,
+    /// Where the last lookup in `bracket_fail_at` ended.
+    pub(super) bracket_fail_cursor: usize,
+    /// Spare buffer for the next failed scan's list.
+    pub(super) bracket_scratch: Vec<usize>,
+    /// Matching closers found by bracket scans, indexed by [`Bracket`].
+    pub(super) memos: [Memo; 3],
+}
+
+/// Bracket pairs whose closer is found by a memoised scan.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(super) enum Bracket {
+    /// `(` and `)` of arithmetic, skipping quoted text and escaped characters.
+    Arith,
+    /// `[` and `]` of a subscript, skipping escaped characters and stopping at a newline.
+    Subscript,
+    /// `[` and `]` of the old arithmetic expansion `$[...]`.
+    OldArith,
+}
+
+/// Remembers, for each opening bracket a scan has passed over, where its matching closer is.
+///
+/// Scans for the end of `((...))`, `$((...))`, `$[...]`, and subscripts can be nested inside each
+/// other's range (`$(( $(( $(( ...`), and rescanning from each would be quadratic. A scan that reaches
+/// an opening bracket as a token of its own sees exactly the bytes and quoting a scan starting
+/// at that bracket would see, so it records the match for every opener it passes, and a later
+/// scan from one of them is answered from the table. Each entry is 0 (unknown), the closer's
+/// offset plus one, or [`Memo::OPEN`] with the offset where the scan gave up. The table is
+/// allocated on first use and only for inputs whose offsets fit.
+#[derive(Default)]
+pub(super) struct Memo {
+    table: Vec<u32>,
+    /// Openers whose closer has not been seen yet during the current scan.
+    stack: Vec<usize>,
+}
+
+impl Memo {
+    const OPEN: u32 = 1 << 31;
+
+    /// The recorded result for the opener at `open`: `Ok(close)`, `Err(stop)` when the scan
+    /// stopped at `stop` without finding the closer, or `None` when unknown.
+    pub(super) fn get(&self, open: usize) -> Option<Result<usize, usize>> {
+        let v = *self.table.get(open)?;
+        if v == 0 {
+            None
+        } else if v & Memo::OPEN != 0 {
+            Some(Err((v & !Memo::OPEN) as usize))
+        } else {
+            Some(Ok(v as usize - 1))
+        }
+    }
+
+    /// Starts a scan from the opener at `open` in an input of `len` bytes.
+    pub(super) fn begin(&mut self, open: usize, len: usize) {
+        if self.table.is_empty() && len < Memo::OPEN as usize - 1 {
+            self.table = vec![0; len + 1];
+        }
+        self.stack.clear();
+        self.stack.push(open);
+    }
+
+    pub(super) fn opened(&mut self, open: usize) {
+        self.stack.push(open);
+    }
+
+    /// Records a closer at `close`; returns true when it matches the scan's first opener.
+    pub(super) fn closed(&mut self, close: usize) -> bool {
+        if let Some(open) = self.stack.pop()
+            && let Some(slot) = self.table.get_mut(open)
+        {
+            *slot = close as u32 + 1;
+        }
+        self.stack.is_empty()
+    }
+
+    /// Ends a scan that stopped at `stop` with openers still unmatched.
+    pub(super) fn stopped(&mut self, stop: usize) {
+        for &open in &self.stack {
+            if let Some(slot) = self.table.get_mut(open) {
+                *slot = stop as u32 | Memo::OPEN;
+            }
+        }
+        self.stack.clear();
+    }
 }
 
 impl<'a> Parser<'a> {
-    pub(super) fn new(src: &'a str, opts: ParseOptions) -> Parser<'a> {
+    pub(super) fn new(src: &'a str, opts: ParseOptions, spans_only: bool) -> Parser<'a> {
         Parser {
             src,
             b: src.as_bytes(),
@@ -310,11 +582,17 @@ impl<'a> Parser<'a> {
             end: src.len(),
             opts,
             depth: 0,
-            spans: Vec::new(),
+            // Typical input has a span every four to eight bytes.
+            spans: Vec::with_capacity((src.len() / 4).min(1 << 14)),
             commands: Vec::new(),
             path_words: Vec::new(),
             heredocs: Vec::new(),
+            spans_only,
             bracket_fail: (0, 0, 0),
+            bracket_fail_at: Vec::new(),
+            bracket_fail_cursor: 0,
+            bracket_scratch: Vec::new(),
+            memos: Default::default(),
         }
     }
 
@@ -441,6 +719,7 @@ impl<'a> Parser<'a> {
             self.push(0, e, TokenKind::HistoryExpansion);
             self.pos = e;
             f.cmd.suppressed = true;
+            f.cmd.chain = true;
             f.last = Last::Cmd;
         }
         self.list_loop(&mut f);
@@ -496,7 +775,10 @@ impl<'a> Parser<'a> {
                 b'\n' => {
                     self.end_cmd(f);
                     self.newline();
-                    if !matches!(f.last, Last::Op | Last::Kw) {
+                    if !matches!(
+                        f.last,
+                        Last::Op | Last::Pipe | Last::Kw | Last::FuncBody { .. } | Last::Always
+                    ) {
                         f.last = Last::Start;
                     }
                 }
@@ -523,9 +805,28 @@ impl<'a> Parser<'a> {
     }
 
     fn end_cmd(&mut self, f: &mut Frame) {
-        let cmd = std::mem::take(&mut f.cmd);
-        if !cmd.words.is_empty() && !cmd.suppressed {
+        let mut cmd = std::mem::take(&mut f.cmd);
+        if self.spans_only {
+            // Keep the buffer for the next command instead of reallocating it.
+            cmd.words.clear();
+            f.cmd.words = cmd.words;
+        } else if !cmd.words.is_empty() && !cmd.suppressed {
             self.commands.push(SimpleCommand { words: cmd.words });
+        }
+    }
+
+    /// Whether a word that may continue a precommand chain needs its literal: always, except
+    /// in a spans-only parse of a plain word that names no declaration builtin, precommand, or
+    /// `time`, whose literal the grammar never looks at.
+    fn literal_needed(&self, plain: Option<&str>) -> bool {
+        !self.spans_only
+            || plain.is_none_or(|p| is_declaration(p) || is_precommand(p) || p == "time")
+    }
+
+    /// Records a word outside simple commands that should be checked as a path.
+    fn path_word(&mut self, w: Word) {
+        if !self.spans_only {
+            self.path_words.push(w);
         }
     }
 
@@ -533,14 +834,16 @@ impl<'a> Parser<'a> {
     /// `if`/`while` condition, is the body of a short-form `for`, or completes a short `if`.
     fn note_command_start(&mut self, f: &mut Frame) {
         loop {
-            match f.stack.last_mut() {
-                Some(Open::If(IfState::Cond { seen })) => *seen = true,
-                Some(Open::Loop(LoopKind::While, LoopState::Cond { seen })) => *seen = true,
-                Some(Open::Loop(LoopKind::For, LoopState::ExpectDo)) => {
-                    f.stack.pop();
-                    continue;
+            match f.stack.last() {
+                Some(Open::If(IfState::Cond { seen: false })) => {
+                    f.stack.set_last(Open::If(IfState::Cond { seen: true }));
                 }
-                Some(Open::If(IfState::ShortDone)) => {
+                Some(Open::Loop(LoopKind::While, LoopState::Cond { seen: false })) => {
+                    f.stack
+                        .set_last(Open::Loop(LoopKind::While, LoopState::Cond { seen: true }));
+                }
+                Some(Open::Loop(LoopKind::For, LoopState::ExpectDo))
+                | Some(Open::If(IfState::ShortDone)) => {
                     f.stack.pop();
                     continue;
                 }
@@ -552,28 +855,66 @@ impl<'a> Parser<'a> {
 
     /// Completes short-form `if`s that cannot be continued by what follows.
     fn settle(f: &mut Frame) {
-        while f.stack.last() == Some(&Open::If(IfState::ShortDone)) {
+        while f.stack.last() == Some(Open::If(IfState::ShortDone)) {
             f.stack.pop();
         }
+    }
+
+    /// True when a `}` at `i` is a word of its own: unquoted and followed by a word terminator
+    /// or the end. Without `IGNORE_CLOSE_BRACES` such a `}` closes a group wherever it appears.
+    fn rbrace_at(&self, i: usize) -> bool {
+        self.byte(i) == Some(b'}') && self.byte(i + 1).is_none_or(is_word_term)
+    }
+
+    /// Consumes the word at the cursor and marks all of it as an error.
+    fn error_word(&mut self) {
+        let start = self.pos;
+        let before = self.span_count();
+        let w = self.lex_word();
+        self.truncate_spans(before);
+        self.push(start, w.end, TokenKind::Error);
     }
 
     fn word_token(&mut self, f: &mut Frame) {
         let start = self.pos;
         let plain = self.plain_word_at(start);
         let kw = plain.and_then(keyword);
-        if f.last == Last::Compound {
-            if let Some(kw) = kw
-                && kw.continues_compound()
-            {
-                self.keyword(f, kw, start, plain.map_or(0, str::len));
+        // Without IGNORE_BRACES, zsh splits a `{` off the start of a word in command position
+        // (`{echo hi}` is a group), and `{fd}>` has already been taken as a redirection.
+        let brace = self.b[start] == b'{';
+        match f.last {
+            Last::Compound { always } => {
+                if always && plain == Some("always") {
+                    self.push(start, start + 6, TokenKind::ReservedWord);
+                    self.pos = start + 6;
+                    f.last = Last::Always;
+                } else if brace {
+                    self.keyword(f, Kw::LBrace, start, 1);
+                } else if let Some(kw) = kw
+                    && kw.continues_compound()
+                {
+                    self.keyword(f, kw, start, plain.map_or(0, str::len));
+                } else {
+                    // A word right after `fi`, `}`, `)`, `]]` ... is a syntax error.
+                    self.error_word();
+                }
                 return;
             }
-            // A word right after `fi`, `}`, `)`, `]]` ... is a syntax error.
-            let before = self.span_count();
-            let w = self.lex_word();
-            self.truncate_spans(before);
-            self.push(start, w.end, TokenKind::Error);
-            return;
+            Last::Always => {
+                if brace {
+                    self.keyword(f, Kw::LBrace, start, 1);
+                } else {
+                    self.error_word();
+                }
+                return;
+            }
+            Last::Args if kw != Some(Kw::RBrace) => {
+                // Arguments of an anonymous function: plain words, even reserved ones.
+                let w = self.lex_word();
+                self.path_word(w);
+                return;
+            }
+            _ => {}
         }
         if kw == Some(Kw::RBrace) {
             // Without IGNORE_CLOSE_BRACES a lone `}` is significant anywhere in a command.
@@ -581,25 +922,56 @@ impl<'a> Parser<'a> {
             self.keyword(f, Kw::RBrace, start, 1);
             return;
         }
+        if f.cmd.is_time() && (brace || kw.is_some_and(Kw::begins_compound)) {
+            // `time` is a reserved word in zsh and may precede a compound command.
+            self.end_cmd(f);
+        }
         let cmd_pos = f.cmd.words.is_empty() && !f.cmd.suppressed;
         if cmd_pos {
-            if !f.cmd.prefix
-                && let Some(kw) = kw
-            {
-                self.keyword(f, kw, start, plain.map_or(0, str::len));
-                return;
+            let reserved = if brace {
+                Some((Kw::LBrace, 1))
+            } else {
+                kw.map(|k| (k, plain.map_or(0, str::len)))
+            };
+            if let Some((rkw, len)) = reserved {
+                if !f.cmd.assign {
+                    if rkw == Kw::Bang && (f.last == Last::Pipe || f.cmd.redir) {
+                        // zsh accepts `!` only at the start of a pipeline, before redirections.
+                        self.push(start, start + 1, TokenKind::Error);
+                        self.pos = start + 1;
+                        f.last = Last::Kw;
+                        return;
+                    }
+                    // Redirections may precede a compound command (`> f { ... }`).
+                    self.end_cmd(f);
+                    self.keyword(f, rkw, start, len);
+                    return;
+                }
+                if kw.is_some() {
+                    // zsh rejects a reserved word after an assignment (`x=1 if`).
+                    self.error_word();
+                    f.cmd.words.push(Word {
+                        start,
+                        end: self.pos,
+                        literal: plain.map(str::to_string),
+                        tilde: false,
+                        has_glob: false,
+                    });
+                    f.last = Last::Cmd;
+                    return;
+                }
             }
             if self.assignment_ahead(start).is_some() {
-                if !f.cmd.prefix {
+                if !f.cmd.prefix() {
                     self.note_command_start(f);
                 }
                 self.assignment(f, false);
                 return;
             }
-            if !f.cmd.prefix {
+            if !f.cmd.prefix() {
                 self.note_command_start(f);
             }
-            let w = self.lex_word();
+            let w = self.lex_word_with(self.literal_needed(plain));
             if let Some((open, close)) = self.funcdef_parens() {
                 // `name () body`: a function definition, not a command.
                 self.push(w.start, w.end, TokenKind::Function);
@@ -607,26 +979,28 @@ impl<'a> Parser<'a> {
                 self.push(close, close + 1, TokenKind::Grouping);
                 self.pos = close + 1;
                 f.cmd = Cmd::default();
-                f.last = Last::Kw;
+                f.last = Last::FuncBody {
+                    anon: false,
+                    parens: true,
+                };
                 return;
             }
             f.cmd.decl = w.literal.as_deref().is_some_and(is_declaration);
+            f.cmd.chain = w.literal.as_deref().is_some_and(is_precommand);
             f.cmd.words.push(w);
         } else {
             if f.cmd.decl && self.assignment_ahead(start).is_some() {
                 self.assignment(f, true);
                 return;
             }
-            let w = self.lex_word();
-            if !f.cmd.decl
-                && w.literal.as_deref().is_some_and(is_declaration)
-                && f.cmd
-                    .words
-                    .iter()
-                    .all(|w| w.literal.as_deref().is_some_and(is_precommand))
-            {
+            // Only a word of a precommand chain needs its literal to recognise a declaration.
+            let w =
+                self.lex_word_with(!self.spans_only || f.cmd.chain && self.literal_needed(plain));
+            if !f.cmd.decl && f.cmd.chain && w.literal.as_deref().is_some_and(is_declaration) {
                 f.cmd.decl = true;
+                f.cmd.decl_globbed = true;
             }
+            f.cmd.chain = f.cmd.chain && w.literal.as_deref().is_some_and(is_precommand);
             f.cmd.words.push(w);
         }
         f.last = Last::Cmd;
@@ -671,38 +1045,31 @@ impl<'a> Parser<'a> {
             }
             Kw::Then => {
                 Self::settle(f);
-                let mut top = find_open(&mut f.stack, |o| {
-                    matches!(o, Open::If(IfState::Cond { .. }))
-                });
+                // zsh accepts an empty condition (`if then`).
+                let top = f.stack.find(Class::Then);
                 if top.is_some() {
-                    // `if then` without a condition command is an error.
-                    if f.stack.pop() == Some(Open::If(IfState::Cond { seen: false })) {
-                        top = Some(false);
-                    }
-                    f.stack.push(Open::If(IfState::Body));
+                    f.stack.set_last(Open::If(IfState::Body));
                 }
                 self.push(start, end, ok(top));
                 f.last = Last::Kw;
             }
             Kw::Elif | Kw::Else => {
-                let top = find_open(&mut f.stack, |o| {
-                    matches!(o, Open::If(IfState::Body | IfState::ShortDone))
-                });
-                if let Some(Open::If(state)) = f.stack.last_mut()
-                    && top.is_some()
+                let top = f.stack.find(Class::Else);
+                if top.is_some()
+                    && let Some(Open::If(state)) = f.stack.last()
                 {
-                    *state = match (kw, *state) {
+                    f.stack.set_last(Open::If(match (kw, state) {
                         (Kw::Elif, _) => IfState::Cond { seen: false },
                         (_, IfState::ShortDone) => IfState::ShortElse,
                         _ => IfState::Else,
-                    };
+                    }));
                 }
                 self.push(start, end, ok(top));
                 f.last = Last::Kw;
             }
             Kw::Fi => {
                 Self::settle(f);
-                let mut top = find_open(&mut f.stack, |o| matches!(o, Open::If(_)));
+                let mut top = f.stack.find(Class::Fi);
                 if top.is_some()
                     && let Some(Open::If(state)) = f.stack.pop()
                     && !matches!(state, IfState::Body | IfState::Else)
@@ -710,7 +1077,7 @@ impl<'a> Parser<'a> {
                     top = Some(false);
                 }
                 self.push(start, end, ok(top));
-                f.last = Last::Compound;
+                f.last = Last::Compound { always: false };
             }
             Kw::For | Kw::Repeat | Kw::Foreach => {
                 self.note_command_start(f);
@@ -740,34 +1107,24 @@ impl<'a> Parser<'a> {
             }
             Kw::Do => {
                 Self::settle(f);
-                let mut top = find_open(&mut f.stack, |o| {
-                    matches!(
-                        o,
-                        Open::Loop(
-                            LoopKind::While | LoopKind::For,
-                            LoopState::Cond { .. } | LoopState::ExpectDo
-                        )
-                    )
-                });
-                if let Some(Open::Loop(_, state)) = f.stack.last_mut()
-                    && top.is_some()
+                // zsh accepts an empty condition (`while do`).
+                let top = f.stack.find(Class::Do);
+                if top.is_some()
+                    && let Some(Open::Loop(kind, _)) = f.stack.last()
                 {
-                    // `while do` without a condition command is an error.
-                    if *state == (LoopState::Cond { seen: false }) {
-                        top = Some(false);
-                    }
-                    *state = LoopState::Body;
+                    f.stack.set_last(Open::Loop(kind, LoopState::Body));
                 }
                 self.push(start, end, ok(top));
                 f.last = Last::Kw;
             }
             Kw::Done | Kw::End => {
                 Self::settle(f);
-                let mut top = find_open(&mut f.stack, |o| match o {
-                    Open::Loop(LoopKind::Foreach, _) => kw == Kw::End,
-                    Open::Loop(_, _) => kw == Kw::Done,
-                    _ => false,
-                });
+                let class = if kw == Kw::End {
+                    Class::End
+                } else {
+                    Class::Done
+                };
+                let mut top = f.stack.find(class);
                 if top.is_some()
                     && let Some(Open::Loop(_, state)) = f.stack.pop()
                     && state != LoopState::Body
@@ -775,7 +1132,7 @@ impl<'a> Parser<'a> {
                     top = Some(false);
                 }
                 self.push(start, end, ok(top));
-                f.last = Last::Compound;
+                f.last = Last::Compound { always: false };
             }
             Kw::Case => {
                 self.note_command_start(f);
@@ -786,63 +1143,78 @@ impl<'a> Parser<'a> {
             }
             Kw::Esac => {
                 Self::settle(f);
-                let top = find_open(&mut f.stack, |o| {
-                    matches!(o, Open::Case { brace: false, .. })
-                });
+                let top = f.stack.find(Class::Esac);
                 if top.is_some() {
                     f.stack.pop();
                 }
                 self.push(start, end, ok(top));
-                f.last = Last::Compound;
+                f.last = Last::Compound { always: false };
             }
             Kw::LBrace => {
-                let short = match f.stack.last_mut() {
-                    Some(Open::If(state @ IfState::Cond { seen: true }))
-                        if f.last == Last::Compound =>
-                    {
-                        *state = IfState::ShortBody;
-                        true
-                    }
-                    Some(Open::If(state @ IfState::ShortElse)) => {
-                        *state = IfState::ShortElseBody;
-                        true
-                    }
-                    Some(Open::Loop(LoopKind::While, state @ LoopState::Cond { seen: true }))
-                    | Some(Open::Loop(LoopKind::For, state @ LoopState::ExpectDo)) => {
-                        *state = LoopState::ShortBody;
-                        true
-                    }
-                    _ => false,
+                let kind = match f.last {
+                    Last::FuncBody { anon: true, .. } => BraceKind::Anon,
+                    Last::FuncBody { anon: false, .. } => BraceKind::Func,
+                    Last::Always => BraceKind::Always,
+                    _ => match f.stack.last() {
+                        Some(Open::If(IfState::Cond { seen: true }))
+                            if matches!(f.last, Last::Compound { .. }) =>
+                        {
+                            f.stack.set_last(Open::If(IfState::ShortBody));
+                            BraceKind::Short
+                        }
+                        Some(Open::If(IfState::ShortElse)) => {
+                            f.stack.set_last(Open::If(IfState::ShortElseBody));
+                            BraceKind::Short
+                        }
+                        Some(Open::Loop(
+                            kind @ LoopKind::While,
+                            LoopState::Cond { seen: true },
+                        ))
+                        | Some(Open::Loop(kind @ LoopKind::For, LoopState::ExpectDo)) => {
+                            f.stack.set_last(Open::Loop(kind, LoopState::ShortBody));
+                            BraceKind::Short
+                        }
+                        _ => BraceKind::Plain,
+                    },
                 };
-                let kind = if !short && f.last == Last::Compound {
-                    err
-                } else {
-                    rw
-                };
-                if !short {
+                let kind_span =
+                    if kind == BraceKind::Plain && matches!(f.last, Last::Compound { .. }) {
+                        err
+                    } else {
+                        rw
+                    };
+                if kind != BraceKind::Short {
                     self.note_command_start(f);
                 }
-                f.stack.push(Open::Brace { short });
-                self.push(start, end, kind);
+                f.stack.push(Open::Brace(kind));
+                self.push(start, end, kind_span);
                 f.last = Last::Kw;
             }
             Kw::RBrace => {
                 Self::settle(f);
-                let top = find_open(&mut f.stack, |o| {
-                    matches!(o, Open::Brace { .. } | Open::Case { brace: true, .. })
-                });
-                if top.is_some() && f.stack.pop() == Some(Open::Brace { short: true }) {
-                    match f.stack.last_mut() {
-                        Some(Open::If(state @ IfState::ShortBody)) => *state = IfState::ShortDone,
-                        Some(Open::If(IfState::ShortElseBody))
-                        | Some(Open::Loop(_, LoopState::ShortBody)) => {
-                            f.stack.pop();
+                let top = f.stack.find(Class::RBrace);
+                let mut last = Last::Compound { always: false };
+                if top.is_some() {
+                    match f.stack.pop() {
+                        Some(Open::Brace(BraceKind::Short)) => match f.stack.last() {
+                            Some(Open::If(IfState::ShortBody)) => {
+                                f.stack.set_last(Open::If(IfState::ShortDone));
+                            }
+                            Some(Open::If(IfState::ShortElseBody))
+                            | Some(Open::Loop(_, LoopState::ShortBody)) => {
+                                f.stack.pop();
+                            }
+                            _ => {}
+                        },
+                        Some(Open::Brace(BraceKind::Plain)) => {
+                            last = Last::Compound { always: true };
                         }
+                        Some(Open::Brace(BraceKind::Anon)) => last = Last::Args,
                         _ => {}
                     }
                 }
                 self.push(start, end, ok(top));
-                f.last = Last::Compound;
+                f.last = last;
             }
             Kw::Bang | Kw::Coproc => {
                 self.note_command_start(f);
@@ -852,8 +1224,11 @@ impl<'a> Parser<'a> {
             Kw::Function => {
                 self.note_command_start(f);
                 self.push(start, end, rw);
-                self.function_header();
-                f.last = Last::Kw;
+                let named = self.function_header();
+                f.last = Last::FuncBody {
+                    anon: !named,
+                    parens: false,
+                };
             }
             Kw::CondOpen => {
                 self.note_command_start(f);
@@ -869,26 +1244,34 @@ impl<'a> Parser<'a> {
     }
 
     fn open_paren(&mut self, f: &mut Frame) {
-        let cmd_pos = f.cmd.words.is_empty() && !f.cmd.prefix && !f.cmd.suppressed;
-        if !cmd_pos || f.last == Last::Compound {
+        if f.cmd.is_time() || (f.cmd.words.is_empty() && f.cmd.redir && !f.cmd.assign) {
+            // `time ( ... )`, and redirections before a subshell (`> f ( ... )`).
+            self.end_cmd(f);
+        }
+        let cmd_pos = f.cmd.words.is_empty() && !f.cmd.prefix() && !f.cmd.suppressed;
+        if !cmd_pos || matches!(f.last, Last::Compound { .. } | Last::Always | Last::Args) {
             self.word_token(f);
             return;
         }
+        let anon = matches!(f.last, Last::FuncBody { anon: true, .. });
         self.note_command_start(f);
         if self.peek_at(1) == Some(b'(') && self.arith_command() {
-            f.last = Last::Compound;
+            f.last = Last::Compound { always: false };
             return;
         }
         if self.peek_at(1) == Some(b')') {
             // `() body`: an anonymous function.
             self.push(self.pos, self.pos + 2, TokenKind::Grouping);
             self.pos += 2;
-            f.last = Last::Kw;
+            f.last = Last::FuncBody {
+                anon: true,
+                parens: true,
+            };
             return;
         }
         self.push(self.pos, self.pos + 1, TokenKind::Grouping);
         self.pos += 1;
-        f.stack.push(Open::Paren);
+        f.stack.push(Open::Paren { anon });
         f.last = Last::Kw;
     }
 
@@ -897,9 +1280,9 @@ impl<'a> Parser<'a> {
         self.end_cmd(f);
         Self::settle(f);
         let start = self.pos;
-        match find_open(&mut f.stack, |o| matches!(o, Open::Paren)) {
+        match f.stack.find(Class::Paren) {
             Some(top) => {
-                f.stack.pop();
+                let anon = f.stack.pop() == Some(Open::Paren { anon: true });
                 let kind = if top {
                     TokenKind::Grouping
                 } else {
@@ -907,7 +1290,11 @@ impl<'a> Parser<'a> {
                 };
                 self.push(start, start + 1, kind);
                 self.pos += 1;
-                f.last = Last::Compound;
+                f.last = if anon {
+                    Last::Args
+                } else {
+                    Last::Compound { always: false }
+                };
                 false
             }
             None if f.term == Term::Paren => true,
@@ -926,19 +1313,14 @@ impl<'a> Parser<'a> {
         if matches!(self.peek_at(1), Some(b';' | b'&' | b'|')) {
             // `;;`, `;&`, `;|` end a case item.
             Self::settle(f);
-            let top = find_open(&mut f.stack, |o| {
-                matches!(
-                    o,
-                    Open::Case {
-                        state: CaseState::Body,
-                        ..
-                    }
-                )
-            });
-            if let Some(Open::Case { state, .. }) = f.stack.last_mut()
-                && top.is_some()
+            let top = f.stack.find(Class::CaseSep);
+            if top.is_some()
+                && let Some(Open::Case { brace, .. }) = f.stack.last()
             {
-                *state = CaseState::Pattern;
+                f.stack.set_last(Open::Case {
+                    brace,
+                    state: CaseState::Pattern,
+                });
             }
             let kind = if top == Some(true) {
                 TokenKind::Separator
@@ -948,10 +1330,11 @@ impl<'a> Parser<'a> {
             self.push(start, start + 2, kind);
             self.pos += 2;
         } else {
-            let kind = if f.last == Last::Op {
-                TokenKind::Error
-            } else {
-                TokenKind::Separator
+            // zsh accepts a separator after `&&` and `||` (`a && ;`), but not after a pipe, after
+            // `always`, or between `name ()` and the function body.
+            let kind = match f.last {
+                Last::Pipe | Last::Always | Last::FuncBody { parens: true, .. } => TokenKind::Error,
+                _ => TokenKind::Separator,
             };
             self.push(start, start + 1, kind);
             self.pos += 1;
@@ -961,7 +1344,10 @@ impl<'a> Parser<'a> {
 
     /// The kind for a list operator, which needs a command before it.
     fn list_op_kind(f: &Frame) -> TokenKind {
-        if matches!(f.last, Last::Start | Last::Op | Last::Kw) {
+        if matches!(
+            f.last,
+            Last::Start | Last::Op | Last::Pipe | Last::Kw | Last::FuncBody { .. } | Last::Always
+        ) {
             TokenKind::Error
         } else {
             TokenKind::Separator
@@ -986,14 +1372,14 @@ impl<'a> Parser<'a> {
         self.end_cmd(f);
         let kind = Self::list_op_kind(f);
         let start = self.pos;
-        let len = if matches!(self.peek_at(1), Some(b'|' | b'&')) {
-            2
-        } else {
-            1
+        let (len, last) = match self.peek_at(1) {
+            Some(b'|') => (2, Last::Op),
+            Some(b'&') => (2, Last::Pipe),
+            _ => (1, Last::Pipe),
         };
         self.push(start, start + len, kind);
         self.pos += len;
-        f.last = Last::Op;
+        f.last = last;
     }
 
     // ---------------------------------------------------------------------------------------
@@ -1014,6 +1400,18 @@ impl<'a> Parser<'a> {
                 self.paren_word_list(true);
                 return;
             }
+            if c == b'\n' && self.in_on_later_line() {
+                // `for x` newline `in a b`: zsh looks for `in` across newlines.
+                loop {
+                    match self.peek() {
+                        Some(b'\n') => self.newline(),
+                        Some(b'#') if self.opts.interactive_comments => self.comment(),
+                        Some(b' ' | b'\t') => self.pos += 1,
+                        _ => break,
+                    }
+                }
+                continue;
+            }
             if is_word_term(c) {
                 return;
             }
@@ -1028,6 +1426,24 @@ impl<'a> Parser<'a> {
                 _ => {
                     self.lex_word();
                 }
+            }
+        }
+    }
+
+    /// True when, from a newline at the cursor, only blank lines (and comments) come before a
+    /// line whose first word is `in`.
+    fn in_on_later_line(&self) -> bool {
+        let mut i = self.pos;
+        loop {
+            match self.byte(i) {
+                Some(b' ' | b'\t' | b'\n') => i += 1,
+                Some(b'#') if self.opts.interactive_comments => {
+                    while self.byte(i).is_some_and(|c| c != b'\n') {
+                        i += 1;
+                    }
+                }
+                Some(_) => return self.plain_word_at(i) == Some("in"),
+                None => return false,
             }
         }
     }
@@ -1059,11 +1475,11 @@ impl<'a> Parser<'a> {
             let word_start = !is_word_term(c)
                 || (matches!(c, b'<' | b'>') && self.peek_at(1) == Some(b'('))
                 || (c == b'<' && self.numeric_range_at(self.pos).is_some());
-            if !word_start {
+            if !word_start || self.rbrace_at(self.pos) {
                 return;
             }
             let w = self.lex_word();
-            self.path_words.push(w);
+            self.path_word(w);
         }
     }
 
@@ -1094,6 +1510,7 @@ impl<'a> Parser<'a> {
                 {
                     return;
                 }
+                b'}' if self.rbrace_at(self.pos) => return,
                 _ => {
                     if assoc
                         && c == b'['
@@ -1102,13 +1519,15 @@ impl<'a> Parser<'a> {
                         let start = self.pos;
                         self.push(start, eq, TokenKind::Assignment);
                         self.pos = eq;
+                        // Like a scalar assignment, the value of `[key]=value` is not globbed.
                         let mut acc = WordAcc::scratch(start);
+                        acc.assignment = true;
                         self.lex_word_into(&mut acc);
                         continue;
                     }
                     let w = self.lex_word();
                     if path {
-                        self.path_words.push(w);
+                        self.path_word(w);
                     }
                 }
             }
@@ -1118,9 +1537,9 @@ impl<'a> Parser<'a> {
     /// `case word in` or `case word {`; returns the construct to push.
     fn case_header(&mut self) -> Open {
         self.skip_blanks();
-        if !self.term_at(self.pos) || self.peek() == Some(b'(') {
+        if (!self.term_at(self.pos) || self.peek() == Some(b'(')) && !self.rbrace_at(self.pos) {
             let w = self.lex_word();
-            self.path_words.push(w);
+            self.path_word(w);
         }
         self.skip_blanks();
         match self.plain_word_at(self.pos) {
@@ -1161,11 +1580,15 @@ impl<'a> Parser<'a> {
         let start = self.pos;
         let plain = self.plain_word_at(start);
         if let Some(Open::Case {
-            state: state @ CaseState::ExpectIn,
+            state: CaseState::ExpectIn,
             brace,
-        }) = f.stack.last_mut()
+        }) = f.stack.last()
         {
-            *state = CaseState::Pattern;
+            let brace = brace || plain == Some("{");
+            f.stack.set_last(Open::Case {
+                brace,
+                state: CaseState::Pattern,
+            });
             match plain {
                 Some("in") => {
                     self.push(start, start + 2, TokenKind::ReservedWord);
@@ -1173,7 +1596,6 @@ impl<'a> Parser<'a> {
                     return;
                 }
                 Some("{") => {
-                    *brace = true;
                     self.push(start, start + 1, TokenKind::ReservedWord);
                     self.pos += 1;
                     return;
@@ -1203,8 +1625,11 @@ impl<'a> Parser<'a> {
                 b')' => {
                     self.push(self.pos, self.pos + 1, TokenKind::Grouping);
                     self.pos += 1;
-                    if let Some(Open::Case { state, .. }) = f.stack.last_mut() {
-                        *state = CaseState::Body;
+                    if let Some(Open::Case { brace, .. }) = f.stack.last() {
+                        f.stack.set_last(Open::Case {
+                            brace,
+                            state: CaseState::Body,
+                        });
                     }
                     f.last = Last::Kw;
                     return;
@@ -1214,6 +1639,7 @@ impl<'a> Parser<'a> {
                     self.pos += 1;
                 }
                 b'\n' | b';' | b'&' => return,
+                b'}' if self.rbrace_at(self.pos) => return,
                 b'<' | b'>' if !self.case_pattern_char(c) => return,
                 _ => {
                     self.lex_word();
@@ -1222,24 +1648,27 @@ impl<'a> Parser<'a> {
         }
     }
 
-    /// `function name... [()]`; stops before the body.
-    fn function_header(&mut self) {
+    /// `function name... [()]`; stops before the body. Returns false for an anonymous function
+    /// (no name).
+    fn function_header(&mut self) -> bool {
+        let mut named = false;
         loop {
             self.skip_blanks();
-            let Some(c) = self.peek() else { return };
+            let Some(c) = self.peek() else { return named };
             if c == b'(' {
                 if let Some((open, close)) = self.funcdef_parens() {
                     self.push(open, open + 1, TokenKind::Grouping);
                     self.push(close, close + 1, TokenKind::Grouping);
                     self.pos = close + 1;
                 }
-                return;
+                return named;
             }
             if is_word_term(c) || self.plain_word_at(self.pos) == Some("{") {
-                return;
+                return named;
             }
             let w = self.lex_word();
             self.push(w.start, w.end, TokenKind::Function);
+            named = true;
         }
     }
 
@@ -1263,7 +1692,7 @@ impl<'a> Parser<'a> {
                 b']' if self.peek_at(1) == Some(b']') && self.term_at(start + 2) => {
                     self.push(start, start + 2, TokenKind::ReservedWord);
                     self.pos += 2;
-                    f.last = Last::Compound;
+                    f.last = Last::Compound { always: false };
                     return;
                 }
                 b'&' | b'|' if self.peek_at(1) == Some(c) => {
@@ -1305,6 +1734,7 @@ impl<'a> Parser<'a> {
                 _ => {}
             }
             if let Some(op) = self.plain_word_at(start)
+                && op.len() <= 3
                 && COND_OPERATORS.contains(&op)
             {
                 self.push(start, start + op.len(), TokenKind::Operator);
@@ -1313,8 +1743,13 @@ impl<'a> Parser<'a> {
                 continue;
             }
             let w = self.lex_word();
-            self.path_words.push(w);
+            self.path_word(w);
             expect_pattern = false;
+            if self.peek() == Some(b'}') {
+                // zsh splits `}` off the end of `a}`, and a `}` token is not valid here.
+                self.push(self.pos, self.pos + 1, TokenKind::Error);
+                self.pos += 1;
+            }
         }
     }
 
@@ -1400,6 +1835,10 @@ impl<'a> Parser<'a> {
         self.pos = eq;
         let mut acc = WordAcc::new(start);
         acc.push_str(&self.src[start..eq]);
+        // A scalar value is not globbed and gets no brace expansion, and `~` after the `=` or a
+        // `:` is a tilde expansion; none of that applies to an argument of a declaration builtin
+        // reached through a precommand, which is an ordinary word.
+        acc.assignment = !(as_arg && f.cmd.decl_globbed);
         if self.peek() == Some(b'(') {
             self.push(self.pos, self.pos + 1, TokenKind::Assignment);
             self.pos += 1;
@@ -1416,7 +1855,7 @@ impl<'a> Parser<'a> {
             let w = acc.into_word(self.pos);
             f.cmd.words.push(w);
         } else {
-            f.cmd.prefix = true;
+            f.cmd.assign = true;
         }
         f.last = Last::Cmd;
     }
@@ -1523,11 +1962,19 @@ impl<'a> Parser<'a> {
         }
         let (op_end, redir) = self.redirect_op(i);
         let op_end = op_end.min(self.end);
-        if f.cmd.words.is_empty() {
-            f.cmd.prefix = true;
+        match f.last {
+            // `always` must directly follow the `}` of the group.
+            Last::Compound { .. } => f.last = Last::Compound { always: false },
+            Last::Args => {}
+            _ => {
+                if f.cmd.words.is_empty() && !f.cmd.prefix() {
+                    self.note_command_start(f);
+                }
+                f.last = Last::Cmd;
+            }
         }
-        if f.last != Last::Compound {
-            f.last = Last::Cmd;
+        if f.cmd.words.is_empty() {
+            f.cmd.redir = true;
         }
         self.pos = op_end;
         if redir == Redir::Dup {
@@ -1545,6 +1992,7 @@ impl<'a> Parser<'a> {
             Some(b'<' | b'>') => {
                 self.peek_at(1) != Some(b'(') && self.numeric_range_at(self.pos).is_none()
             }
+            Some(b'}') => self.rbrace_at(self.pos),
             Some(b'#') => self.opts.interactive_comments,
             Some(_) => false,
         };
@@ -1556,7 +2004,7 @@ impl<'a> Parser<'a> {
         match redir {
             Redir::Heredoc { strip_tabs } => {
                 let before = self.span_count();
-                let acc = self.lex_word_acc();
+                let acc = self.lex_word_acc(true);
                 self.truncate_spans(before);
                 self.push(acc.start, self.pos, TokenKind::Heredoc);
                 if !acc.text.is_empty() {
@@ -1576,7 +2024,7 @@ impl<'a> Parser<'a> {
                     l == "-" || (redir == Redir::DupWord && l.bytes().all(|c| c.is_ascii_digit()))
                 });
                 if !fd_like {
-                    self.path_words.push(w);
+                    self.path_word(w);
                 }
             }
             Redir::Dup => {}

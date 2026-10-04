@@ -110,6 +110,10 @@ impl Highlighter {
         if req.text.len() > self.config.limits.hard_cap_bytes {
             return Vec::new();
         }
+        if req.text.len() > self.config.limits.lex_only_bytes {
+            // Lex-only: `run` would return the syntactic spans unchanged.
+            return crate::syntax::parse_spans(req.text, &req.opts.parse);
+        }
         let parse = crate::syntax::parse(req.text, &req.opts.parse);
         let Highlighter {
             config,

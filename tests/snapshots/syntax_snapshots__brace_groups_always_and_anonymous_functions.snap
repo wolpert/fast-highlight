@@ -1,0 +1,30 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "{ls} && { a } always { b } && () { c $1 } x fi; echo a}"
+spans:
+  0..1 reserved-word "{"
+  3..4 reserved-word "}"
+  5..7 separator "&&"
+  8..9 reserved-word "{"
+  12..13 reserved-word "}"
+  14..20 reserved-word "always"
+  21..22 reserved-word "{"
+  25..26 reserved-word "}"
+  27..29 separator "&&"
+  30..32 grouping "()"
+  33..34 reserved-word "{"
+  37..39 parameter "$1"
+  40..41 reserved-word "}"
+  46..47 separator ";"
+  54..55 error "}"
+commands:
+  "ls"
+  "a"
+  "b"
+  "c" | "$1" (expanded)
+  "echo" | "a"
+path words:
+  "x"
+  "fi"

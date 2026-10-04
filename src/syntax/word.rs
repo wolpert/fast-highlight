@@ -6,7 +6,7 @@
 //! backquotes, and process substitutions.
 
 use super::Word;
-use super::parser::{ArithEnd, Parser, Term};
+use super::parser::{ArithEnd, Bracket, Memo, Parser, Term};
 use crate::token::TokenKind;
 
 /// Unquoted characters that end a word. `(` is handled separately because inside a word it
@@ -56,6 +56,9 @@ pub(super) struct WordAcc {
     pub(super) tilde: bool,
     /// Contains quoting of any kind (relevant for here-document delimiters).
     pub(super) quoted: bool,
+    /// The value of an assignment: no globbing or brace expansion, and a `}` at the end stays
+    /// part of the word.
+    pub(super) assignment: bool,
     collect: bool,
 }
 
@@ -68,6 +71,7 @@ impl WordAcc {
             has_glob: false,
             tilde: false,
             quoted: false,
+            assignment: false,
             collect: true,
         }
     }
@@ -101,7 +105,7 @@ impl WordAcc {
         Word {
             start: self.start,
             end,
-            literal: (!self.expanded).then_some(self.text),
+            literal: (!self.expanded && self.collect).then_some(self.text),
             tilde: self.tilde,
             has_glob: self.has_glob,
         }
@@ -110,13 +114,23 @@ impl WordAcc {
 
 impl Parser<'_> {
     pub(super) fn lex_word(&mut self) -> Word {
-        let acc = self.lex_word_acc();
+        self.lex_word_with(!self.spans_only)
+    }
+
+    /// Lexes one word; without `literal` its [`Word::literal`] is always `None`.
+    pub(super) fn lex_word_with(&mut self, literal: bool) -> Word {
+        let acc = self.lex_word_acc(literal);
         acc.into_word(self.pos)
     }
 
-    /// Lexes one word at the cursor. Always consumes at least one character.
-    pub(super) fn lex_word_acc(&mut self) -> WordAcc {
-        let mut acc = WordAcc::new(self.pos);
+    /// Lexes one word at the cursor, collecting its text when `literal` is set. Always consumes
+    /// at least one character.
+    pub(super) fn lex_word_acc(&mut self, literal: bool) -> WordAcc {
+        let mut acc = if literal {
+            WordAcc::new(self.pos)
+        } else {
+            WordAcc::scratch(self.pos)
+        };
         self.lex_word_into(&mut acc);
         if self.pos == acc.start && self.pos < self.end {
             let s = self.pos;
@@ -132,6 +146,15 @@ impl Parser<'_> {
         while let Some(c) = self.peek() {
             match c {
                 b' ' | b'\t' | b'\n' | b';' | b'&' | b'|' | b')' => break,
+                // zsh ends a word before a `}` that closes no `{` of the word and is followed by
+                // a terminator (`{echo hi}`), except in an assignment value (`x=a}`).
+                b'}' if !acc.assignment
+                    && braces.is_empty()
+                    && self.pos > acc.start
+                    && self.byte(self.pos + 1).is_none_or(is_word_term) =>
+                {
+                    break;
+                }
                 b'<' | b'>' => {
                     if self.peek_at(1) == Some(b'(') {
                         self.substitution(acc, TokenKind::ProcessSubstitution);
@@ -212,6 +235,7 @@ impl Parser<'_> {
             b'}' => {
                 if let Some((open, sep)) = braces.pop()
                     && sep
+                    && !acc.assignment
                 {
                     self.push(open, start + 1, TokenKind::BraceExpansion);
                     acc.expanded = true;
@@ -257,9 +281,11 @@ impl Parser<'_> {
 
     fn glob_span(&mut self, acc: &mut WordAcc, start: usize, end: usize) {
         let end = end.min(self.end);
-        self.push(start, end, TokenKind::Glob);
+        if !acc.assignment {
+            self.push(start, end, TokenKind::Glob);
+            acc.glob();
+        }
         acc.push_str(&self.src[start..end]);
-        acc.glob();
         self.pos = end;
     }
 
@@ -277,9 +303,12 @@ impl Parser<'_> {
     fn glob_group(&mut self, acc: &mut WordAcc, open: usize, ksh: bool) {
         let paren = self.pos;
         self.pos += 1;
-        acc.glob();
+        let glob = !acc.assignment;
+        if glob {
+            acc.glob();
+        }
         acc.push_str(&self.src[open..self.pos]);
-        if !ksh && self.opts.extended_glob && self.peek() == Some(b'#') {
+        if glob && !ksh && self.opts.extended_glob && self.peek() == Some(b'#') {
             // Globbing flags `(#i)`, or the explicit qualifier form `(#q...)`.
             let qual = self.peek_at(1) == Some(b'q');
             while let Some(c) = self.peek() {
@@ -301,7 +330,9 @@ impl Parser<'_> {
             return;
         }
         if !self.enter() {
-            self.push(open, paren + 1, TokenKind::Glob);
+            if glob {
+                self.push(open, paren + 1, TokenKind::Glob);
+            }
             return;
         }
         let before = self.span_count();
@@ -315,7 +346,9 @@ impl Parser<'_> {
                     break true;
                 }
                 b'|' => {
-                    self.push(self.pos, self.pos + 1, TokenKind::Glob);
+                    if glob {
+                        self.push(self.pos, self.pos + 1, TokenKind::Glob);
+                    }
                     self.pos += 1;
                     acc.push_str("|");
                     has_bar = true;
@@ -339,7 +372,11 @@ impl Parser<'_> {
             }
         };
         self.leave();
-        if closed {
+        if !glob {
+            if closed {
+                acc.push_str(")");
+            }
+        } else if closed {
             acc.push_str(")");
             let at_end = self.peek().is_none_or(is_word_term);
             if !ksh && at_end && !has_bar {
@@ -356,10 +393,28 @@ impl Parser<'_> {
 
     /// The end of a bracket expression `[...]` starting at `i`, or `None` when it is not closed
     /// within the word.
-    fn bracket_end(&mut self, i: usize) -> Option<usize> {
+    ///
+    /// A failed scan is remembered: a scan from a later `[` that this one stepped over as an
+    /// ordinary character sees the same characters from the next offset on, so it fails too.
+    /// The `[`s inside a character class or after a backslash are not in that list, because a
+    /// scan starting there can find a `]` this one skipped.
+    pub(super) fn bracket_end(&mut self, i: usize) -> Option<usize> {
         let (from, to, limit) = self.bracket_fail;
         if i > from && i < to && limit == self.end {
-            return None;
+            // Lookups mostly move forward through the list, so resume from the last one.
+            let list = &self.bracket_fail_at;
+            let mut c = self.bracket_fail_cursor.min(list.len());
+            if c > 0 && list[c - 1] >= i {
+                c = list.partition_point(|&p| p < i);
+            } else {
+                while list.get(c).is_some_and(|&p| p < i) {
+                    c += 1;
+                }
+            }
+            self.bracket_fail_cursor = c;
+            if list.get(c) == Some(&i) {
+                return None;
+            }
         }
         let mut j = i + 1;
         if matches!(self.byte(j), Some(b'!' | b'^')) {
@@ -368,35 +423,54 @@ impl Parser<'_> {
         if self.byte(j) == Some(b']') {
             j += 1;
         }
-        let mut classes = false;
+        let mut stepped = std::mem::take(&mut self.bracket_scratch);
+        stepped.clear();
+        // A class search starting before this offset is known to find no closing `:]`.
+        let mut class_fail = 0;
         while let Some(c) = self.byte(j) {
             match c {
-                b']' => return Some(j + 1),
+                b']' => {
+                    self.bracket_scratch = stepped;
+                    return Some(j + 1);
+                }
                 b'[' if self.byte(j + 1) == Some(b':') => {
                     // A character class such as `[:alpha:]`.
-                    classes = true;
                     let mut k = j + 2;
-                    while let Some(d) = self.byte(k) {
-                        if (d == b':' && self.byte(k + 1) == Some(b']')) || is_word_term(d) {
-                            break;
+                    let mut closed = false;
+                    if k > class_fail {
+                        while let Some(d) = self.byte(k) {
+                            if d == b':' && self.byte(k + 1) == Some(b']') {
+                                closed = true;
+                                break;
+                            }
+                            if is_word_term(d) {
+                                break;
+                            }
+                            k += 1;
                         }
-                        k += 1;
+                        if !closed {
+                            class_fail = k;
+                        }
                     }
-                    j = if self.byte(k) == Some(b':') {
-                        k + 2
+                    if closed {
+                        j = k + 2;
                     } else {
-                        j + 2
-                    };
+                        stepped.push(j);
+                        j += 2;
+                    }
                 }
                 b'\\' => j += 2,
                 _ if is_word_term(c) || c == b'(' => break,
+                b'[' => {
+                    stepped.push(j);
+                    j += 1;
+                }
                 _ => j += 1,
             }
         }
-        if !classes {
-            // Any later `[` before `j` would scan a subset of this range and fail too.
-            self.bracket_fail = (i, j, self.end);
-        }
+        self.bracket_fail = (i, j, self.end);
+        self.bracket_fail_cursor = 0;
+        self.bracket_scratch = std::mem::replace(&mut self.bracket_fail_at, stepped);
         None
     }
 
@@ -722,35 +796,70 @@ impl Parser<'_> {
         }
     }
 
-    /// Scans `((...))` content from `i` for the closing `))`.
-    pub(super) fn find_arith_close(&self, i: usize) -> ArithEnd {
-        let mut depth = 0usize;
-        let mut j = i;
-        while j < self.end {
-            match self.b[j] {
-                b'(' => depth += 1,
-                b')' => {
-                    if depth == 0 {
-                        return match self.byte(j + 1) {
-                            Some(b')') => ArithEnd::Closed(j),
-                            None => ArithEnd::Unclosed,
-                            Some(_) => ArithEnd::NotArith,
-                        };
+    /// Scans `((...))` content from `i`, just after the second `(`, for the closing `))`.
+    pub(super) fn find_arith_close(&mut self, i: usize) -> ArithEnd {
+        match self.matching(Bracket::Arith, i - 1) {
+            Ok(j) => match self.byte(j + 1) {
+                Some(b')') => ArithEnd::Closed(j),
+                None => ArithEnd::Unclosed,
+                Some(_) => ArithEnd::NotArith,
+            },
+            Err(_) => ArithEnd::Unclosed,
+        }
+    }
+
+    /// The closer matching the opener of `kind` at `open` within the current limit (`Ok`), or
+    /// where the scan for it stopped (`Err`). Memoised in [`Parser::memos`].
+    pub(super) fn matching(&mut self, kind: Bracket, open: usize) -> Result<usize, usize> {
+        match self.memos[kind as usize].get(open) {
+            Some(Ok(close)) => {
+                return if close < self.end {
+                    Ok(close)
+                } else {
+                    Err(self.end)
+                };
+            }
+            Some(Err(stop)) if self.end <= stop => return Err(self.end),
+            Some(Err(stop)) if kind == Bracket::Subscript && self.b[stop] == b'\n' => {
+                return Err(stop);
+            }
+            _ => {}
+        }
+        let (opener, closer) = match kind {
+            Bracket::Arith => (b'(', b')'),
+            Bracket::Subscript | Bracket::OldArith => (b'[', b']'),
+        };
+        let mut memo: Memo = std::mem::take(&mut self.memos[kind as usize]);
+        memo.begin(open, self.b.len());
+        let mut j = open + 1;
+        let result = loop {
+            let Some(c) = self.byte(j) else {
+                break Err(self.end);
+            };
+            match c {
+                _ if c == opener => memo.opened(j),
+                _ if c == closer => {
+                    if memo.closed(j) {
+                        break Ok(j);
                     }
-                    depth -= 1;
                 }
-                b'\\' => j += 1,
-                q @ (b'\'' | b'"') => {
+                b'\n' if kind == Bracket::Subscript => break Err(j),
+                b'\\' if kind != Bracket::OldArith => j += 1,
+                b'\'' | b'"' if kind == Bracket::Arith => {
                     j += 1;
-                    while j < self.end && self.b[j] != q {
+                    while j < self.end && self.b[j] != c {
                         j += 1;
                     }
                 }
                 _ => {}
             }
             j += 1;
+        };
+        if let Err(stop) = result {
+            memo.stopped(stop);
         }
-        ArithEnd::Unclosed
+        self.memos[kind as usize] = memo;
+        result
     }
 
     /// An arithmetic expansion or command: one Arithmetic span with expansions nested inside.
@@ -770,24 +879,10 @@ impl Parser<'_> {
     /// `$[...]`, the old arithmetic expansion syntax.
     fn old_arith(&mut self, acc: &mut WordAcc) {
         let s = self.pos;
-        let mut depth = 0usize;
-        let mut j = s + 1;
-        let mut close = None;
-        while let Some(c) = self.byte(j) {
-            match c {
-                b'[' => depth += 1,
-                b']' => {
-                    depth -= 1;
-                    if depth == 0 {
-                        close = Some(j);
-                        break;
-                    }
-                }
-                _ => {}
-            }
-            j += 1;
-        }
-        let (content_end, end) = close.map_or((self.end, self.end), |c| (c, c + 1));
+        let (content_end, end) = match self.matching(Bracket::OldArith, s + 1) {
+            Ok(c) => (c, c + 1),
+            Err(_) => (self.end, self.end),
+        };
         self.arith(s, s + 2, content_end, end);
         acc.expanded = true;
     }
@@ -878,24 +973,10 @@ impl Parser<'_> {
     /// A subscript `[...]` at `open` (which may nest and contain expansions); returns the
     /// offset after the closing `]`, or where the subscript is cut off.
     fn subscript(&mut self, open: usize) -> usize {
-        let mut depth = 0usize;
-        let mut j = open;
-        let close = loop {
-            match self.byte(j) {
-                None | Some(b'\n') => break None,
-                Some(b'[') => depth += 1,
-                Some(b']') => {
-                    depth -= 1;
-                    if depth == 0 {
-                        break Some(j);
-                    }
-                }
-                Some(b'\\') => j += 1,
-                _ => {}
-            }
-            j += 1;
+        let close = self.matching(Bracket::Subscript, open);
+        let inner_end = match close {
+            Ok(c) | Err(c) => c,
         };
-        let inner_end = close.unwrap_or(j.min(self.end));
         self.lex_region(open + 1, inner_end);
         close.map_or(inner_end, |c| c + 1)
     }

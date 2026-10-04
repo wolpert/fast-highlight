@@ -1,0 +1,17 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, opts)"
+---
+input: "x=~/foo y=a~b z=*.rs a=(*.rs ~/x) local p=~/a:*.c"
+options: ParseOptions { interactive_comments: true, extended_glob: true, ksh_glob: false }
+spans:
+  0..2 assignment "x="
+  8..10 assignment "y="
+  14..16 assignment "z="
+  21..23 assignment "a="
+  23..24 assignment "("
+  24..25 glob "*"
+  32..33 assignment ")"
+  40..42 assignment "p="
+commands:
+  "local" | "p=~/a:*.c"

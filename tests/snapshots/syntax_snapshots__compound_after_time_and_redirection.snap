@@ -1,0 +1,31 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "for x\nin a b; do time { echo $x }; done; >f if a; then b; fi"
+spans:
+  0..3 reserved-word "for"
+  6..8 reserved-word "in"
+  12..13 separator ";"
+  14..16 reserved-word "do"
+  22..23 reserved-word "{"
+  29..31 parameter "$x"
+  32..33 reserved-word "}"
+  33..34 separator ";"
+  35..39 reserved-word "done"
+  39..40 separator ";"
+  41..42 redirection ">"
+  44..46 reserved-word "if"
+  48..49 separator ";"
+  50..54 reserved-word "then"
+  56..57 separator ";"
+  58..60 reserved-word "fi"
+commands:
+  "time"
+  "echo" | "$x" (expanded)
+  "a"
+  "b"
+path words:
+  "a"
+  "b"
+  "f"

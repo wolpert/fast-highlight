@@ -70,13 +70,23 @@ pub struct ParseOutput {
     /// groups, and compound commands, in order of their command word's start offset.
     pub commands: Vec<SimpleCommand>,
     /// Words outside simple commands that should be checked as paths: redirection targets,
-    /// operands inside `[[ ... ]]`, `for` loop list items, and the subject of `case`.
+    /// operands inside `[[ ... ]]`, `for` loop list items, the subject of `case`, and the
+    /// arguments of an anonymous function (`() { ... } a b`).
     pub path_words: Vec<Word>,
 }
 
 /// Parses `input` and returns its syntactic spans and command structure. Never panics.
 pub fn parse(input: &str, opts: &ParseOptions) -> ParseOutput {
-    let mut parser = parser::Parser::new(input, *opts);
+    let mut parser = parser::Parser::new(input, *opts, false);
     parser.run();
     parser.finish()
+}
+
+/// Parses `input` and returns only its syntactic spans: the same spans as [`parse`], without
+/// the cost of building [`ParseOutput::commands`], [`ParseOutput::path_words`], and the word
+/// literals. Used for buffers too large for the semantic pass. Never panics.
+pub fn parse_spans(input: &str, opts: &ParseOptions) -> Vec<Span> {
+    let mut parser = parser::Parser::new(input, *opts, true);
+    parser.run();
+    parser.finish().spans
 }

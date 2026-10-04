@@ -279,3 +279,28 @@ fn short_forms() {
 fn quick_substitution() {
     snap("quick_substitution", "^old^new");
 }
+
+#[test]
+fn brace_groups_always_and_anonymous_functions() {
+    snap(
+        "brace_groups_always_and_anonymous_functions",
+        "{ls} && { a } always { b } && () { c $1 } x fi; echo a}",
+    );
+}
+
+#[test]
+fn assignment_values_with_extended_glob() {
+    snap_with(
+        "assignment_values_with_extended_glob",
+        "x=~/foo y=a~b z=*.rs a=(*.rs ~/x) local p=~/a:*.c",
+        ALL_OPTIONS,
+    );
+}
+
+#[test]
+fn compound_after_time_and_redirection() {
+    snap(
+        "compound_after_time_and_redirection",
+        "for x\nin a b; do time { echo $x }; done; >f if a; then b; fi",
+    );
+}

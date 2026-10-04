@@ -8,6 +8,11 @@ fn parse_with(input: &str, opts: ParseOptions) -> ParseOutput {
     if let Err(e) = check_spans(input, &out.spans) {
         panic!("invalid spans for {input:?}: {e}");
     }
+    assert_eq!(
+        parse_spans(input, &opts),
+        out.spans,
+        "spans-only parse differs for {input:?}"
+    );
     let check_word = |w: &Word| {
         assert!(w.start < w.end, "empty word {w:?} in {input:?}");
         assert!(
@@ -847,13 +852,18 @@ fn mismatched_closer_is_an_error() {
 }
 
 #[test]
-fn missing_condition_is_an_error() {
-    assert_has("if then", K::Error, "then");
-    assert_has("if a; then b; elif then", K::Error, "then");
-    assert_has("while do", K::Error, "do");
-    assert_has("until\ndo", K::Error, "do");
-    assert_no_error("if\n a\nthen");
-    assert_no_error("for x; do");
+fn empty_condition_is_accepted() {
+    // zsh runs `if then echo; fi` and `while do break; done` without complaint.
+    for input in [
+        "if then",
+        "if a; then b; elif then",
+        "while do",
+        "until\ndo",
+        "if\n a\nthen",
+        "for x; do",
+    ] {
+        assert_no_error(input);
+    }
 }
 
 #[test]
@@ -940,8 +950,9 @@ fn reserved_words_only_in_command_position() {
     assert_no_kind("! true", K::HistoryExpansion);
     assert_has("a && ! b", K::ReservedWord, "!");
     assert_has("coproc cat", K::ReservedWord, "coproc");
-    // Keywords after an assignment or redirection are command words.
+    // zsh rejects a reserved word after an assignment; it is still the command word.
     assert_eq!(cmds("x=1 if"), vec![v(&["if"])]);
+    assert_has("x=1 if", K::Error, "if");
 }
 
 #[test]
@@ -1313,10 +1324,74 @@ fn mutated_inputs_parse_cleanly() {
 #[test]
 fn random_inputs_parse_cleanly() {
     const PIECES: &[&str] = &[
-        "$", "(", ")", "{", "}", "[", "]", "<", ">", "|", "&", ";", "'", "\"", "`", "\\", "!", "#",
-        "~", "^", "*", "?", "=", ",", "..", ":", "\n", " ", "\t", "-", "0", "2", "x", "é", "世",
-        "if", "then", "fi", "do", "done", "case", "in", "esac", "for", "[[", "]]", "((", "))",
-        "<<", "EOF", "$(", "${", "$((", "<(", "=(", "@(", "&&", "||", ";;", "\0",
+        "$",
+        "(",
+        ")",
+        "{",
+        "}",
+        "[",
+        "]",
+        "<",
+        ">",
+        "|",
+        "&",
+        ";",
+        "'",
+        "\"",
+        "`",
+        "\\",
+        "!",
+        "#",
+        "~",
+        "^",
+        "*",
+        "?",
+        "=",
+        ",",
+        "..",
+        ":",
+        "\n",
+        " ",
+        "\t",
+        "-",
+        "0",
+        "2",
+        "x",
+        "é",
+        "世",
+        "if",
+        "then",
+        "fi",
+        "do",
+        "done",
+        "case",
+        "in",
+        "esac",
+        "for",
+        "[[",
+        "]]",
+        "((",
+        "))",
+        "<<",
+        "EOF",
+        "$(",
+        "${",
+        "$((",
+        "<(",
+        "=(",
+        "@(",
+        "&&",
+        "||",
+        ";;",
+        "\0",
+        "always",
+        "time",
+        "() ",
+        "x=",
+        "local ",
+        "function ",
+        "$[",
+        "$a[",
     ];
     let mut rng = XorShift(0x2545_f491_4f6c_dd1d);
     let option_sets = [opts(false, false, false), opts(true, true, true)];
@@ -1403,65 +1478,678 @@ fn parse_timing() {
     }
     let per = start.elapsed() / iters;
     println!("{} bytes: {per:?} per parse", line.len());
-    let big = line.repeat(10_240 / line.len() + 1);
-    let start = std::time::Instant::now();
-    for _ in 0..100 {
-        std::hint::black_box(parse(std::hint::black_box(&big), &o));
-    }
-    println!("{} bytes: {:?} per parse", big.len(), start.elapsed() / 100);
-    for (name, input) in adversarial_inputs() {
-        let start = std::time::Instant::now();
-        for _ in 0..10 {
-            std::hint::black_box(parse(std::hint::black_box(&input), &o));
-        }
+    // The daemon lexes at most 64 KiB of a buffer. Measure the steady state of a long-running
+    // process; see `adversarial_inputs_scale_linearly`.
+    const MAX: usize = 64 * 1024;
+    drop(std::hint::black_box(Vec::<u8>::with_capacity(16 << 20)));
+    let realistic = format!("{line}\n").repeat(MAX / (line.len() + 1));
+    println!(
+        "realistic ({} bytes): {:?} per parse",
+        realistic.len(),
+        min_time(&realistic, o, 10) / 10
+    );
+    let spans_only =
+        |input: &str| min_time_of(10, || drop(std::hint::black_box(parse_spans(input, &o)))) / 10;
+    let mut worst = (std::time::Duration::ZERO, std::time::Duration::ZERO);
+    let dense = [
+        ("pipes", "a|", ""),
+        ("substitutions", "$(a)", ""),
+        ("lines", "ls\n", ""),
+    ];
+    for (name, prefix, suffix) in SCALING_PATTERNS.iter().chain(&dense) {
+        let input = scaling_input(prefix, suffix, MAX / (prefix.len() + suffix.len()));
+        let (full, spans) = (min_time(&input, o, 10) / 10, spans_only(&input));
+        worst = (worst.0.max(full), worst.1.max(spans));
         println!(
-            "adversarial {name} ({} bytes): {:?} per parse",
-            input.len(),
-            start.elapsed() / 10
+            "{name} ({} bytes): {full:?} per parse, {spans:?} spans only",
+            input.len()
         );
     }
-}
-
-/// Roughly 10 KB inputs aimed at rescanning paths in the parser.
-fn adversarial_inputs() -> Vec<(&'static str, String)> {
-    vec![
-        ("open parens", "(".repeat(10_000)),
-        (
-            "double parens closing apart",
-            format!("{}{}", "((".repeat(2500), "x) ".repeat(2500)),
-        ),
-        (
-            "dollar double parens",
-            format!("{}{}", "$((".repeat(2000), "x) ".repeat(2000)),
-        ),
-        (
-            "braces then parens",
-            format!("{}{}", "{ ".repeat(2500), ") ".repeat(2500)),
-        ),
-        ("brackets", "[".repeat(10_000)),
-        ("brace candidates", "{a".repeat(5000)),
-        ("subscripts", "$a[".repeat(3000)),
-        ("backquotes", "`".repeat(10_000)),
-        ("heredocs", "cat <<E\n".repeat(1200)),
-        ("history", "!?".repeat(5000)),
-        ("dollar parens", "$(".repeat(5000)),
-        ("quotes", "\"$(\"".repeat(2500)),
-        ("assignment subscripts", "a[a[a[".repeat(1700)),
-        ("stray closers", "fi ".repeat(3300)),
-    ]
+    println!("realistic spans only: {:?}", spans_only(&realistic));
+    println!("worst: {:?} per parse, {:?} spans only", worst.0, worst.1);
 }
 
 #[test]
 fn adversarial_inputs_stay_fast() {
     let o = opts(true, true, true);
-    for (name, input) in adversarial_inputs() {
+    for (name, prefix, suffix) in SCALING_PATTERNS {
+        let input = scaling_input(prefix, suffix, 16 * 1024 / (prefix.len() + suffix.len()));
         let start = std::time::Instant::now();
         parse_with(&input, o);
+        parse_with(&input[..input.len() / 2], o);
         // Generous bound for unoptimised builds.
         assert!(
             start.elapsed() < std::time::Duration::from_secs(1),
             "{name}: {:?}",
             start.elapsed()
         );
+    }
+}
+
+/// Adversarial inputs for the linearity test: `prefix` repeated `k` times, then `suffix` repeated
+/// `k` times. Each targets a path that could rescan the input: a closer searching a deep stack,
+/// a scan for a matching bracket from every nested opener, or a lookahead from every word.
+const SCALING_PATTERNS: &[(&str, &str, &str)] = &[
+    ("open parens", "(", ""),
+    ("double parens closing apart", "((", "x) "),
+    ("dollar double parens", "$((", "x) "),
+    ("dollar double parens with quotes", "$((\"", "x) "),
+    ("braces then parens", "{ ", ") "),
+    ("braces then fi", "{ ", "fi "),
+    ("braces then done", "{ ", "done "),
+    ("braces then esac", "{ ", "esac "),
+    ("braces then then", "{ ", "then "),
+    ("braces then case separators", "{ ", ";; "),
+    ("if bodies then then", "if a; then ", "then "),
+    ("subshells then braces", "( ", "} "),
+    ("loops then end", "while a; do ", "end "),
+    ("brackets", "[", ""),
+    ("unclosed classes", "[[:", ""),
+    ("closed classes", "[[:a:]", ""),
+    ("subscripts", "$a[", ""),
+    ("assignment subscripts", "a[a[a[", ""),
+    ("braced subscripts", "${a[", ""),
+    ("old arithmetic", "$[", ""),
+    ("backquotes", "`", ""),
+    ("heredocs", "cat <<E\n", ""),
+    ("history search", "!?", ""),
+    ("history braces", "!{", ""),
+    ("dollar parens", "$(", ""),
+    ("quoted substitutions", "\"$(\"", ""),
+    ("braced parameters", "${", ""),
+    ("parameter flags", "${(j:", ""),
+    ("arrays", "x=(", ""),
+    ("conditions", "[[ ( ", ""),
+    ("process substitutions", "<(", ""),
+    ("brace candidates", "{a", ""),
+    ("brace lists", "{a,", ""),
+    ("glob groups", "a(", ""),
+    ("assignment glob groups", "x=a(", ""),
+    ("numeric ranges", "<1-", ""),
+    ("function definitions", "f() ", ""),
+    ("anonymous functions", "() { a } ", ""),
+    ("always blocks", "{ a } always { ", "} "),
+    ("for headers across lines", "for x\n", ""),
+    ("stray closers", "fi ", ""),
+    ("escapes", "\\", ""),
+    ("dollar quotes", "$'\\", ""),
+];
+
+fn scaling_input(prefix: &str, suffix: &str, k: usize) -> String {
+    format!("{}{}", prefix.repeat(k), suffix.repeat(k))
+}
+
+/// The fastest of several timed runs, each parsing `input` `reps` times.
+fn min_time(input: &str, o: ParseOptions, reps: u32) -> std::time::Duration {
+    min_time_of(reps, || drop(std::hint::black_box(parse(input, &o))))
+}
+
+fn min_time_of(reps: u32, mut f: impl FnMut()) -> std::time::Duration {
+    (0..5)
+        .map(|_| {
+            let start = std::time::Instant::now();
+            for _ in 0..reps {
+                f();
+            }
+            start.elapsed()
+        })
+        .min()
+        .unwrap_or_default()
+}
+
+/// t(4n) / t(n) for one pattern, with enough repetitions that the smaller input takes about a
+/// millisecond.
+fn scaling_ratio(prefix: &str, suffix: &str, bytes: usize, o: ParseOptions) -> f64 {
+    let k = (bytes / (prefix.len() + suffix.len())).max(1);
+    let small = scaling_input(prefix, suffix, k);
+    let large = scaling_input(prefix, suffix, 4 * k);
+    let once = min_time(&small, o, 1).as_secs_f64();
+    let reps = (1e-3 / once.max(1e-7)).clamp(1.0, 1000.0) as u32;
+    min_time(&large, o, reps).as_secs_f64() / min_time(&small, o, reps).as_secs_f64().max(1e-9)
+}
+
+#[test]
+fn adversarial_inputs_scale_linearly() {
+    let o = opts(true, true, false);
+    // The parse output takes up to about 40 bytes per input byte. In an optimised build, a step
+    // across the size of a core's L2 cache (16 to 64 KiB of input on a 1 MiB cache) measures
+    // the cache rather than the parser, so it compares 64 and 256 KiB instead. An unoptimised
+    // build is dominated by computation and uses smaller inputs to stay quick.
+    let bytes = if cfg!(debug_assertions) { 4096 } else { 65536 };
+    // glibc returns freed memory to the system above a threshold that rises when a large mapped
+    // block is freed. Raise it now, or whether a parse pays for fresh page faults depends on
+    // what ran before it, which can outweigh the parse itself.
+    drop(std::hint::black_box(Vec::<u8>::with_capacity(16 << 20)));
+    for (name, prefix, suffix) in SCALING_PATTERNS {
+        // Linear growth gives a ratio near 4 and quadratic growth near 16. Timing noise from
+        // tests running in parallel only ever slows a run down, so a pattern is retried before
+        // it counts as a failure.
+        let ratios: Vec<f64> = (0..3)
+            .map(|_| scaling_ratio(prefix, suffix, bytes, o))
+            .scan(false, |done, r| {
+                (!std::mem::replace(done, r < 6.0)).then_some(r)
+            })
+            .collect();
+        let last = ratios.last().copied().unwrap_or_default();
+        println!("{name}: {ratios:.1?}");
+        assert!(last < 6.0, "{name}: t(4n)/t(n) = {ratios:.1?}");
+    }
+}
+
+// -------------------------------------------------------------------------------------------
+// Agreement with zsh
+// -------------------------------------------------------------------------------------------
+
+/// One-liners that `zsh -f -n` accepts. None of them may produce an Error span.
+const ZSH_VALID: &[&str] = &[
+    "if true; then echo a; elif false; then echo b; else echo c; fi",
+    "if [[ -n $x ]] { echo y } elif [[ -z $x ]] { echo z } else { echo w }",
+    "while read -r line; do print -r -- $line; done < file",
+    "until false; do break; done",
+    "while [[ -z $q ]] { q=1 }",
+    "while true; do\n  break\ndone",
+    "for f in *.rs(N); do wc -l $f; done",
+    "for x y in a b c d; do echo $x $y; done",
+    "for ((i = 0; i < 3; i++)); do echo $i; done",
+    "for x (a b c) echo $x",
+    "for x in a b; { echo $x }",
+    "for x\nin a b; do echo $x; done",
+    "for x\ndo echo $x; done",
+    "foreach x (a b c) echo $x; end",
+    "select x in a b; do break; done",
+    "repeat 3 echo hi",
+    "repeat 2 { echo r }",
+    "case $1 in (start|stop) run $1;; restart) run stop; run start;& *) usage;| esac",
+    "case $x { a) echo a;; *) echo other;; }",
+    "case $x in a) echo ;; esac",
+    "case x in\n  a) echo ;;\nesac",
+    "{ ls } always { echo done }",
+    "{ ls; } always { echo cleanup; }",
+    "a | { b } always { c } | d",
+    "{ echo a } always { echo b } > log",
+    "{ls}",
+    "{echo hi}",
+    "{echo a; echo b} | cat",
+    "time { sleep 1 }",
+    "time ( sleep 1 )",
+    "time if true; then echo; fi",
+    "! { false }",
+    "true && ! false",
+    "coproc { cat }",
+    "coproc cat",
+    "coproc ( cat )",
+    "() { echo anon $@ } a b",
+    "() { echo $1 } fi",
+    "function { echo $1 } arg",
+    "function () { echo $1 } arg",
+    "() echo hi a b",
+    "f() { echo in f }",
+    "f() {echo in f}",
+    "function g { echo in g }",
+    "function h() { echo in h }",
+    "function a b c { echo multi }",
+    "f () ( echo subshell )",
+    "function f; echo body",
+    "(cd /tmp && ls) | wc -l",
+    "(( i++ )) && echo $(( i * 2 ))",
+    "echo $((1 + $(echo 2)))",
+    "cat <<EOF\nhello $USER\nEOF",
+    "cat <<-'EOF' >out\n\tliteral $x\n\tEOF",
+    "x=$(cat <<EOF\n$y )\nEOF\n) && ls",
+    "diff <(sort a) >(tee b) =(date)",
+    "ls *(.) **/*.rs(N) [a-z]?*(om[1,3]) <1-10>",
+    "echo ${(j:,:)arr} ${(s: :)x} ${(%):-%n} ${#arr} ${+x} ${=x} ${x:-default}",
+    "echo ${${x#a}%b} ${x/a/b} ${x//a/b} $arr[1] $file:t:r ${(@)arr[2,-1]}",
+    "x=1 y=(a b c) z=$(date) cmd",
+    "typeset -A m=([k]=v [k2]=w); local -a arr=(*.rs)",
+    "x=~/foo ls",
+    "a && ;",
+    "a || ; b",
+    ">/dev/null { echo quiet }",
+    ">f if true; then echo; fi",
+    "if >/dev/null true; then echo; fi",
+    "echo a}b }a {a} {a,b} a\\}",
+    "[[ $a == (foo|bar)* && -f ~/x || $b =~ ^[0-9]+$ ]]",
+    "print -P '%F{red}x%f' $'\\t' \"a $b ${c} $(d) `e`\"",
+    "sudo -u root env FOO=1 nice -n 10 ls",
+    "exec 3>&1 2>&- 4<>file {fd}>out",
+    "echo >&2 hi &>/dev/null &>>log 2>&1 >| f >! g",
+    "ls &! ls &| ls & wait",
+];
+
+/// One-liners that `zsh -f -n` rejects and that no further typing can repair. Each must
+/// produce at least one Error span.
+const ZSH_INVALID: &[&str] = &[
+    "fi",
+    "echo a; done",
+    "esac",
+    "then",
+    "echo }",
+    "echo a}",
+    "{ echo } x",
+    "( a ) b",
+    "if a; then b; fi c",
+    "x=1 if true; then echo; fi",
+    "x=1 [[ a ]]",
+    "a | ;",
+    "a && && b",
+    "a && | b",
+    "| a",
+    "&& a",
+    "& a",
+    "echo > ;",
+    "cat < | wc",
+    "a ;; b",
+    "f() ;",
+    "f() && b",
+    "{ ls } always ;",
+    "{ ls } always echo",
+    "{ ls } > f always { echo }",
+    "f() { a } always { b }",
+    "{ a } always { b } always { c }",
+    "for x (a) echo; done",
+    "for x in\na b; do echo; done",
+    "coproc NAME { cat }",
+    "a | ! b",
+    ">f ! true",
+    "echo $(echo a})",
+    "[[ a} == a ]]",
+    "x=(a })",
+    "( { )",
+    ")",
+];
+
+#[test]
+fn valid_zsh_has_no_errors() {
+    for input in ZSH_VALID {
+        for o in [opts(false, false, false), opts(true, true, false)] {
+            let out = parse_with(input, o);
+            let errors: Vec<_> = spans_of(input, &out)
+                .into_iter()
+                .filter(|(k, _)| *k == K::Error)
+                .collect();
+            assert!(errors.is_empty(), "{input:?} with {o:?}: {errors:?}");
+        }
+    }
+}
+
+#[test]
+fn invalid_zsh_has_an_error() {
+    for input in ZSH_INVALID {
+        let s = spans(input);
+        assert!(s.iter().any(|(k, _)| *k == K::Error), "{input:?}: {s:?}");
+    }
+}
+
+#[test]
+fn close_brace_ends_a_word_like_zsh() {
+    // A `{` starting a word in command position opens a group; a `}` that closes no `{` of
+    // its word and is followed by a terminator closes it.
+    for (input, words) in [
+        ("{ls}", vec![v(&["ls"])]),
+        ("{echo hi}", vec![v(&["echo", "hi"])]),
+        (
+            "{echo a; echo b} | cat",
+            vec![v(&["echo", "a"]), v(&["echo", "b"]), v(&["cat"])],
+        ),
+        ("{echo,hi}", vec![v(&["echo,hi"])]),
+        ("{echo {a}}", vec![v(&["echo", "{a}"])]),
+        ("{echo a}b}", vec![v(&["echo", "a}b"])]),
+    ] {
+        assert_no_error(input);
+        assert_eq!(cmds(input), words, "{input:?}");
+        assert_has(input, K::ReservedWord, "{");
+        assert_has(input, K::ReservedWord, "}");
+    }
+    assert_has("echo a}", K::Error, "}");
+    assert_eq!(cmds("echo a}"), vec![v(&["echo", "a"])]);
+    assert_has("echo \"a\"}", K::Error, "}");
+    assert_has("echo ${x}}", K::Error, "}");
+    assert_has("for i in a }; do :; done", K::Error, "}");
+    assert_has("echo > }", K::Error, ">");
+    assert_no_error("{ echo > a}");
+    assert_eq!(paths("{ echo > a}"), v(&["a"]));
+    // An assignment value keeps its `}`.
+    assert_no_error("x=a}");
+    assert_no_error("local x=a}");
+    // Not in command position, `{` is an ordinary character.
+    assert_no_error("echo {a {");
+    assert_eq!(cmds("x=1 {echo"), vec![v(&["{echo"])]);
+}
+
+#[test]
+fn always_block() {
+    let input = "{ ls } always { echo done }";
+    assert_has(input, K::ReservedWord, "always");
+    assert_eq!(cmds(input), vec![v(&["ls"]), v(&["echo", "done"])]);
+    assert_no_error("{ ls } always\n{ echo }");
+    assert_no_error("{ ls }\nalways");
+    assert_no_kind("echo always", K::ReservedWord);
+    assert_has("{ ls } always echo", K::Error, "echo");
+    assert_has("{ ls } always ;", K::Error, ";");
+    assert_has("{ ls } > f always { echo }", K::Error, "always");
+    assert_has("f() { a } always { b }", K::Error, "always");
+    assert_has("( a ) always { b }", K::Error, "always");
+    assert_has("if a; then b; fi always { c }", K::Error, "always");
+}
+
+#[test]
+fn anonymous_function_arguments() {
+    for (input, args) in [
+        ("() { echo $1 } a b", v(&["a", "b"])),
+        ("() { echo } fi then", v(&["fi", "then"])),
+        ("() ( echo ) a", v(&["a"])),
+        ("function { echo } a", v(&["a"])),
+        ("function () { echo } a", v(&["a"])),
+        ("() { echo } a > f b | cat", v(&["a", "f", "b"])),
+    ] {
+        assert_no_error(input);
+        assert_eq!(paths(input), args, "{input:?}");
+    }
+    assert!(!has("() { echo } fi", K::ReservedWord, "fi"));
+    // A named function takes no arguments.
+    assert_has("f() { a } b", K::Error, "b");
+    assert_has("function f { a } b", K::Error, "b");
+    // A `}` still closes an enclosing group.
+    assert_no_error("{ () { a } b }");
+}
+
+#[test]
+fn function_definition_needs_a_body() {
+    assert_has("f() ;", K::Error, ";");
+    assert_has("() ;", K::Error, ";");
+    assert_has("f() && b", K::Error, "&&");
+    assert_no_error("function f;");
+    assert_no_error("f()\n{ echo }");
+}
+
+#[test]
+fn separator_after_and_or_is_accepted() {
+    for input in [
+        "a && ;",
+        "a || ; b",
+        "(a && )",
+        "{ a && }",
+        "a &&\n;",
+        "if a && then b; fi",
+    ] {
+        assert_no_error(input);
+    }
+    assert_has("a | ;", K::Error, ";");
+    assert_has("a |& ;", K::Error, ";");
+    assert_has("a && && b", K::Error, "&&");
+    assert_has("a && &", K::Error, "&");
+}
+
+#[test]
+fn bang_only_starts_a_pipeline() {
+    assert_has("a | ! b", K::Error, "!");
+    assert_has(">f ! true", K::Error, "!");
+    assert_has("a && ! b", K::ReservedWord, "!");
+    assert_no_error("! a | b");
+}
+
+#[test]
+fn time_before_compound_command() {
+    for input in [
+        "time { sleep 1 }",
+        "time {sleep 1}",
+        "time ( sleep 1 )",
+        "time if a; then b; fi",
+        "time [[ -f x ]]",
+        "time ! true",
+        "! time { echo }",
+    ] {
+        assert_no_error(input);
+    }
+    assert_eq!(cmds("time { a }"), vec![v(&["time"]), v(&["a"])]);
+    assert_eq!(cmds("time ls -l"), vec![v(&["time", "ls", "-l"])]);
+    assert_has("time { a }", K::ReservedWord, "{");
+    // Other precommands cannot precede a group.
+    assert_has("noglob { a }", K::Error, "}");
+}
+
+#[test]
+fn redirection_before_compound_command() {
+    for input in [
+        ">/dev/null { echo quiet }",
+        ">f if a; then b; fi",
+        "2>&1 while a; do b; done",
+        "> f ( a )",
+        "if >/dev/null true; then echo; fi",
+        "while <f read -r l; do :; done",
+    ] {
+        assert_no_error(input);
+    }
+    assert_has(">f if a; then b; fi", K::ReservedWord, "if");
+    assert_eq!(cmds(">f { a }"), vec![v(&["a"])]);
+}
+
+#[test]
+fn reserved_word_after_assignment_is_an_error() {
+    for (input, word) in [
+        ("x=1 if", "if"),
+        ("x=1 [[ a ]]", "[["),
+        ("x=1 {", "{"),
+        ("x=1 !", "!"),
+    ] {
+        assert_has(input, K::Error, word);
+    }
+    // `in` and `always` are only reserved after `for`/`case` and a group.
+    assert_no_error("x=1 in");
+    assert_no_error("x=1 always");
+}
+
+#[test]
+fn for_in_on_a_later_line() {
+    let input = "for x\nin a b; do echo $x; done";
+    assert_no_error(input);
+    assert_has(input, K::ReservedWord, "in");
+    assert_eq!(paths(input), v(&["a", "b"]));
+    assert_no_error("for x\n\n  in a; do :; done");
+    assert_no_error("select x\nin a; do :; done");
+    let input = "for x\n# c\nin a; do :; done";
+    let out = parse_with(input, opts(true, false, false));
+    assert!(!spans_of(input, &out).iter().any(|(k, _)| *k == K::Error));
+    assert_no_error("for x\ndo echo; done");
+    // `in` is not a reserved word as a command of its own.
+    assert_eq!(
+        cmds("for x; do :; done\nin a"),
+        vec![v(&[":"]), v(&["in", "a"])]
+    );
+}
+
+#[test]
+fn assignment_values_are_not_globbed() {
+    let eg = opts(false, true, false);
+    let kinds = |input: &str| -> Vec<(TokenKind, String)> {
+        spans_of(input, &parse_with(input, eg))
+            .into_iter()
+            .filter(|(k, _)| matches!(k, K::Glob | K::GlobQualifier | K::BraceExpansion))
+            .collect()
+    };
+    for input in [
+        "x=~/foo ls",
+        "y=a~b",
+        "y=*.rs",
+        "y=?.rs",
+        "x=a(b)",
+        "x=*(.)",
+        "y={a,b}",
+        "z=<1-5>",
+        "w=[ab]^c#",
+        "p=~/a:~/b",
+        "local q=*.c r=~/x",
+        "m=([k]=*.rs)",
+    ] {
+        assert_eq!(kinds(input), vec![], "{input:?}");
+    }
+    // Array elements are globbed, and so is a substitution inside a value.
+    assert_eq!(
+        kinds("a=(*.rs a~b)"),
+        vec![(K::Glob, "*".into()), (K::Glob, "~".into())]
+    );
+    assert_eq!(kinds("x=$(ls *.rs)"), vec![(K::Glob, "*".into())]);
+    // Through a precommand, `export` is an ordinary builtin whose arguments are globbed.
+    assert_eq!(kinds("builtin export x=*.rs"), vec![(K::Glob, "*".into())]);
+    // A declaration argument is a word without glob or tilde flags.
+    let w = &parse_with("local q=~/*.c", eg).commands[0].words[1];
+    assert!(!w.has_glob && !w.tilde, "{w:?}");
+    assert_eq!(w.literal.as_deref(), Some("q=~/*.c"));
+}
+
+#[test]
+fn spans_only_parse_matches_full_parse() {
+    // `parse_with` compares the two for every input in this module; these exercise the
+    // literals the grammar depends on.
+    for input in [
+        "local x=*.rs",
+        "builtin local x=*.rs",
+        "command builtin export x=1",
+        "'local' x=*",
+        "time { a }",
+        "time ls",
+        "cat <<'E' <<F\n$x\nE\n$y\nF",
+        "a|a|a|a",
+        "$(a)$(a)",
+        "^a^b local x=1",
+    ] {
+        parse_with(input, opts(true, true, false));
+    }
+    assert!(parse("echo a", &ParseOptions::default()).commands.len() == 1);
+}
+
+/// The scan for the end of `((...))` as it was before memoisation, for comparison.
+fn reference_arith_close(b: &[u8], i: usize, end: usize) -> parser::ArithEnd {
+    use parser::ArithEnd;
+    let mut depth = 0usize;
+    let mut j = i;
+    while j < end {
+        match b[j] {
+            b'(' => depth += 1,
+            b')' => {
+                if depth == 0 {
+                    return match b.get(j + 1).filter(|_| j + 1 < end) {
+                        Some(b')') => ArithEnd::Closed(j),
+                        None => ArithEnd::Unclosed,
+                        Some(_) => ArithEnd::NotArith,
+                    };
+                }
+                depth -= 1;
+            }
+            b'\\' => j += 1,
+            q @ (b'\'' | b'"') => {
+                j += 1;
+                while j < end && b[j] != q {
+                    j += 1;
+                }
+            }
+            _ => {}
+        }
+        j += 1;
+    }
+    ArithEnd::Unclosed
+}
+
+/// The subscript scan as it was before memoisation: the closing `]`, or where it stopped.
+fn reference_subscript(b: &[u8], open: usize, end: usize) -> Result<usize, usize> {
+    let mut depth = 0usize;
+    let mut j = open;
+    loop {
+        match b.get(j).filter(|_| j < end) {
+            None | Some(b'\n') => return Err(j.min(end)),
+            Some(b'[') => depth += 1,
+            Some(b']') => {
+                depth -= 1;
+                if depth == 0 {
+                    return Ok(j);
+                }
+            }
+            Some(b'\\') => j += 1,
+            _ => {}
+        }
+        j += 1;
+    }
+}
+
+/// The bracket expression scan as it was before its failure cache.
+fn reference_bracket_end(b: &[u8], i: usize, end: usize) -> Option<usize> {
+    let at = |j: usize| b.get(j).copied().filter(|_| j < end);
+    let term = |c: u8| super::word::is_word_term(c);
+    let mut j = i + 1;
+    if matches!(at(j), Some(b'!' | b'^')) {
+        j += 1;
+    }
+    if at(j) == Some(b']') {
+        j += 1;
+    }
+    while let Some(c) = at(j) {
+        match c {
+            b']' => return Some(j + 1),
+            b'[' if at(j + 1) == Some(b':') => {
+                let mut k = j + 2;
+                while let Some(d) = at(k) {
+                    if (d == b':' && at(k + 1) == Some(b']')) || term(d) {
+                        break;
+                    }
+                    k += 1;
+                }
+                j = if at(k) == Some(b':') { k + 2 } else { j + 2 };
+            }
+            b'\\' => j += 2,
+            _ if term(c) || c == b'(' => break,
+            _ => j += 1,
+        }
+    }
+    None
+}
+
+#[test]
+fn memoised_scans_match_a_fresh_scan() {
+    use parser::{Bracket, Parser};
+    let mut rng = XorShift(0x9e37_79b9_7f4a_7c15);
+    for round in 0..400u32 {
+        let alphabet: &[u8] = if round.is_multiple_of(2) {
+            b"(()))'\"\\x \n"
+        } else {
+            b"[[[]]]:!^\\a (\n"
+        };
+        let len = 1 + (rng.next() % 60) as usize;
+        let text: String = (0..len)
+            .map(|_| alphabet[(rng.next() as usize) % alphabet.len()] as char)
+            .collect();
+        let b = text.as_bytes();
+        let mut p = Parser::new(&text, ParseOptions::default(), false);
+        // Query in a random order and under random limits, sharing one parser's memo tables
+        // the way nested constructs do.
+        for _ in 0..3 * len {
+            let i = (rng.next() as usize) % len;
+            let end = if rng.next().is_multiple_of(3) {
+                i + 1 + (rng.next() as usize) % (len - i)
+            } else {
+                len
+            };
+            p.end = end;
+            match b[i] {
+                b'(' => assert_eq!(
+                    p.find_arith_close(i + 1),
+                    reference_arith_close(b, i + 1, end),
+                    "arith {text:?} at {i} end {end}"
+                ),
+                b'[' => {
+                    assert_eq!(
+                        p.matching(Bracket::Subscript, i),
+                        reference_subscript(b, i, end),
+                        "subscript {text:?} at {i} end {end}"
+                    );
+                    assert_eq!(
+                        p.bracket_end(i),
+                        reference_bracket_end(b, i, end),
+                        "bracket {text:?} at {i} end {end}"
+                    );
+                }
+                _ => {}
+            }
+        }
     }
 }
