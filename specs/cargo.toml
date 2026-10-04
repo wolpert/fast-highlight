@@ -1,0 +1,455 @@
+# cargo(1). Not complete: any `cargo-NAME` executable on PATH is a subcommand, and
+# `[alias]` entries in `.cargo/config.toml` add more. Common third-party subcommands are listed
+# so they are highlighted. `+*` matches the rustup toolchain override (`cargo +nightly build`).
+name = "cargo"
+common-options = [
+  "-v", "--verbose", "-q", "--quiet", "--color=", "--config=", "-Z=", "--frozen", "--locked",
+  "--offline", "-h", "--help",
+]
+options = ["-V", "--version", "--list", "--explain=", "-C=", "+*"]
+
+[subcommands.add]
+options = [
+  "--path=", "--base=", "--git=", "--branch=", "--tag=", "--rev=", "--registry=", "--dev",
+  "--build", "--target=", "--rename=", "--optional", "--no-optional", "--public", "--no-public",
+  "-F=", "--features=", "--default-features", "--no-default-features", "-p=", "--package=", "-n",
+  "--dry-run", "--manifest-path=", "--lockfile-path=", "--ignore-rust-version",
+]
+
+[subcommands.bench]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "--no-run", "--no-fail-fast",
+]
+
+[subcommands.build]
+aliases = ["b"]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=",
+]
+
+[subcommands.check]
+aliases = ["c"]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=",
+]
+
+[subcommands.clean]
+options = [
+  "-p=", "--package=", "-r", "--release", "--profile=", "--target=", "--target-dir=", "--doc", "-n",
+  "--dry-run", "--manifest-path=", "--lockfile-path=", "--ignore-rust-version",
+]
+
+[subcommands.doc]
+aliases = ["d"]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "-F=", "--features=", "--all-features",
+  "--no-default-features", "-r", "--release", "--profile=", "-j=", "--jobs=", "--keep-going",
+  "--target=", "--target-dir=", "--artifact-dir=", "--timings=?", "--unit-graph",
+  "--future-incompat-report", "--build-plan", "--manifest-path=", "--lockfile-path=",
+  "--ignore-rust-version", "--message-format=", "--open", "--no-deps", "--document-private-items",
+  "--lib", "--bins", "--bin=", "--examples", "--example=",
+]
+
+[subcommands.fetch]
+options = ["--target=", "--manifest-path=", "--lockfile-path=", "--ignore-rust-version"]
+
+[subcommands.fix]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "--allow-dirty",
+  "--allow-staged", "--allow-no-vcs", "--broken-code", "--edition", "--edition-idioms",
+]
+
+[subcommands.generate-lockfile]
+options = ["--manifest-path=", "--lockfile-path=", "--ignore-rust-version"]
+
+[subcommands.help]
+
+[subcommands.info]
+options = ["--index=", "--registry="]
+
+[subcommands.init]
+options = ["--vcs=", "--bin", "--lib", "--edition=", "--name=", "--registry="]
+
+[subcommands.install]
+options = [
+  "--version=", "--vers=", "--git=", "--branch=", "--tag=", "--rev=", "--path=", "--list", "-f",
+  "--force", "--no-track", "--bin=", "--bins", "--example=", "--examples", "--root=", "--index=",
+  "--registry=", "--profile=", "--debug", "--target=", "--target-dir=", "-j=", "--jobs=",
+  "--keep-going", "--timings=?", "--message-format=", "--ignore-rust-version", "-n", "--dry-run",
+  "-F=", "--features=", "--all-features", "--no-default-features",
+]
+
+[subcommands.locate-project]
+options = [
+  "--workspace", "--message-format=", "--manifest-path=", "--lockfile-path=",
+  "--ignore-rust-version",
+]
+
+[subcommands.login]
+options = ["--registry="]
+
+[subcommands.logout]
+options = ["--registry="]
+
+[subcommands.metadata]
+options = [
+  "--no-deps", "--format-version=", "--filter-platform=", "-F=", "--features=", "--all-features",
+  "--no-default-features", "--manifest-path=", "--lockfile-path=", "--ignore-rust-version",
+]
+
+[subcommands.new]
+options = ["--vcs=", "--bin", "--lib", "--edition=", "--name=", "--registry="]
+
+[subcommands.owner]
+options = [
+  "-a=", "--add=", "-r=", "--remove=", "-l", "--list", "--index=", "--registry=", "--token=",
+]
+
+[subcommands.package]
+options = [
+  "-l", "--list", "--no-verify", "--no-metadata", "--allow-dirty", "--exclude-lockfile", "--index=",
+  "--registry=", "--target=", "--target-dir=", "-j=", "--jobs=", "--keep-going",
+  "--message-format=", "-p=", "--package=", "--workspace", "--all", "--exclude=", "-F=",
+  "--features=", "--all-features", "--no-default-features", "--manifest-path=", "--lockfile-path=",
+  "--ignore-rust-version",
+]
+
+[subcommands.pkgid]
+options = ["-p=", "--package=", "--manifest-path=", "--lockfile-path=", "--ignore-rust-version"]
+
+[subcommands.publish]
+options = [
+  "-n", "--dry-run", "--no-verify", "--allow-dirty", "--target=", "--target-dir=", "-j=", "--jobs=",
+  "--keep-going", "--index=", "--registry=", "--token=", "-p=", "--package=", "--workspace",
+  "--all", "--exclude=", "-F=", "--features=", "--all-features", "--no-default-features",
+  "--manifest-path=", "--lockfile-path=", "--ignore-rust-version",
+]
+
+[subcommands.read-manifest]
+options = ["--manifest-path=", "--lockfile-path=", "--ignore-rust-version"]
+
+[subcommands.remove]
+aliases = ["rm"]
+options = [
+  "--dev", "--build", "--target=", "-p=", "--package=", "-n", "--dry-run", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version",
+]
+
+[subcommands.report]
+
+[subcommands.report.subcommands.future-incompatibilities]
+aliases = ["future-incompat"]
+options = ["--id=", "-p=", "--package="]
+
+[subcommands.run]
+aliases = ["r"]
+options-first = true
+options = [
+  "-p=", "--package=", "--bin=", "--example=", "-F=", "--features=", "--all-features",
+  "--no-default-features", "-r", "--release", "--profile=", "-j=", "--jobs=", "--keep-going",
+  "--target=", "--target-dir=", "--artifact-dir=", "--timings=?", "--unit-graph",
+  "--future-incompat-report", "--build-plan", "--manifest-path=", "--lockfile-path=",
+  "--ignore-rust-version", "--message-format=",
+]
+
+[subcommands.rustc]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "--print=", "--crate-type=",
+]
+
+[subcommands.rustdoc]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "--open",
+]
+
+[subcommands.search]
+options = ["--limit=", "--index=", "--registry="]
+
+[subcommands.test]
+aliases = ["t"]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "--no-run", "--no-fail-fast",
+  "--doc",
+]
+
+[subcommands.tree]
+options = [
+  "-e=", "--edges=", "-i=", "--invert=", "--prune=", "--depth=", "--no-dedupe", "-d",
+  "--duplicates", "--charset=", "-f=", "--format=", "--prefix=", "--target=", "-p=", "--package=",
+  "--workspace", "--all", "--exclude=", "-F=", "--features=", "--all-features",
+  "--no-default-features", "--manifest-path=", "--lockfile-path=", "--ignore-rust-version",
+]
+
+[subcommands.uninstall]
+options = ["-p=", "--package=", "--bin=", "--root="]
+
+[subcommands.update]
+aliases = ["up"]
+options = [
+  "-p=", "--package=", "-w", "--workspace", "--aggressive", "--recursive", "--precise=",
+  "--breaking", "-n", "--dry-run", "--manifest-path=", "--lockfile-path=", "--ignore-rust-version",
+]
+
+[subcommands.vendor]
+options = [
+  "--no-delete", "-s=", "--sync=", "--respect-source-config", "--versioned-dirs",
+  "--manifest-path=", "--lockfile-path=", "--ignore-rust-version",
+]
+
+[subcommands.verify-project]
+options = ["--manifest-path=", "--lockfile-path=", "--ignore-rust-version"]
+
+[subcommands.version]
+
+[subcommands.yank]
+options = ["--version=", "--vers=", "--undo", "--index=", "--registry=", "--token="]
+
+[subcommands.clippy]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "--allow-dirty",
+  "--allow-staged", "--allow-no-vcs", "--broken-code", "--fix", "--no-deps",
+]
+
+[subcommands.fmt]
+options = ["--all", "--check", "-p=", "--package=", "--manifest-path=", "--message-format="]
+
+[subcommands.miri]
+
+[subcommands.miri.subcommands.run]
+aliases = ["r"]
+options-first = true
+options = [
+  "-p=", "--package=", "--bin=", "--example=", "-F=", "--features=", "--all-features",
+  "--no-default-features", "-r", "--release", "--profile=", "-j=", "--jobs=", "--keep-going",
+  "--target=", "--target-dir=", "--artifact-dir=", "--timings=?", "--unit-graph",
+  "--future-incompat-report", "--build-plan", "--manifest-path=", "--lockfile-path=",
+  "--ignore-rust-version",
+]
+
+[subcommands.miri.subcommands.test]
+aliases = ["t"]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "--no-run", "--no-fail-fast",
+  "--doc",
+]
+
+[subcommands.miri.subcommands.nextest]
+
+[subcommands.miri.subcommands.setup]
+
+[subcommands.miri.subcommands.clean]
+
+[subcommands.audit]
+options = [
+  "-D=", "--deny=", "-f=", "--file=", "--ignore=", "--json", "-n", "--no-fetch", "--stale", "-c=",
+  "--color=",
+]
+
+[subcommands.audit.subcommands.fix]
+options = ["--dry-run"]
+
+[subcommands.audit.subcommands.bin]
+
+[subcommands.binstall]
+options = [
+  "-y", "--no-confirm", "--version=", "--force", "--dry-run", "--locked", "--root=",
+  "--install-path=", "--targets=", "--strategies=", "--no-symlinks", "--git=",
+]
+
+[subcommands.deny]
+
+[subcommands.deny.subcommands.check]
+
+[subcommands.deny.subcommands.fetch]
+
+[subcommands.deny.subcommands.init]
+
+[subcommands.deny.subcommands.list]
+
+[subcommands.expand]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--ugly", "--theme=", "--color=",
+]
+
+[subcommands.hack]
+
+[subcommands.insta]
+
+[subcommands.insta.subcommands.review]
+options = [
+  "--workspace", "--all", "--include-ignored", "--include-hidden", "--snapshot=", "-p=",
+  "--package=",
+]
+
+[subcommands.insta.subcommands.accept]
+options = ["--workspace", "--all", "--snapshot=", "-p=", "--package="]
+
+[subcommands.insta.subcommands.reject]
+options = ["--workspace", "--all", "--snapshot=", "-p=", "--package="]
+
+[subcommands.insta.subcommands.test]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "--review", "--accept",
+  "--accept-unseen", "--force-update-snapshots", "--unreferenced=", "--glob-filter=",
+  "--require-full-match", "--fail-fast", "--no-quiet", "--test-runner=",
+  "--disable-nextest-doctest", "--check", "--no-test-runner-fallback",
+  "--delete-unreferenced-snapshots", "--keep-pending", "--no-fail-fast",
+]
+
+[subcommands.insta.subcommands.show]
+
+[subcommands.insta.subcommands.pending-review]
+options = ["--workspace", "--all", "--as-json"]
+
+[subcommands.llvm-cov]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "--html", "--open", "--lcov",
+  "--json", "--cobertura", "--codecov", "--text", "--summary-only", "--output-path=",
+  "--output-dir=", "--no-report", "--no-clean", "--fail-under-lines=", "--ignore-filename-regex=",
+  "--no-fail-fast", "--doctests",
+]
+
+[subcommands.llvm-cov.subcommands.report]
+
+[subcommands.llvm-cov.subcommands.clean]
+
+[subcommands.llvm-cov.subcommands.run]
+options-first = true
+
+[subcommands.llvm-cov.subcommands.test]
+
+[subcommands.llvm-cov.subcommands.nextest]
+
+[subcommands.llvm-cov.subcommands.show-env]
+
+[subcommands.machete]
+options = ["--with-metadata", "--skip-target-dir", "--fix"]
+
+[subcommands.nextest]
+
+[subcommands.nextest.subcommands.run]
+aliases = ["r"]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "-E=", "--filterset=",
+  "--no-fail-fast", "--retries=", "--test-threads=", "--no-capture", "--nocapture",
+  "--run-ignored=", "-P=", "--cargo-profile=", "--partition=", "--status-level=",
+  "--final-status-level=", "--failure-output=", "--success-output=", "--hide-progress-bar",
+  "--no-tests=", "--archive-file=", "--workspace-remap=", "--max-fail=",
+]
+
+[subcommands.nextest.subcommands.list]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "-E=", "--filterset=", "-T=",
+  "--list-type=", "--run-ignored=",
+]
+
+[subcommands.nextest.subcommands.archive]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=", "--archive-file=",
+  "--archive-format=",
+]
+
+[subcommands.nextest.subcommands.show-config]
+
+[subcommands.nextest.subcommands.self]
+
+[subcommands.outdated]
+options = [
+  "-R", "--root-deps-only", "-w", "--workspace", "-d=", "--depth=", "-p=", "--packages=", "-x=",
+  "--exclude=", "--format=", "--exit-code=",
+]
+
+[subcommands.semver-checks]
+
+[subcommands.semver-checks.subcommands.check-release]
+
+[subcommands.udeps]
+options = [
+  "-p=", "--package=", "--workspace", "--all", "--exclude=", "--lib", "--bins", "--bin=",
+  "--examples", "--example=", "--tests", "--test=", "--benches", "--bench=", "--all-targets", "-F=",
+  "--features=", "--all-features", "--no-default-features", "-r", "--release", "--profile=", "-j=",
+  "--jobs=", "--keep-going", "--target=", "--target-dir=", "--artifact-dir=", "--timings=?",
+  "--unit-graph", "--future-incompat-report", "--build-plan", "--manifest-path=",
+  "--lockfile-path=", "--ignore-rust-version", "--message-format=",
+]
+
+[subcommands.watch]
+options = [
+  "-x=", "--exec=", "-s=", "--shell=", "-w=", "--watch=", "-i=", "--ignore=", "-c", "--clear", "-q",
+  "--quiet", "-d=", "--delay=", "--postpone", "--poll", "-N", "--notify",
+]

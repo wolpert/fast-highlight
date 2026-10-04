@@ -1,0 +1,112 @@
+# systemctl(1). Complete: systemctl has no plugin mechanism, so an unknown verb is an error. The
+# list includes the compatibility verbs systemctl still accepts (`condrestart`, `force-reload`,
+# `check`, ...). Options are valid before and after the verb.
+name = "systemctl"
+complete = true
+common-options = [
+  "-h", "--help", "--version",
+  "--system", "--user", "--global", "-C=", "--capsule=", "-M=", "--machine=", "-H=", "--host=",
+  "-t=", "--type=", "--state=", "--failed", "-p=", "--property=", "-P=", "-a", "--all",
+  "-l", "--full", "-r", "--recursive", "--reverse", "--after", "--before",
+  "--with-dependencies", "--job-mode=", "-T", "--show-transaction", "--show-types", "--value",
+  "--check-inhibitors=", "-i", "--ignore-inhibitors", "-s=", "--signal=", "--kill-whom=",
+  "--kill-value=", "--what=", "--now", "-q", "--quiet", "--no-warn", "--wait", "--no-block",
+  "--no-wall", "--no-reload", "--no-legend", "--legend=", "--no-pager", "--no-ask-password",
+  "--runtime", "-f", "--force", "--preset-mode=", "--root=", "--image=", "--image-policy=",
+  "--reboot-argument=", "--plain", "--timestamp=", "--mkdir", "--marked", "--read-only",
+  "--firmware-setup", "--boot-loader-menu=", "--boot-loader-entry=", "-n=", "--lines=",
+  "-o=", "--output=", "--drop-in=", "--when=", "--stdin", "--message=", "--dry-run",
+]
+
+# Unit commands.
+[subcommands.list-units]
+[subcommands.list-automounts]
+[subcommands.list-paths]
+[subcommands.list-sockets]
+[subcommands.list-timers]
+[subcommands.is-active]
+[subcommands.check]
+[subcommands.is-failed]
+[subcommands.status]
+[subcommands.show]
+[subcommands.cat]
+[subcommands.help]
+[subcommands.list-dependencies]
+[subcommands.start]
+[subcommands.stop]
+[subcommands.condstop]
+[subcommands.reload]
+[subcommands.restart]
+[subcommands.try-restart]
+[subcommands.condrestart]
+[subcommands.reload-or-restart]
+[subcommands.try-reload-or-restart]
+[subcommands.reload-or-try-restart]
+[subcommands.force-reload]
+[subcommands.condreload]
+[subcommands.isolate]
+[subcommands.kill]
+[subcommands.clean]
+[subcommands.freeze]
+[subcommands.thaw]
+[subcommands.set-property]
+[subcommands.bind]
+[subcommands.mount-image]
+[subcommands.service-log-level]
+[subcommands.service-log-target]
+[subcommands.reset-failed]
+[subcommands.whoami]
+[subcommands.enqueue-marked-jobs]
+
+# Unit file commands.
+[subcommands.list-unit-files]
+[subcommands.enable]
+[subcommands.disable]
+[subcommands.reenable]
+[subcommands.preset]
+[subcommands.preset-all]
+[subcommands.is-enabled]
+[subcommands.mask]
+[subcommands.unmask]
+[subcommands.link]
+[subcommands.revert]
+[subcommands.add-wants]
+[subcommands.add-requires]
+[subcommands.edit]
+[subcommands.get-default]
+[subcommands.set-default]
+
+# Machine, job, and environment commands.
+[subcommands.list-machines]
+[subcommands.list-jobs]
+[subcommands.cancel]
+[subcommands.clear-jobs]
+[subcommands.show-environment]
+[subcommands.set-environment]
+[subcommands.unset-environment]
+[subcommands.import-environment]
+
+# Manager state commands.
+[subcommands.daemon-reload]
+[subcommands.daemon-reexec]
+[subcommands.log-level]
+[subcommands.log-target]
+[subcommands.service-watchdogs]
+
+# System commands.
+[subcommands.is-system-running]
+[subcommands.default]
+[subcommands.rescue]
+[subcommands.emergency]
+[subcommands.halt]
+[subcommands.poweroff]
+[subcommands.reboot]
+[subcommands.kexec]
+[subcommands.soft-reboot]
+[subcommands.exit]
+[subcommands.switch-root]
+[subcommands.sleep]
+[subcommands.suspend]
+[subcommands.hibernate]
+[subcommands.hybrid-sleep]
+[subcommands.suspend-then-hibernate]

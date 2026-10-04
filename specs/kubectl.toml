@@ -1,0 +1,612 @@
+# kubectl(1). Not complete: any `kubectl-NAME` executable on PATH is a plugin subcommand.
+# Fixed command groups (`config`, `rollout`, `auth`, `set`, `top`, ...) are complete. Global
+# flags are valid at every level, before or after the subcommand.
+name = "kubectl"
+common-options = [
+  "-h", "--help", "--kubeconfig=", "--context=", "--cluster=", "--user=", "-n=", "--namespace=",
+  "-s=", "--server=", "--token=", "--as=", "--as-group=", "--as-uid=", "--certificate-authority=",
+  "--client-certificate=", "--client-key=", "--insecure-skip-tls-verify=?", "--tls-server-name=",
+  "--request-timeout=", "--cache-dir=", "-v=", "--v=", "--vmodule=", "--match-server-version=?",
+  "--password=", "--username=", "--profile=", "--profile-output=", "--disable-compression=?",
+  "--log-flush-frequency=", "--warnings-as-errors=?",
+]
+
+[subcommands.annotate]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--all", "-A", "--all-namespaces",
+  "--overwrite=?", "--list", "--local", "--resource-version=", "-l=", "--selector=",
+  "--field-selector=",
+]
+
+[subcommands.api-resources]
+options = [
+  "--api-group=", "--cached=?", "--categories=", "--namespaced=?", "--no-headers=?", "-o=",
+  "--output=", "--sort-by=", "--verbs=",
+]
+
+[subcommands.api-versions]
+
+[subcommands.apply]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--server-side=?", "--force-conflicts=?",
+  "--overwrite=?", "--prune=?", "--prune-allowlist=", "--all", "--cascade=?", "--force",
+  "--grace-period=", "--timeout=", "--wait=?", "--openapi-patch=?", "--subresource=", "-l=",
+  "--selector=",
+]
+
+[subcommands.apply.subcommands.edit-last-applied]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--field-manager=",
+  "--windows-line-endings=?",
+]
+
+[subcommands.apply.subcommands.set-last-applied]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--create-annotation=?",
+]
+
+[subcommands.apply.subcommands.view-last-applied]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=", "--all",
+  "-l=", "--selector=",
+]
+
+[subcommands.attach]
+options = [
+  "-c=", "--container=", "-i", "--stdin=?", "-t", "--tty=?", "-q", "--quiet=?",
+  "--pod-running-timeout=",
+]
+
+[subcommands.auth]
+complete = true
+
+[subcommands.auth.subcommands.can-i]
+options = [
+  "-A", "--all-namespaces", "--list", "--no-headers=?", "-q", "--quiet=?", "--subresource=",
+]
+
+[subcommands.auth.subcommands.reconcile]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--remove-extra-permissions", "--remove-extra-subjects",
+]
+
+[subcommands.auth.subcommands.whoami]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+]
+
+[subcommands.autoscale]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--cpu-percent=", "--cpu=", "--memory=",
+  "--max=", "--min=", "--name=",
+]
+
+[subcommands.certificate]
+complete = true
+
+[subcommands.certificate.subcommands.approve]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--force",
+]
+
+[subcommands.certificate.subcommands.deny]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--force",
+]
+
+[subcommands.cluster-info]
+
+[subcommands.cluster-info.subcommands.dump]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "-A", "--all-namespaces", "--namespaces=", "--output-directory=", "--pod-running-timeout=",
+]
+
+[subcommands.completion]
+
+[subcommands.config]
+complete = true
+options = ["--kubeconfig="]
+
+[subcommands.config.subcommands.current-context]
+
+[subcommands.config.subcommands.delete-cluster]
+
+[subcommands.config.subcommands.delete-context]
+
+[subcommands.config.subcommands.delete-user]
+
+[subcommands.config.subcommands.get-clusters]
+
+[subcommands.config.subcommands.get-contexts]
+options = ["--no-headers=?", "-o=", "--output="]
+
+[subcommands.config.subcommands.get-users]
+
+[subcommands.config.subcommands.rename-context]
+
+[subcommands.config.subcommands.set]
+options = ["--set-raw-bytes=?"]
+
+[subcommands.config.subcommands.set-cluster]
+options = [
+  "--certificate-authority=", "--embed-certs=?", "--insecure-skip-tls-verify=?", "--proxy-url=",
+  "--server=", "--tls-server-name=",
+]
+
+[subcommands.config.subcommands.set-context]
+options = ["--current", "--cluster=", "--namespace=", "--user="]
+
+[subcommands.config.subcommands.set-credentials]
+options = [
+  "--auth-provider=", "--auth-provider-arg=", "--client-certificate=", "--client-key=",
+  "--embed-certs=?", "--exec-api-version=", "--exec-arg=", "--exec-command=", "--exec-env=",
+  "--password=", "--token=", "--username=",
+]
+
+[subcommands.config.subcommands.unset]
+
+[subcommands.config.subcommands.use-context]
+aliases = ["use"]
+
+[subcommands.config.subcommands.view]
+options = ["--flatten=?", "--merge=?", "--minify=?", "--raw=?", "-o=", "--output=", "--template="]
+
+[subcommands.cordon]
+options = ["--dry-run=?", "-l=", "--selector="]
+
+[subcommands.cp]
+options = ["-c=", "--container=", "--no-preserve=?", "--retries="]
+
+[subcommands.create]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--edit=?", "--raw=",
+  "--windows-line-endings=?", "-l=", "--selector=",
+]
+
+[subcommands.create.subcommands.clusterrole]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.clusterrolebinding]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.configmap]
+aliases = ["cm"]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.cronjob]
+aliases = ["cj"]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.deployment]
+aliases = ["deploy"]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.ingress]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.job]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.namespace]
+aliases = ["ns"]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.poddisruptionbudget]
+aliases = ["pdb"]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.priorityclass]
+aliases = ["pc"]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.quota]
+aliases = ["resourcequota"]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.role]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.rolebinding]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.serviceaccount]
+aliases = ["sa"]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.token]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.secret]
+complete = true
+
+[subcommands.create.subcommands.secret.subcommands.docker-registry]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.secret.subcommands.generic]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.secret.subcommands.tls]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.service]
+aliases = ["svc"]
+complete = true
+
+[subcommands.create.subcommands.service.subcommands.clusterip]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.service.subcommands.externalname]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.service.subcommands.loadbalancer]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.create.subcommands.service.subcommands.nodeport]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?",
+]
+
+[subcommands.debug]
+options = [
+  "--arguments-only=?", "--attach=?", "-c=", "--container=", "--copy-to=", "--custom=", "--env=",
+  "--image=", "--image-pull-policy=", "--keep-annotations=?", "--keep-init-containers=?",
+  "--keep-labels=?", "--keep-liveness=?", "--keep-readiness=?", "--keep-startup=?", "--profile=",
+  "-q", "--quiet=?", "--replace=?", "--same-node=?", "--set-image=", "--share-processes=?", "-i",
+  "--stdin=?", "--target=", "-t", "--tty=?", "-f=", "--filename=", "-k=", "--kustomize=", "-R",
+  "--recursive",
+]
+
+[subcommands.delete]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "--all", "-A",
+  "--all-namespaces", "--cascade=?", "--dry-run=?", "--field-selector=", "--force",
+  "--grace-period=", "--ignore-not-found=?", "-i", "--interactive=?", "--now", "-o=", "--output=",
+  "--raw=", "-l=", "--selector=", "--timeout=", "--wait=?",
+]
+
+[subcommands.describe]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-l=", "--selector=",
+  "--field-selector=", "-A", "--all-namespaces", "--chunk-size=", "--show-events=?",
+]
+
+[subcommands.diff]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "--concurrency=",
+  "--field-manager=", "--force-conflicts=?", "--prune=?", "--prune-allowlist=", "-l=",
+  "--selector=", "--server-side=?", "--show-managed-fields=?",
+]
+
+[subcommands.drain]
+options = [
+  "--chunk-size=", "--delete-emptydir-data=?", "--disable-eviction=?", "--dry-run=?", "--force=?",
+  "--grace-period=", "--ignore-daemonsets=?", "--pod-selector=", "-l=", "--selector=",
+  "--skip-wait-for-delete-timeout=", "--timeout=",
+]
+
+[subcommands.edit]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--field-manager=",
+  "--output-patch=?", "--save-config=?", "--subresource=", "--validate=?",
+  "--windows-line-endings=?",
+]
+
+[subcommands.events]
+options = [
+  "-A", "--all-namespaces", "--chunk-size=", "--for=", "--no-headers=?", "-o=", "--output=",
+  "--types=", "-w", "--watch=?", "--template=", "--allow-missing-template-keys=?",
+  "--show-managed-fields=?",
+]
+
+[subcommands.exec]
+options = [
+  "-c=", "--container=", "-i", "--stdin=?", "-t", "--tty=?", "-q", "--quiet=?",
+  "--pod-running-timeout=", "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive",
+]
+
+[subcommands.explain]
+options = ["--api-version=", "-o=", "--output=", "--recursive=?"]
+
+[subcommands.expose]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--cluster-ip=", "--external-ip=", "-l=",
+  "--labels=", "--load-balancer-ip=", "--name=", "--override-type=", "--overrides=", "--port=",
+  "--protocol=", "--selector=", "--session-affinity=", "--target-port=", "--type=",
+]
+
+[subcommands.get]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "-l=", "--selector=",
+  "--field-selector=", "-A", "--all-namespaces", "--chunk-size=", "--ignore-not-found=?", "-L=",
+  "--label-columns=", "--no-headers=?", "--output-watch-events=?", "--raw=", "--server-print=?",
+  "--show-kind=?", "--show-labels=?", "--sort-by=", "--subresource=", "-w", "--watch=?",
+  "--watch-only=?",
+]
+
+[subcommands.kustomize]
+options = [
+  "--enable-alpha-plugins=?", "--enable-helm=?", "-e=", "--env=", "--helm-command=",
+  "--load-restrictor=", "--mount=", "--network=?", "--network-name=", "-o=", "--output=",
+]
+
+[subcommands.label]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--all", "-A", "--all-namespaces",
+  "--overwrite=?", "--list", "--local", "--resource-version=", "-l=", "--selector=",
+  "--field-selector=",
+]
+
+[subcommands.logs]
+options = [
+  "-c=", "--container=", "-f", "--follow", "--all-containers=?", "--all-pods=?",
+  "--ignore-errors=?", "--insecure-skip-tls-verify-backend=?", "--limit-bytes=",
+  "--max-log-requests=", "--pod-running-timeout=", "--prefix=?", "-p", "--previous=?", "-l=",
+  "--selector=", "--since=", "--since-time=", "--tail=", "--timestamps=?",
+]
+
+[subcommands.options]
+
+[subcommands.patch]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--local", "-p=", "--patch=",
+  "--patch-file=", "--subresource=", "--type=",
+]
+
+[subcommands.plugin]
+complete = true
+
+[subcommands.plugin.subcommands.list]
+options = ["--name-only=?"]
+
+[subcommands.port-forward]
+options = ["--address=", "--pod-running-timeout="]
+
+[subcommands.proxy]
+options = [
+  "--accept-hosts=", "--accept-paths=", "--address=", "--api-prefix=", "--append-server-path=?",
+  "--disable-filter=?", "--keepalive=", "-p=", "--port=", "--reject-methods=", "--reject-paths=",
+  "-u=", "--unix-socket=", "-w=", "--www=", "-P=", "--www-prefix=",
+]
+
+[subcommands.replace]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--cascade=?", "--force",
+  "--grace-period=", "--raw=", "--subresource=", "--timeout=", "--wait=?",
+]
+
+[subcommands.rollout]
+complete = true
+
+[subcommands.rollout.subcommands.history]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--revision=", "-l=",
+  "--selector=",
+]
+
+[subcommands.rollout.subcommands.pause]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--field-manager=",
+  "-l=", "--selector=",
+]
+
+[subcommands.rollout.subcommands.restart]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--field-manager=",
+  "-l=", "--selector=",
+]
+
+[subcommands.rollout.subcommands.resume]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--field-manager=",
+  "-l=", "--selector=",
+]
+
+[subcommands.rollout.subcommands.status]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "--revision=", "-l=",
+  "--selector=", "--timeout=", "-w", "--watch=?",
+]
+
+[subcommands.rollout.subcommands.undo]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?", "-l=",
+  "--selector=", "--to-revision=",
+]
+
+[subcommands.run]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--dry-run=?", "--field-manager=", "--validate=?", "--save-config=?", "--annotations=",
+  "--attach=?", "--cascade=?", "--command=?", "--env=", "--expose=?", "--image=",
+  "--image-pull-policy=", "-l=", "--labels=", "--leave-stdin-open=?", "--override-type=",
+  "--overrides=", "--pod-running-timeout=", "--port=", "--privileged=?", "-q", "--quiet=?",
+  "--restart=", "--rm=?", "-i", "--stdin=?", "-t", "--tty=?", "--timeout=", "--wait=?",
+]
+
+[subcommands.scale]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--all",
+  "--current-replicas=", "--dry-run=?", "--replicas=", "--resource-version=", "-l=", "--selector=",
+  "--timeout=",
+]
+
+[subcommands.set]
+complete = true
+
+[subcommands.set.subcommands.env]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--all", "--local", "-l=", "--selector=",
+]
+
+[subcommands.set.subcommands.image]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--all", "--local", "-l=", "--selector=",
+]
+
+[subcommands.set.subcommands.resources]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--all", "--local", "-l=", "--selector=",
+]
+
+[subcommands.set.subcommands.selector]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--all", "--local", "-l=", "--selector=",
+]
+
+[subcommands.set.subcommands.serviceaccount]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--all", "--local", "-l=", "--selector=",
+]
+
+[subcommands.set.subcommands.subject]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "--dry-run=?",
+  "--field-manager=", "--validate=?", "--save-config=?", "--all", "--local", "-l=", "--selector=",
+]
+
+[subcommands.taint]
+options = [
+  "-o=", "--output=", "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?",
+  "--all", "--dry-run=?", "--field-manager=", "--overwrite=?", "-l=", "--selector=", "--validate=?",
+]
+
+[subcommands.top]
+complete = true
+
+[subcommands.top.subcommands.node]
+aliases = ["nodes", "no"]
+options = [
+  "--no-headers=?", "-l=", "--selector=", "--show-capacity=?", "--sort-by=",
+  "--use-protocol-buffers=?",
+]
+
+[subcommands.top.subcommands.pod]
+aliases = ["pods", "po"]
+options = [
+  "-A", "--all-namespaces", "--containers=?", "--field-selector=", "--no-headers=?", "-l=",
+  "--selector=", "--sort-by=", "--sum=?", "--use-protocol-buffers=?",
+]
+
+[subcommands.uncordon]
+options = ["--dry-run=?", "-l=", "--selector="]
+
+[subcommands.version]
+options = ["--client=?", "-o=", "--output="]
+
+[subcommands.wait]
+options = [
+  "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive", "-o=", "--output=",
+  "--template=", "--allow-missing-template-keys=?", "--show-managed-fields=?", "-l=", "--selector=",
+  "--field-selector=", "-A", "--all-namespaces", "--all", "--for=", "--local=?", "--timeout=",
+]
+
+[subcommands.alpha]
+
+[subcommands.help]

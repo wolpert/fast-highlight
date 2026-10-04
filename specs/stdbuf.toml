@@ -1,0 +1,9 @@
+# stdbuf(1).
+name = "stdbuf"
+precommand = true
+options = [
+  "-i=", "--input=",
+  "-o=", "--output=",
+  "-e=", "--error=",
+  "--help", "--version",
+]

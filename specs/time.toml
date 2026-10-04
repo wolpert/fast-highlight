@@ -1,0 +1,15 @@
+# The external time(1), GNU and BSD. In zsh, `time` in command position is a reserved word with
+# no options; this spec covers invocations such as `command time -v cmd`.
+name = "time"
+precommand = true
+options = [
+  "-a", "--append",
+  "-f=", "--format=",
+  "-l",
+  "-o=", "--output=",
+  "-p", "--portability",
+  "-q", "--quiet",
+  "-v", "--verbose",
+  "-V", "--version",
+  "--help",
+]

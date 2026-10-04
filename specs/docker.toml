@@ -1,0 +1,900 @@
+# docker(1). Not complete: Docker CLI plugins (`docker-NAME` in the CLI plugin directories) add
+# top-level subcommands. The common plugins are listed. The core management commands
+# `container`, `image`, `network`, and `volume` are complete. `run`, `create`, and `exec` stop
+# option parsing at the image or container name, so the command after it is plain.
+name = "docker"
+common-options = ["--help"]
+options = [
+  "--config=", "-c=", "--context=", "-D", "--debug", "-H=", "--host=", "-l=", "--log-level=",
+  "--tls", "--tlscacert=", "--tlscert=", "--tlskey=", "--tlsverify", "-v", "--version", "-h",
+]
+
+[subcommands.attach]
+options = ["--detach-keys=", "--no-stdin", "--sig-proxy=?"]
+
+[subcommands.commit]
+options = [
+  "-a=", "--author=", "-c=", "--change=", "-m=", "--message=", "-p", "--pause", "--no-pause",
+]
+
+[subcommands.cp]
+options = ["-a", "--archive", "-L", "--follow-link", "-q", "--quiet"]
+
+[subcommands.create]
+options-first = true
+options = [
+  "-a=", "--attach=", "--add-host=", "--annotation=", "--blkio-weight=", "--cap-add=",
+  "--cap-drop=", "--cgroup-parent=", "--cgroupns=", "--cidfile=", "--cpu-period=", "--cpu-quota=",
+  "--cpu-rt-period=", "--cpu-rt-runtime=", "-c=", "--cpu-shares=", "--cpus=", "--cpuset-cpus=",
+  "--cpuset-mems=", "--device=", "--device-cgroup-rule=", "--device-read-bps=",
+  "--device-read-iops=", "--device-write-bps=", "--device-write-iops=", "--dns=", "--dns-option=",
+  "--dns-search=", "--domainname=", "--entrypoint=", "-e=", "--env=", "--env-file=", "--expose=",
+  "--gpus=", "--group-add=", "--health-cmd=", "--health-interval=", "--health-retries=",
+  "--health-start-interval=", "--health-start-period=", "--health-timeout=", "-h=", "--hostname=",
+  "--init", "-i", "--interactive", "--ip=", "--ip6=", "--ipc=", "--isolation=", "-l=", "--label=",
+  "--label-file=", "--link=", "--link-local-ip=", "--log-driver=", "--log-opt=", "--mac-address=",
+  "-m=", "--memory=", "--memory-reservation=", "--memory-swap=", "--memory-swappiness=", "--mount=",
+  "--name=", "--network=", "--net=", "--network-alias=", "--no-healthcheck", "--oom-kill-disable",
+  "--oom-score-adj=", "--pid=", "--pids-limit=", "--platform=", "--privileged", "-p=", "--publish=",
+  "-P", "--publish-all", "--pull=", "-q", "--quiet", "--read-only", "--restart=", "--rm",
+  "--runtime=", "--security-opt=", "--shm-size=", "--stop-signal=", "--stop-timeout=",
+  "--storage-opt=", "--sysctl=", "--tmpfs=", "-t", "--tty", "--ulimit=", "--use-api-socket", "-u=",
+  "--user=", "--userns=", "--uts=", "-v=", "--volume=", "--volume-driver=", "--volumes-from=",
+  "-w=", "--workdir=",
+]
+
+[subcommands.diff]
+
+[subcommands.exec]
+options-first = true
+options = [
+  "-d", "--detach", "--detach-keys=", "-e=", "--env=", "--env-file=", "-i", "--interactive",
+  "--privileged", "-t", "--tty", "-u=", "--user=", "-w=", "--workdir=",
+]
+
+[subcommands.export]
+options = ["-o=", "--output="]
+
+[subcommands.kill]
+options = ["-s=", "--signal="]
+
+[subcommands.logs]
+options = [
+  "--details", "-f", "--follow", "--since=", "-n=", "--tail=", "-t", "--timestamps", "--until=",
+]
+
+[subcommands.pause]
+
+[subcommands.port]
+
+[subcommands.rename]
+
+[subcommands.restart]
+options = ["-s=", "--signal=", "-t=", "--timeout="]
+
+[subcommands.rm]
+options = ["-f", "--force", "-l", "--link", "-v", "--volumes"]
+
+[subcommands.run]
+options-first = true
+options = [
+  "-a=", "--attach=", "--add-host=", "--annotation=", "--blkio-weight=", "--cap-add=",
+  "--cap-drop=", "--cgroup-parent=", "--cgroupns=", "--cidfile=", "--cpu-period=", "--cpu-quota=",
+  "--cpu-rt-period=", "--cpu-rt-runtime=", "-c=", "--cpu-shares=", "--cpus=", "--cpuset-cpus=",
+  "--cpuset-mems=", "--device=", "--device-cgroup-rule=", "--device-read-bps=",
+  "--device-read-iops=", "--device-write-bps=", "--device-write-iops=", "--dns=", "--dns-option=",
+  "--dns-search=", "--domainname=", "--entrypoint=", "-e=", "--env=", "--env-file=", "--expose=",
+  "--gpus=", "--group-add=", "--health-cmd=", "--health-interval=", "--health-retries=",
+  "--health-start-interval=", "--health-start-period=", "--health-timeout=", "-h=", "--hostname=",
+  "--init", "-i", "--interactive", "--ip=", "--ip6=", "--ipc=", "--isolation=", "-l=", "--label=",
+  "--label-file=", "--link=", "--link-local-ip=", "--log-driver=", "--log-opt=", "--mac-address=",
+  "-m=", "--memory=", "--memory-reservation=", "--memory-swap=", "--memory-swappiness=", "--mount=",
+  "--name=", "--network=", "--net=", "--network-alias=", "--no-healthcheck", "--oom-kill-disable",
+  "--oom-score-adj=", "--pid=", "--pids-limit=", "--platform=", "--privileged", "-p=", "--publish=",
+  "-P", "--publish-all", "--pull=", "-q", "--quiet", "--read-only", "--restart=", "--rm",
+  "--runtime=", "--security-opt=", "--shm-size=", "--stop-signal=", "--stop-timeout=",
+  "--storage-opt=", "--sysctl=", "--tmpfs=", "-t", "--tty", "--ulimit=", "--use-api-socket", "-u=",
+  "--user=", "--userns=", "--uts=", "-v=", "--volume=", "--volume-driver=", "--volumes-from=",
+  "-w=", "--workdir=", "-d", "--detach", "--detach-keys=", "--sig-proxy=?",
+]
+
+[subcommands.start]
+options = [
+  "-a", "--attach", "--checkpoint=", "--checkpoint-dir=", "--detach-keys=", "-i", "--interactive",
+]
+
+[subcommands.stats]
+options = ["-a", "--all", "--format=", "--no-stream", "--no-trunc"]
+
+[subcommands.stop]
+options = ["-s=", "--signal=", "-t=", "--timeout="]
+
+[subcommands.top]
+
+[subcommands.unpause]
+
+[subcommands.update]
+options = [
+  "--blkio-weight=", "--cpu-period=", "--cpu-quota=", "--cpus=", "-c=", "--cpu-shares=",
+  "--cpuset-cpus=", "--cpuset-mems=", "-m=", "--memory=", "--memory-reservation=", "--memory-swap=",
+  "--pids-limit=", "--restart=",
+]
+
+[subcommands.wait]
+
+[subcommands.build]
+options = [
+  "--add-host=", "--build-arg=", "--build-context=", "--cache-from=", "--cache-to=",
+  "--cgroup-parent=", "-f=", "--file=", "--iidfile=", "--label=", "--load", "--metadata-file=",
+  "--network=", "--no-cache", "--no-cache-filter=", "-o=", "--output=", "--platform=",
+  "--progress=", "--provenance=", "--pull", "--push", "-q", "--quiet", "--sbom=", "--secret=",
+  "--shm-size=", "--ssh=", "-t=", "--tag=", "--target=", "--ulimit=", "--builder=", "--annotation=",
+  "--attest=", "--call=", "--check", "--allow=", "--isolation=", "-m=", "--memory=", "--squash",
+]
+
+[subcommands.history]
+options = ["--format=", "-H", "--human", "--no-trunc", "--platform=", "-q", "--quiet"]
+
+[subcommands.import]
+options = ["-c=", "--change=", "-m=", "--message=", "--platform="]
+
+[subcommands.load]
+options = ["-i=", "--input=", "-q", "--quiet", "--platform="]
+
+[subcommands.pull]
+options = ["-a", "--all-tags", "--disable-content-trust", "--platform=", "-q", "--quiet"]
+
+[subcommands.push]
+options = ["-a", "--all-tags", "--disable-content-trust", "--platform=", "-q", "--quiet"]
+
+[subcommands.save]
+options = ["-o=", "--output=", "--platform="]
+
+[subcommands.tag]
+
+[subcommands.images]
+options = [
+  "-a", "--all", "--digests", "-f=", "--filter=", "--format=", "--no-trunc", "-q", "--quiet",
+  "--tree",
+]
+
+[subcommands.inspect]
+options = ["-f=", "--format=", "-s", "--size", "--type="]
+
+[subcommands.info]
+options = ["-f=", "--format="]
+
+[subcommands.login]
+options = ["-p=", "--password=", "--password-stdin", "-u=", "--username="]
+
+[subcommands.logout]
+
+[subcommands.events]
+options = ["-f=", "--filter=", "--format=", "--since=", "--until="]
+
+[subcommands.ps]
+options = [
+  "-a", "--all", "-f=", "--filter=", "--format=", "-n=", "--last=", "-l", "--latest", "--no-trunc",
+  "-q", "--quiet", "-s", "--size",
+]
+
+[subcommands.rmi]
+options = ["-f", "--force", "--no-prune", "--platform="]
+
+[subcommands.search]
+options = ["-f=", "--filter=", "--format=", "--limit=", "--no-trunc"]
+
+[subcommands.version]
+options = ["-f=", "--format="]
+
+[subcommands.container]
+complete = true
+
+[subcommands.container.subcommands.attach]
+options = ["--detach-keys=", "--no-stdin", "--sig-proxy=?"]
+
+[subcommands.container.subcommands.commit]
+options = [
+  "-a=", "--author=", "-c=", "--change=", "-m=", "--message=", "-p", "--pause", "--no-pause",
+]
+
+[subcommands.container.subcommands.cp]
+options = ["-a", "--archive", "-L", "--follow-link", "-q", "--quiet"]
+
+[subcommands.container.subcommands.create]
+options-first = true
+options = [
+  "-a=", "--attach=", "--add-host=", "--annotation=", "--blkio-weight=", "--cap-add=",
+  "--cap-drop=", "--cgroup-parent=", "--cgroupns=", "--cidfile=", "--cpu-period=", "--cpu-quota=",
+  "--cpu-rt-period=", "--cpu-rt-runtime=", "-c=", "--cpu-shares=", "--cpus=", "--cpuset-cpus=",
+  "--cpuset-mems=", "--device=", "--device-cgroup-rule=", "--device-read-bps=",
+  "--device-read-iops=", "--device-write-bps=", "--device-write-iops=", "--dns=", "--dns-option=",
+  "--dns-search=", "--domainname=", "--entrypoint=", "-e=", "--env=", "--env-file=", "--expose=",
+  "--gpus=", "--group-add=", "--health-cmd=", "--health-interval=", "--health-retries=",
+  "--health-start-interval=", "--health-start-period=", "--health-timeout=", "-h=", "--hostname=",
+  "--init", "-i", "--interactive", "--ip=", "--ip6=", "--ipc=", "--isolation=", "-l=", "--label=",
+  "--label-file=", "--link=", "--link-local-ip=", "--log-driver=", "--log-opt=", "--mac-address=",
+  "-m=", "--memory=", "--memory-reservation=", "--memory-swap=", "--memory-swappiness=", "--mount=",
+  "--name=", "--network=", "--net=", "--network-alias=", "--no-healthcheck", "--oom-kill-disable",
+  "--oom-score-adj=", "--pid=", "--pids-limit=", "--platform=", "--privileged", "-p=", "--publish=",
+  "-P", "--publish-all", "--pull=", "-q", "--quiet", "--read-only", "--restart=", "--rm",
+  "--runtime=", "--security-opt=", "--shm-size=", "--stop-signal=", "--stop-timeout=",
+  "--storage-opt=", "--sysctl=", "--tmpfs=", "-t", "--tty", "--ulimit=", "--use-api-socket", "-u=",
+  "--user=", "--userns=", "--uts=", "-v=", "--volume=", "--volume-driver=", "--volumes-from=",
+  "-w=", "--workdir=",
+]
+
+[subcommands.container.subcommands.diff]
+
+[subcommands.container.subcommands.exec]
+options-first = true
+options = [
+  "-d", "--detach", "--detach-keys=", "-e=", "--env=", "--env-file=", "-i", "--interactive",
+  "--privileged", "-t", "--tty", "-u=", "--user=", "-w=", "--workdir=",
+]
+
+[subcommands.container.subcommands.export]
+options = ["-o=", "--output="]
+
+[subcommands.container.subcommands.kill]
+options = ["-s=", "--signal="]
+
+[subcommands.container.subcommands.logs]
+options = [
+  "--details", "-f", "--follow", "--since=", "-n=", "--tail=", "-t", "--timestamps", "--until=",
+]
+
+[subcommands.container.subcommands.pause]
+
+[subcommands.container.subcommands.port]
+
+[subcommands.container.subcommands.rename]
+
+[subcommands.container.subcommands.restart]
+options = ["-s=", "--signal=", "-t=", "--timeout="]
+
+[subcommands.container.subcommands.rm]
+aliases = ["remove"]
+options = ["-f", "--force", "-l", "--link", "-v", "--volumes"]
+
+[subcommands.container.subcommands.run]
+options-first = true
+options = [
+  "-a=", "--attach=", "--add-host=", "--annotation=", "--blkio-weight=", "--cap-add=",
+  "--cap-drop=", "--cgroup-parent=", "--cgroupns=", "--cidfile=", "--cpu-period=", "--cpu-quota=",
+  "--cpu-rt-period=", "--cpu-rt-runtime=", "-c=", "--cpu-shares=", "--cpus=", "--cpuset-cpus=",
+  "--cpuset-mems=", "--device=", "--device-cgroup-rule=", "--device-read-bps=",
+  "--device-read-iops=", "--device-write-bps=", "--device-write-iops=", "--dns=", "--dns-option=",
+  "--dns-search=", "--domainname=", "--entrypoint=", "-e=", "--env=", "--env-file=", "--expose=",
+  "--gpus=", "--group-add=", "--health-cmd=", "--health-interval=", "--health-retries=",
+  "--health-start-interval=", "--health-start-period=", "--health-timeout=", "-h=", "--hostname=",
+  "--init", "-i", "--interactive", "--ip=", "--ip6=", "--ipc=", "--isolation=", "-l=", "--label=",
+  "--label-file=", "--link=", "--link-local-ip=", "--log-driver=", "--log-opt=", "--mac-address=",
+  "-m=", "--memory=", "--memory-reservation=", "--memory-swap=", "--memory-swappiness=", "--mount=",
+  "--name=", "--network=", "--net=", "--network-alias=", "--no-healthcheck", "--oom-kill-disable",
+  "--oom-score-adj=", "--pid=", "--pids-limit=", "--platform=", "--privileged", "-p=", "--publish=",
+  "-P", "--publish-all", "--pull=", "-q", "--quiet", "--read-only", "--restart=", "--rm",
+  "--runtime=", "--security-opt=", "--shm-size=", "--stop-signal=", "--stop-timeout=",
+  "--storage-opt=", "--sysctl=", "--tmpfs=", "-t", "--tty", "--ulimit=", "--use-api-socket", "-u=",
+  "--user=", "--userns=", "--uts=", "-v=", "--volume=", "--volume-driver=", "--volumes-from=",
+  "-w=", "--workdir=", "-d", "--detach", "--detach-keys=", "--sig-proxy=?",
+]
+
+[subcommands.container.subcommands.start]
+options = [
+  "-a", "--attach", "--checkpoint=", "--checkpoint-dir=", "--detach-keys=", "-i", "--interactive",
+]
+
+[subcommands.container.subcommands.stats]
+options = ["-a", "--all", "--format=", "--no-stream", "--no-trunc"]
+
+[subcommands.container.subcommands.stop]
+options = ["-s=", "--signal=", "-t=", "--timeout="]
+
+[subcommands.container.subcommands.top]
+
+[subcommands.container.subcommands.unpause]
+
+[subcommands.container.subcommands.update]
+options = [
+  "--blkio-weight=", "--cpu-period=", "--cpu-quota=", "--cpus=", "-c=", "--cpu-shares=",
+  "--cpuset-cpus=", "--cpuset-mems=", "-m=", "--memory=", "--memory-reservation=", "--memory-swap=",
+  "--pids-limit=", "--restart=",
+]
+
+[subcommands.container.subcommands.wait]
+
+[subcommands.container.subcommands.inspect]
+options = ["-f=", "--format=", "-s", "--size", "--type="]
+
+[subcommands.container.subcommands.ls]
+aliases = ["list", "ps"]
+options = [
+  "-a", "--all", "-f=", "--filter=", "--format=", "-n=", "--last=", "-l", "--latest", "--no-trunc",
+  "-q", "--quiet", "-s", "--size",
+]
+
+[subcommands.container.subcommands.prune]
+options = ["--filter=", "-f", "--force"]
+
+[subcommands.image]
+complete = true
+
+[subcommands.image.subcommands.build]
+options = [
+  "--add-host=", "--build-arg=", "--build-context=", "--cache-from=", "--cache-to=",
+  "--cgroup-parent=", "-f=", "--file=", "--iidfile=", "--label=", "--load", "--metadata-file=",
+  "--network=", "--no-cache", "--no-cache-filter=", "-o=", "--output=", "--platform=",
+  "--progress=", "--provenance=", "--pull", "--push", "-q", "--quiet", "--sbom=", "--secret=",
+  "--shm-size=", "--ssh=", "-t=", "--tag=", "--target=", "--ulimit=", "--builder=", "--annotation=",
+  "--attest=", "--call=", "--check", "--allow=", "--isolation=", "-m=", "--memory=", "--squash",
+]
+
+[subcommands.image.subcommands.history]
+options = ["--format=", "-H", "--human", "--no-trunc", "--platform=", "-q", "--quiet"]
+
+[subcommands.image.subcommands.import]
+options = ["-c=", "--change=", "-m=", "--message=", "--platform="]
+
+[subcommands.image.subcommands.load]
+options = ["-i=", "--input=", "-q", "--quiet", "--platform="]
+
+[subcommands.image.subcommands.pull]
+options = ["-a", "--all-tags", "--disable-content-trust", "--platform=", "-q", "--quiet"]
+
+[subcommands.image.subcommands.push]
+options = ["-a", "--all-tags", "--disable-content-trust", "--platform=", "-q", "--quiet"]
+
+[subcommands.image.subcommands.save]
+options = ["-o=", "--output=", "--platform="]
+
+[subcommands.image.subcommands.tag]
+
+[subcommands.image.subcommands.inspect]
+options = ["-f=", "--format=", "--platform="]
+
+[subcommands.image.subcommands.ls]
+aliases = ["list"]
+options = [
+  "-a", "--all", "--digests", "-f=", "--filter=", "--format=", "--no-trunc", "-q", "--quiet",
+  "--tree",
+]
+
+[subcommands.image.subcommands.prune]
+options = ["-a", "--all", "--filter=", "-f", "--force"]
+
+[subcommands.image.subcommands.rm]
+aliases = ["remove"]
+options = ["-f", "--force", "--no-prune", "--platform="]
+
+[subcommands.network]
+complete = true
+
+[subcommands.network.subcommands.connect]
+options = [
+  "--alias=", "--driver-opt=", "--gw-priority=", "--ip=", "--ip6=", "--link=", "--link-local-ip=",
+]
+
+[subcommands.network.subcommands.create]
+options = [
+  "--attachable", "--aux-address=", "--config-from=", "--config-only", "-d=", "--driver=",
+  "--gateway=", "--ingress", "--internal", "--ip-range=", "--ipam-driver=", "--ipam-opt=", "--ipv4",
+  "--ipv6", "--label=", "-o=", "--opt=", "--scope=", "--subnet=",
+]
+
+[subcommands.network.subcommands.disconnect]
+options = ["-f", "--force"]
+
+[subcommands.network.subcommands.inspect]
+options = ["-f=", "--format=", "-v", "--verbose"]
+
+[subcommands.network.subcommands.ls]
+aliases = ["list"]
+options = ["-f=", "--filter=", "--format=", "-q", "--quiet", "--no-trunc"]
+
+[subcommands.network.subcommands.prune]
+options = ["--filter=", "-f", "--force"]
+
+[subcommands.network.subcommands.rm]
+aliases = ["remove"]
+options = ["-f", "--force"]
+
+[subcommands.volume]
+complete = true
+
+[subcommands.volume.subcommands.create]
+options = [
+  "-d=", "--driver=", "--label=", "-o=", "--opt=", "--availability=", "--group=", "--limit-bytes=",
+  "--required-bytes=", "--scope=", "--secret=", "--sharing=", "--topology-preferred=",
+  "--topology-required=", "--type=",
+]
+
+[subcommands.volume.subcommands.inspect]
+options = ["-f=", "--format="]
+
+[subcommands.volume.subcommands.ls]
+aliases = ["list"]
+options = ["-f=", "--filter=", "--format=", "-q", "--quiet", "--cluster"]
+
+[subcommands.volume.subcommands.prune]
+options = ["-a", "--all", "--filter=", "-f", "--force"]
+
+[subcommands.volume.subcommands.rm]
+aliases = ["remove"]
+options = ["-f", "--force"]
+
+[subcommands.volume.subcommands.update]
+options = ["--availability="]
+
+[subcommands.system]
+
+[subcommands.system.subcommands.df]
+options = ["--format=", "-v", "--verbose"]
+
+[subcommands.system.subcommands.events]
+options = ["-f=", "--filter=", "--format=", "--since=", "--until="]
+
+[subcommands.system.subcommands.info]
+options = ["-f=", "--format="]
+
+[subcommands.system.subcommands.prune]
+options = ["-a", "--all", "--filter=", "-f", "--force", "--volumes"]
+
+[subcommands.system.subcommands.dial-stdio]
+
+[subcommands.context]
+
+[subcommands.context.subcommands.create]
+options = ["--description=", "--docker=", "--from="]
+
+[subcommands.context.subcommands.export]
+
+[subcommands.context.subcommands.import]
+
+[subcommands.context.subcommands.inspect]
+options = ["-f=", "--format="]
+
+[subcommands.context.subcommands.ls]
+aliases = ["list"]
+options = ["--format=", "-q", "--quiet"]
+
+[subcommands.context.subcommands.rm]
+aliases = ["remove"]
+options = ["-f", "--force"]
+
+[subcommands.context.subcommands.show]
+
+[subcommands.context.subcommands.update]
+options = ["--description=", "--docker="]
+
+[subcommands.context.subcommands.use]
+
+[subcommands.builder]
+
+[subcommands.builder.subcommands.build]
+options = [
+  "--add-host=", "--build-arg=", "--build-context=", "--cache-from=", "--cache-to=",
+  "--cgroup-parent=", "-f=", "--file=", "--iidfile=", "--label=", "--load", "--metadata-file=",
+  "--network=", "--no-cache", "--no-cache-filter=", "-o=", "--output=", "--platform=",
+  "--progress=", "--provenance=", "--pull", "--push", "-q", "--quiet", "--sbom=", "--secret=",
+  "--shm-size=", "--ssh=", "-t=", "--tag=", "--target=", "--ulimit=", "--builder=", "--annotation=",
+  "--attest=", "--call=", "--check", "--allow=", "--isolation=", "-m=", "--memory=", "--squash",
+]
+
+[subcommands.builder.subcommands.prune]
+options = [
+  "-a", "--all", "--filter=", "-f", "--force", "--keep-storage=", "--max-used-space=",
+  "--min-free-space=", "--reserved-space=",
+]
+
+[subcommands.builder.subcommands.du]
+
+[subcommands.builder.subcommands.ls]
+
+[subcommands.builder.subcommands.inspect]
+
+[subcommands.builder.subcommands.create]
+
+[subcommands.builder.subcommands.rm]
+
+[subcommands.builder.subcommands.stop]
+
+[subcommands.builder.subcommands.use]
+
+[subcommands.builder.subcommands.version]
+
+[subcommands.builder.subcommands.bake]
+
+[subcommands.builder.subcommands.imagetools]
+
+[subcommands.builder.subcommands.history]
+
+[subcommands.checkpoint]
+
+[subcommands.checkpoint.subcommands.create]
+
+[subcommands.checkpoint.subcommands.ls]
+aliases = ["list"]
+
+[subcommands.checkpoint.subcommands.rm]
+aliases = ["remove"]
+
+[subcommands.config]
+
+[subcommands.config.subcommands.create]
+
+[subcommands.config.subcommands.inspect]
+
+[subcommands.config.subcommands.ls]
+aliases = ["list"]
+
+[subcommands.config.subcommands.rm]
+aliases = ["remove"]
+
+[subcommands.manifest]
+
+[subcommands.manifest.subcommands.annotate]
+
+[subcommands.manifest.subcommands.create]
+
+[subcommands.manifest.subcommands.inspect]
+
+[subcommands.manifest.subcommands.push]
+
+[subcommands.manifest.subcommands.rm]
+
+[subcommands.node]
+
+[subcommands.node.subcommands.demote]
+
+[subcommands.node.subcommands.inspect]
+
+[subcommands.node.subcommands.ls]
+aliases = ["list"]
+
+[subcommands.node.subcommands.promote]
+
+[subcommands.node.subcommands.ps]
+
+[subcommands.node.subcommands.rm]
+aliases = ["remove"]
+
+[subcommands.node.subcommands.update]
+
+[subcommands.plugin]
+
+[subcommands.plugin.subcommands.create]
+
+[subcommands.plugin.subcommands.disable]
+
+[subcommands.plugin.subcommands.enable]
+
+[subcommands.plugin.subcommands.inspect]
+
+[subcommands.plugin.subcommands.install]
+
+[subcommands.plugin.subcommands.ls]
+aliases = ["list"]
+
+[subcommands.plugin.subcommands.push]
+
+[subcommands.plugin.subcommands.rm]
+aliases = ["remove"]
+
+[subcommands.plugin.subcommands.set]
+
+[subcommands.plugin.subcommands.upgrade]
+
+[subcommands.secret]
+
+[subcommands.secret.subcommands.create]
+
+[subcommands.secret.subcommands.inspect]
+
+[subcommands.secret.subcommands.ls]
+aliases = ["list"]
+
+[subcommands.secret.subcommands.rm]
+aliases = ["remove"]
+
+[subcommands.service]
+
+[subcommands.service.subcommands.create]
+
+[subcommands.service.subcommands.inspect]
+
+[subcommands.service.subcommands.logs]
+options = [
+  "--details", "-f", "--follow", "--since=", "-n=", "--tail=", "-t", "--timestamps", "--until=",
+]
+
+[subcommands.service.subcommands.ls]
+aliases = ["list"]
+
+[subcommands.service.subcommands.ps]
+
+[subcommands.service.subcommands.rm]
+aliases = ["remove"]
+
+[subcommands.service.subcommands.rollback]
+
+[subcommands.service.subcommands.scale]
+
+[subcommands.service.subcommands.update]
+
+[subcommands.stack]
+
+[subcommands.stack.subcommands.config]
+
+[subcommands.stack.subcommands.deploy]
+aliases = ["up"]
+
+[subcommands.stack.subcommands.ls]
+aliases = ["list"]
+
+[subcommands.stack.subcommands.ps]
+
+[subcommands.stack.subcommands.rm]
+aliases = ["remove", "down"]
+
+[subcommands.stack.subcommands.services]
+
+[subcommands.swarm]
+
+[subcommands.swarm.subcommands.ca]
+
+[subcommands.swarm.subcommands.init]
+
+[subcommands.swarm.subcommands.join]
+
+[subcommands.swarm.subcommands.join-token]
+
+[subcommands.swarm.subcommands.leave]
+
+[subcommands.swarm.subcommands.unlock]
+
+[subcommands.swarm.subcommands.unlock-key]
+
+[subcommands.swarm.subcommands.update]
+
+[subcommands.trust]
+
+[subcommands.trust.subcommands.inspect]
+
+[subcommands.trust.subcommands.key]
+
+[subcommands.trust.subcommands.revoke]
+
+[subcommands.trust.subcommands.sign]
+
+[subcommands.trust.subcommands.signer]
+
+[subcommands.compose]
+options = [
+  "-f=", "--file=", "-p=", "--project-name=", "--profile=", "--env-file=", "--project-directory=",
+  "--parallel=", "--compatibility", "--dry-run", "--ansi=", "--progress=", "--all-resources", "-v",
+  "--version",
+]
+
+[subcommands.compose.subcommands.attach]
+
+[subcommands.compose.subcommands.build]
+options = [
+  "--build-arg=", "--builder=", "--check", "-m=", "--memory=", "--no-cache", "--print", "--pull",
+  "--push", "-q", "--quiet", "--ssh=", "--with-dependencies",
+]
+
+[subcommands.compose.subcommands.commit]
+
+[subcommands.compose.subcommands.config]
+options = [
+  "--format=", "--hash=", "--images", "--no-consistency", "--no-interpolate", "--no-normalize",
+  "--no-path-resolution", "-o=", "--output=", "--profiles", "-q", "--quiet",
+  "--resolve-image-digests", "--services", "--volumes", "--environment", "--networks",
+  "--variables",
+]
+
+[subcommands.compose.subcommands.cp]
+options = ["-a", "--archive", "-L", "--follow-link", "--index="]
+
+[subcommands.compose.subcommands.create]
+options = [
+  "--build", "--force-recreate", "--no-build", "--no-recreate", "--pull=", "--quiet-pull",
+  "--remove-orphans", "--scale=", "-y", "--yes",
+]
+
+[subcommands.compose.subcommands.down]
+options = ["--remove-orphans", "--rmi=", "-t=", "--timeout=", "-v", "--volumes"]
+
+[subcommands.compose.subcommands.events]
+options = ["--json", "--since=", "--until="]
+
+[subcommands.compose.subcommands.exec]
+options-first = true
+options = [
+  "-d", "--detach", "-e=", "--env=", "--index=", "-T", "--no-TTY", "--no-tty", "--privileged",
+  "-u=", "--user=", "-w=", "--workdir=",
+]
+
+[subcommands.compose.subcommands.export]
+options = ["--index=", "-o=", "--output="]
+
+[subcommands.compose.subcommands.images]
+options = ["--format=", "-q", "--quiet"]
+
+[subcommands.compose.subcommands.kill]
+options = ["--remove-orphans", "-s=", "--signal="]
+
+[subcommands.compose.subcommands.logs]
+options = [
+  "-f", "--follow", "--index=", "--no-color", "--no-log-prefix", "--since=", "-n=", "--tail=", "-t",
+  "--timestamps", "--until=",
+]
+
+[subcommands.compose.subcommands.ls]
+options = ["-a", "--all", "--filter=", "--format=", "-q", "--quiet"]
+
+[subcommands.compose.subcommands.pause]
+
+[subcommands.compose.subcommands.port]
+options = ["--index=", "--protocol="]
+
+[subcommands.compose.subcommands.ps]
+options = [
+  "-a", "--all", "--filter=", "--format=", "--no-trunc", "--orphans", "-q", "--quiet", "--services",
+  "--status=",
+]
+
+[subcommands.compose.subcommands.publish]
+
+[subcommands.compose.subcommands.pull]
+options = [
+  "--ignore-buildable", "--ignore-pull-failures", "--include-deps", "--policy=", "-q", "--quiet",
+]
+
+[subcommands.compose.subcommands.push]
+options = ["--ignore-push-failures", "--include-deps", "-q", "--quiet"]
+
+[subcommands.compose.subcommands.restart]
+options = ["--no-deps", "-t=", "--timeout="]
+
+[subcommands.compose.subcommands.rm]
+options = ["-f", "--force", "-s", "--stop", "-v", "--volumes"]
+
+[subcommands.compose.subcommands.run]
+options-first = true
+options = [
+  "--build", "--cap-add=", "--cap-drop=", "-d", "--detach", "--entrypoint=", "-e=", "--env=",
+  "--env-from-file=", "-i", "--interactive", "-l=", "--label=", "--name=", "-T", "--no-TTY",
+  "--no-tty", "--no-deps", "-p=", "--publish=", "--pull=", "--quiet-build", "--quiet-pull",
+  "--remove-orphans", "--rm", "-P", "--service-ports", "--use-aliases", "-u=", "--user=", "-v=",
+  "--volume=", "-w=", "--workdir=",
+]
+
+[subcommands.compose.subcommands.scale]
+options = ["--no-deps"]
+
+[subcommands.compose.subcommands.start]
+options = ["--wait", "--wait-timeout="]
+
+[subcommands.compose.subcommands.stats]
+options = ["-a", "--all", "--format=", "--no-stream", "--no-trunc"]
+
+[subcommands.compose.subcommands.stop]
+options = ["-t=", "--timeout="]
+
+[subcommands.compose.subcommands.top]
+
+[subcommands.compose.subcommands.unpause]
+
+[subcommands.compose.subcommands.up]
+options = [
+  "--abort-on-container-exit", "--abort-on-container-failure", "--always-recreate-deps",
+  "--attach=", "--attach-dependencies", "--build", "-d", "--detach", "--exit-code-from=",
+  "--force-recreate", "--menu", "--no-attach=", "--no-build", "--no-color", "--no-deps",
+  "--no-log-prefix", "--no-recreate", "--no-start", "--pull=", "--quiet-build", "--quiet-pull",
+  "--remove-orphans", "-V", "--renew-anon-volumes", "--scale=", "-t=", "--timeout=", "--timestamps",
+  "--wait", "--wait-timeout=", "-w", "--watch", "-y", "--yes",
+]
+
+[subcommands.compose.subcommands.version]
+options = ["-f=", "--format=", "--short"]
+
+[subcommands.compose.subcommands.volumes]
+options = ["--format=", "-q", "--quiet"]
+
+[subcommands.compose.subcommands.wait]
+options = ["--down-project"]
+
+[subcommands.compose.subcommands.watch]
+options = ["--no-up", "--prune", "--quiet"]
+
+[subcommands.compose.subcommands.alpha]
+
+[subcommands.compose.subcommands.bridge]
+
+[subcommands.buildx]
+options = ["--builder=", "-D", "--debug"]
+
+[subcommands.buildx.subcommands.bake]
+options = [
+  "--allow=", "--builder=", "--call=", "--check", "-f=", "--file=", "--list=", "--load",
+  "--metadata-file=", "--no-cache", "--print", "--progress=", "--provenance=", "--pull", "--push",
+  "--sbom=", "--set=",
+]
+
+[subcommands.buildx.subcommands.build]
+aliases = ["b"]
+options = [
+  "--add-host=", "--build-arg=", "--build-context=", "--cache-from=", "--cache-to=",
+  "--cgroup-parent=", "-f=", "--file=", "--iidfile=", "--label=", "--load", "--metadata-file=",
+  "--network=", "--no-cache", "--no-cache-filter=", "-o=", "--output=", "--platform=",
+  "--progress=", "--provenance=", "--pull", "--push", "-q", "--quiet", "--sbom=", "--secret=",
+  "--shm-size=", "--ssh=", "-t=", "--tag=", "--target=", "--ulimit=", "--builder=", "--annotation=",
+  "--attest=", "--call=", "--check", "--allow=", "--isolation=", "-m=", "--memory=", "--squash",
+]
+
+[subcommands.buildx.subcommands.create]
+options = [
+  "--append", "--bootstrap", "--buildkitd-config=", "--buildkitd-flags=", "--driver=",
+  "--driver-opt=", "--leave", "--name=", "--node=", "--platform=", "--use",
+]
+
+[subcommands.buildx.subcommands.debug]
+
+[subcommands.buildx.subcommands.dial-stdio]
+
+[subcommands.buildx.subcommands.du]
+options = ["--filter=", "--verbose"]
+
+[subcommands.buildx.subcommands.history]
+
+[subcommands.buildx.subcommands.imagetools]
+
+[subcommands.buildx.subcommands.imagetools.subcommands.create]
+
+[subcommands.buildx.subcommands.imagetools.subcommands.inspect]
+
+[subcommands.buildx.subcommands.inspect]
+options = ["--bootstrap"]
+
+[subcommands.buildx.subcommands.ls]
+options = ["--format=", "--no-trunc"]
+
+[subcommands.buildx.subcommands.prune]
+options = [
+  "-a", "--all", "--filter=", "-f", "--force", "--keep-storage=", "--max-used-space=",
+  "--min-free-space=", "--reserved-space=",
+]
+
+[subcommands.buildx.subcommands.rm]
+options = ["--all-inactive", "-f", "--force", "--keep-daemon", "--keep-state"]
+
+[subcommands.buildx.subcommands.stop]
+
+[subcommands.buildx.subcommands.use]
+options = ["--default", "--global"]
+
+[subcommands.buildx.subcommands.version]
+
+[subcommands.ai]
+
+[subcommands.bake]
+options = [
+  "--allow=", "--builder=", "--call=", "--check", "-f=", "--file=", "--load", "--no-cache",
+  "--print", "--progress=", "--pull", "--push", "--set=",
+]
+
+[subcommands.debug]
+
+[subcommands.desktop]
+
+[subcommands.extension]
+
+[subcommands.init]
+
+[subcommands.model]
+
+[subcommands.sbom]
+
+[subcommands.scout]

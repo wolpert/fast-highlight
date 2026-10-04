@@ -1,0 +1,3 @@
+# The zsh precommand modifier `nocorrect`.
+name = "nocorrect"
+precommand = true
