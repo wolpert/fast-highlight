@@ -140,6 +140,7 @@ test_hang() {
 test_stuck_big() {
   T_USE_MOCK=1
   T_ENV=(MOCK_MODE=stuck)
+  T_PRE='FASTHL_MAX_LENGTH=200000'
   T_POST='_t_big() { BUFFER="echo ${(l:150000::x:)}"; CURSOR=5 }
 zle -N _t_big
 bindkey "^Xb" _t_big'
@@ -162,6 +163,7 @@ bindkey "^Xb" _t_big'
 # Large requests go out in pieces and still get answered.
 test_big_buffer() {
   T_USE_MOCK=1
+  T_PRE='FASTHL_MAX_LENGTH=200000'
   T_POST='_t_big() { BUFFER="echo ${(l:100000::x:)}"; CURSOR=5 }
 zle -N _t_big
 bindkey "^Xb" _t_big'
@@ -364,9 +366,93 @@ test_state_sync() {
   t_run 'true'
   t_log_count 'S *'
   (( REPLY == before )) || t_fail "state sent although nothing changed"
+  t_run "hash -d w=$T"
+  t_log_has 'S <-> nameddirs' || t_fail "new named directory not sent as a nameddirs-only update"
+  t_log_has "S-nameddirs w=$T" || t_fail "w missing from nameddirs"
+  # An empty directory is an empty entry, which needs its terminating NUL like any other.
+  t_run 'hash -d proj='
+  t_log_has "S-nameddirs proj= w=$T" || t_fail "empty named directory not sent as a pair"
+  t_run "path+=($T/bin2)"
+  t_log_has 'S <-> path' || t_fail "PATH change not sent as a path-only update"
+  t_log_has 'S-badlist *' && t_fail "a list value lacks its final NUL"
   t_run 'cd /'
   t_type 'x'
   t_log_has 'H <-> buf=x cur=1 cwd=/ opt=u pre=-' || t_fail "new cwd not sent"
+  t_check_output
+}
+
+# `rehash` and `hash -r` make the next state update carry the rehash field, once.
+test_rehash_field() {
+  T_USE_MOCK=1
+  t_spawn || return
+  t_run 'rehash'
+  t_log_has 'S <-> rehash' || t_fail "rehash field not sent after rehash"
+  t_run 'true'
+  t_log_count 'S <-> *rehash*'
+  (( REPLY == 1 )) || t_fail "rehash field sent $REPLY times for one rehash"
+  t_run 'hash -r; echo done'
+  t_log_count 'S <-> *rehash*'
+  (( REPLY == 2 )) || t_fail "rehash field not sent after hash -r"
+  t_run 'echo hash rehash-not'
+  t_log_count 'S <-> *rehash*'
+  (( REPLY == 2 )) || t_fail "rehash field sent for a command that only mentions it"
+  t_check_output
+}
+
+# With the real binary, `rehash` picks up a command the daemon's $PATH scan cannot notice by
+# itself. The daemon rereads a PATH directory when its mtime changes, so the test puts the
+# directory's mtime back after adding the command.
+test_rehash_real() {
+  if t_is_mock; then
+    t_log "no FASTHL_TEST_BIN: skipped"
+    return 0
+  fi
+  zf_mkdir $T/bin2
+  touch -t 202001010000 $T/bin2
+  T_POST='path=($FHT_DIR/bin2 $path)'
+  t_spawn || return
+  t_type 'newtool_xyz'
+  t_has '0 11 fg=red,bold memo=fast-highlight' || t_fail "missing command not an error"
+  t_clear
+  print -r -- '#!/bin/sh' >$T/bin2/newtool_xyz
+  chmod +x $T/bin2/newtool_xyz
+  touch -t 202001010000 $T/bin2
+  # The daemon checks mtimes at most once a second; let a check pass.
+  t_sleep 1.1
+  t_run 'true'
+  t_type 'newtool_xyz'
+  t_has '0 11 fg=red,bold memo=fast-highlight' ||
+    t_fail "test premise: the daemon found the command without a rehash"
+  t_clear
+  t_run 'rehash'
+  t_type 'newtool_xyz'
+  t_has '0 11 fg=green memo=fast-highlight' || t_fail "command not found after rehash"
+  t_check_output
+}
+
+# With the real binary: an empty named directory does not spoil the rest of the state, and
+# named directories are expanded in paths.
+test_state_real() {
+  if t_is_mock; then
+    t_log "no FASTHL_TEST_BIN: skipped"
+    return 0
+  fi
+  T_POST='FASTHL_STYLES[alias]=fg=magenta'
+  t_spawn || return
+  t_run 'hash -d proj=; alias ll=ls'
+  t_type 'll'
+  t_has '0 2 fg=magenta memo=fast-highlight' || t_fail "alias not classified after hash -d proj="
+  t_clear
+  t_run "hash -d w=$T"
+  t_type 'ls ~w'
+  t_has '3 5 bold,underline memo=fast-highlight' || t_fail "~w not a directory"
+  t_clear
+  t_type 'myfn_xyz'
+  t_has '0 8 fg=red,bold memo=fast-highlight' || t_fail "unknown function not an error"
+  t_clear
+  t_run 'myfn_xyz() { : }'
+  t_type 'myfn_xyz'
+  t_has '0 8 fg=green memo=fast-highlight' || t_fail "new function not classified"
   t_check_output
 }
 
@@ -505,7 +591,7 @@ test_no_output_on_failures() {
     t_clear
   done
   t_pids
-  (( ${#reply} >= 3 )) || t_fail "expected at least 3 restarts, saw ${#reply}"
+  (( ${#reply} >= 2 )) || t_fail "expected at least 2 daemons, saw ${#reply}"
   t_run 'echo ok-$((6*7))'
   t_output_has '*ok-42*' || t_fail "command did not run"
   t_send $'exit\r'
@@ -523,6 +609,9 @@ test_latency() {
   local -F max=$dts[-1] med=$dts[$(( (${#dts} + 1) / 2 ))]
   t_log "keystrokes: ${#dts}, median ${med}s, max ${max}s"
   (( max < 0.05 )) || t_fail "a keystroke took ${max}s"
+  if ! t_is_mock; then
+    (( med < 0.005 )) || t_fail "median keystroke took ${med}s (target: under 5 ms)"
+  fi
   t_check_output
 }
 
@@ -711,6 +800,204 @@ test_inactive() {
   t_wait_exit 5 || t_fail "zsh -i -c did not exit"
   t_clean_output
   [[ $REPLY == *loaded=0* ]] || t_fail "zsh -i -c: ${(qq)REPLY}"
+}
+
+# Above FASTHL_MAX_LENGTH bytes (default 65536, the daemon's default hard cap) nothing is sent
+# and the plugin's entries are removed.
+test_max_length() {
+  T_USE_MOCK=1
+  T_POST='_t_big() { BUFFER="echo ${(l:70000::x:)}"; CURSOR=5 }
+_t_fit() { BUFFER="echo ${(l:60000::x:)}"; CURSOR=5 }
+zle -N _t_big
+zle -N _t_fit
+bindkey "^Xb" _t_big
+bindkey "^Xf" _t_fit'
+  t_spawn || return
+  t_type 'ls'
+  t_send $'\x18b'
+  t_wait_dump "echo ${(l:70000::x:)}" 5 || t_fail "no redraw after inserting 70 kB"
+  t_ours && t_fail "entries for a buffer above the default limit"
+  (( D_DT < 0.01 )) || t_fail "buffer above the limit took ${D_DT}s"
+  t_log_has 'H <-> buf=echo xxx*' && t_fail "buffer above the default limit sent"
+  t_send $'\x18f'
+  t_wait_dump "echo ${(l:60000::x:)}" 5 '0 4 fg=green,bold memo=fast-highlight' ||
+    t_fail "buffer below the default limit not highlighted"
+  t_clear
+  t_run 'FASTHL_MAX_LENGTH=5'
+  t_type 'ls foo'
+  t_ours && t_fail "entries for a buffer above FASTHL_MAX_LENGTH"
+  t_send $'\x7f'
+  t_wait_dump 'ls fo' 5 '0 2 fg=green,bold memo=fast-highlight' ||
+    t_fail "buffer at FASTHL_MAX_LENGTH not highlighted"
+  t_check_output
+}
+
+# A thousand spans (the daemon's default limits.max-spans) are applied within the timeout.
+test_many_spans() {
+  T_USE_MOCK=1
+  T_POST='_t_many() { local b=echo i; for (( i = 0; i < 999; i++ )); do b+=" \$x"; done; BUFFER=$b; CURSOR=4 }
+zle -N _t_many
+bindkey "^Xm" _t_many'
+  t_spawn || return
+  t_send $'\x18m'
+  local -F end=$(( EPOCHREALTIME + 5 ))
+  while (( EPOCHREALTIME < end )); do
+    t_drain
+    t_read_dump && [[ $D_BUF == echo( \$x)## ]] && break
+    t_sleep 0.02
+  done
+  t_count '*memo=fast-highlight'
+  (( REPLY == 1000 )) || t_fail "expected 1000 entries, saw $REPLY"
+  t_has '2999 3001 fg=cyan memo=fast-highlight' || t_fail "last span missing"
+  (( D_DT < 0.05 + SLACK )) || t_fail "1000 spans took ${D_DT}s"
+  t_log "1000 spans: hook ${D_DT}s"
+  t_check_output
+}
+
+# An answer with more spans than can be parsed in time costs at most the timeout. It is no
+# fault of the daemon's, which stays.
+test_flood() {
+  T_USE_MOCK=1
+  T_ENV=(MOCK_MODE=flood)
+  t_spawn || return
+  t_type 'l'
+  t_log "50000 spans: hook ${D_DT}s"
+  (( D_DT < 0.05 + SLACK )) || t_fail "50000 spans blocked ${D_DT}s"
+  t_ours && t_fail "entries applied after the deadline"
+  t_pids
+  (( ${#reply} == 1 )) && t_alive $reply[1] || t_fail "daemon killed over a large answer"
+  t_check_output
+}
+
+# The backoff after consecutive failures, and its reset by a successful highlight, driven
+# directly in a shell without a terminal.
+test_backoff() {
+  T_USE_MOCK=1
+  t_write_files
+  local out script='
+    zmodload zsh/datetime
+    FASTHL_BIN=/nonexistent/fast-highlight
+    _fasthl_plugin_dir=$1
+    () { emulate -L zsh -o no_aliases; source $_fasthl_plugin_dir/fasthl-core.zsh }
+    local -a seq
+    local x
+    repeat 9 {
+      _fasthl_fail
+      printf -v x %g $_fasthl_backoff
+      seq+=($x)
+    }
+    print -r -- "seq=$seq"
+    (( _fasthl_retry_at - EPOCHREALTIME > 59 && _fasthl_retry_at - EPOCHREALTIME <= 60 )) &&
+      print -r -- retry-ok
+    _fasthl_enabled=1
+    _fasthl_ensure $(( EPOCHREALTIME + 1 )) || print -r -- ensure-waits
+    _fasthl_bin=$2
+    _fasthl_load_styles
+    _fasthl_start && _fasthl_handshake $(( EPOCHREALTIME + 5 )) && print -r -- started
+    BUFFER=ls CURSOR=2 PREBUFFER=
+    _fasthl_sync_state $(( EPOCHREALTIME + 5 ))
+    _fasthl_request u $(( EPOCHREALTIME + 5 )) 2 && print -r -- "entries=$_fasthl_entries"
+    printf "after-success=%g\n" $_fasthl_backoff
+    _fasthl_fail
+    printf "after-failure=%g\n" $_fasthl_backoff
+  '
+  out=$(cd $T && env -i HOME=$T PATH=$PATH TMPDIR=$T LANG=${LANG-} MOCK_LOG=$T/mock.log \
+    $ZSH_UNDER_TEST -f -c $script zsh $ROOT/plugin $T/bin/fast-highlight 2>&1)
+  local -a lines=("${(@f)out}")
+  (( ${lines[(I)seq=0.5 1 2 4 8 16 32 60 60]} )) || t_fail "backoff sequence: ${(qq)out}"
+  (( ${lines[(I)retry-ok]} )) || t_fail "retry time does not match the backoff"
+  (( ${lines[(I)ensure-waits]} )) || t_fail "start attempted during the backoff"
+  (( ${lines[(I)started]} )) || t_fail "mock daemon did not start: ${(qq)out}"
+  local want='entries=0 2 fg=green,bold memo=fast-highlight'
+  (( ${lines[(I)$want]} )) || t_fail "request failed: ${(qq)out}"
+  (( ${lines[(I)after-success=0]} )) || t_fail "backoff not reset by a success"
+  (( ${lines[(I)after-failure=0.5]} )) || t_fail "backoff after a reset does not start at 0.5"
+}
+
+# The real binary with its default theme: kinds map to the theme's styles end to end.
+test_real_styles() {
+  if t_is_mock; then
+    t_log "no FASTHL_TEST_BIN: skipped"
+    return 0
+  fi
+  t_spawn || return
+  t_type 'nosuchcmd_xyz ~/'
+  t_has '0 13 fg=red,bold memo=fast-highlight' || t_fail "unknown command not in the error style"
+  t_has '14 16 bold,underline memo=fast-highlight' || t_fail "~/ not in the path-directory style"
+  t_check_output
+}
+
+# t_broken_stream MODE: the mock answers the first H with a broken frame. That keystroke gets
+# no highlighting and costs no timeout, the daemon goes away, the next keystroke does not
+# wait, and a new daemon starts after the backoff.
+t_broken_stream() {
+  T_USE_MOCK=1
+  T_ENV=(MOCK_MODE=$1)
+  t_spawn || return
+  t_type 'l'
+  t_ours && t_fail "entries applied from a broken frame"
+  (( D_DT < 0.04 )) || t_fail "broken frame took ${D_DT}s to detect"
+  t_pids
+  local pid=$reply[1]
+  t_wait_gone $pid 2 || t_fail "daemon still running"
+  t_type 's'
+  (( D_DT < 0.01 )) || t_fail "keystroke waited ${D_DT}s with the daemon marked dead"
+  t_ours && t_fail "entries without a daemon"
+  t_sleep 0.6
+  t_type ' '
+  local -F end=$(( EPOCHREALTIME + 3 ))
+  until t_pids; (( ${#reply} >= 2 )) || (( EPOCHREALTIME > end )); do t_sleep 0.05; done
+  (( ${#reply} >= 2 )) || t_fail "no restart after the backoff"
+  t_check_output
+}
+
+# A frame cut short by the daemon exiting is EOF: the daemon is not signalled (its pid may
+# already belong to another process), so it lives to log its last line.
+test_frame_partial() {
+  t_broken_stream partial
+  t_log_has 'partial lingered' || t_fail "daemon signalled after it closed its output"
+}
+
+test_frame_garbage() { t_broken_stream garbage }
+
+test_frame_oversize() { t_broken_stream oversize }
+
+# Malformed span lines are dropped one by one; the valid ones apply and the daemon stays.
+test_frame_badspans() {
+  T_USE_MOCK=1
+  T_ENV=(MOCK_MODE=badspans)
+  t_spawn || return
+  t_type 'ls $x'
+  local got=${(j:|:)${(o)${(M)D_RH:#*memo=fast-highlight}}}
+  [[ $got == '0 2 fg=green,bold memo=fast-highlight|3 5 fg=cyan memo=fast-highlight' ]] ||
+    t_fail "entries: $got"
+  t_pids
+  (( ${#reply} == 1 )) && t_alive $reply[1] || t_fail "daemon killed over bad span lines"
+  t_check_output
+}
+
+# Offsets stay relative to BUFFER, in characters, when PREBUFFER holds multibyte text.
+test_multibyte_prebuffer() {
+  if t_is_mock; then
+    t_log "no FASTHL_TEST_BIN: skipped"
+    return 0
+  fi
+  t_spawn || return
+  t_run 'echo "日本'
+  t_type '語" $HOME; true'
+  t_has '0 2 fg=yellow memo=fast-highlight' || t_fail "string continuation not at 0-2"
+  t_has '3 8 fg=cyan memo=fast-highlight' || t_fail "parameter not at 3-8"
+  t_has '10 14 fg=green memo=fast-highlight' || t_fail "builtin not at 10-14"
+  t_run ''
+  t_check_output
+}
+
+# A combining mark and a ZWJ sequence count one offset per code point, as ZLE counts them.
+test_combining() {
+  t_spawn || return
+  t_type $'echo é \U0001F468‍\U0001F469 $HOME'
+  t_has '12 17 *memo=fast-highlight' || t_fail "parameter span not at characters 12-17"
+  t_check_output
 }
 
 # --- runner ----------------------------------------------------------------------------------

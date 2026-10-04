@@ -14,7 +14,8 @@
 # daemon that died at an empty prompt is restarted without waiting for a keystroke.
 #
 # Any timeout, EOF, framing error, or write error kills the daemon and moves to `dead` with an
-# exponential backoff (0.5 s doubling to 60 s, reset by a successful highlight). State (S)
+# exponential backoff (0.5 s doubling to 60 s, reset by a successful highlight). After EOF the
+# daemon has exited and is not signalled, since its pid may already belong to another process. State (S)
 # requests are not waited for: the daemon answers in order, so the next highlight read skips
 # the ack, and a daemon still busy with the state shows up as a late answer to that highlight.
 
@@ -51,6 +52,9 @@ typeset -ga _fasthl_applied          # our entries as stored in region_highlight
 typeset -gi _fasthl_applied_at=0     # index of the first of them
 typeset -gA _fasthl_theme            # FASTHL_STYLES as last loaded, before user overrides
 typeset -ga _fasthl_tmp
+typeset -gA _fasthl_smap             # kind -> region_highlight style with memo (non-empty only)
+typeset -g _fasthl_smap_fp=          # FASTHL_STYLES and memo setting _fasthl_smap was built from
+typeset -gi _fasthl_rehash=0         # the next S request asks the daemon to rescan $PATH
 typeset -gi _fasthl_shell_pid=$sysparams[pid]
 typeset -gi _fasthl_memo=0
 is-at-least 5.9 && _fasthl_memo=1
@@ -63,6 +67,16 @@ _fasthl_timeout() {
     REPLY=$FASTHL_TIMEOUT
   else
     REPLY=0.05
+  fi
+}
+
+# Most bytes of PREBUFFER plus BUFFER the plugin sends to the daemon.
+_fasthl_max_length() {
+  emulate -L zsh
+  if [[ ${FASTHL_MAX_LENGTH-} == <-> ]] && (( ${#FASTHL_MAX_LENGTH} <= 15 )); then
+    REPLY=$FASTHL_MAX_LENGTH
+  else
+    REPLY=65536
   fi
 }
 
@@ -204,11 +218,29 @@ _fasthl_rm_dir() {
   return 0
 }
 
-# Tear down the daemon connection. $1 is the signal for the daemon process.
+# Send signal $1 to the daemon if it still runs. zsh reaps every child, disowned ones too, so
+# the pid of a daemon that exited may already name another process. Where /proc shows it,
+# require that the process is still a child of this shell.
+_fasthl_signal() {
+  emulate -L zsh
+  (( _fasthl_pid > 0 )) && kill -0 $_fasthl_pid 2>/dev/null || return 0
+  local stat
+  if [[ -r /proc/$_fasthl_pid/stat ]]; then
+    stat=$(</proc/$_fasthl_pid/stat)
+    # pid (comm) state ppid ...; comm may contain spaces and parentheses.
+    stat=${stat##*\) }
+    [[ ${${(s: :)stat}[2]} == $sysparams[pid] ]] || return 0
+  fi
+  kill -$1 $_fasthl_pid 2>/dev/null
+  return 0
+}
+
+# Tear down the daemon connection. $1 is the signal for the daemon process; none when empty
+# (the daemon is known to have exited).
 _fasthl_kill() {
   emulate -L zsh
   _fasthl_unwatch
-  (( _fasthl_pid > 0 )) && kill -${1:-KILL} $_fasthl_pid 2>/dev/null
+  [[ -n $1 ]] && _fasthl_signal $1
   _fasthl_close_fd $_fasthl_wfd
   _fasthl_close_fd $_fasthl_rfd
   _fasthl_rm_dir
@@ -216,6 +248,7 @@ _fasthl_kill() {
   _fasthl_state=dead
   _fasthl_rbuf=
   _fasthl_synced=0
+  _fasthl_rehash=0                   # a new daemon scans $PATH when it starts
   _fasthl_sent=()
   _fasthl_sent_cwd=
   _fasthl_key=
@@ -232,10 +265,15 @@ _fasthl_stop() {
   _fasthl_kill TERM
 }
 
-# The daemon failed: kill it and schedule a restart with backoff.
+# The daemon failed: kill it and schedule a restart with backoff. With $1 `eof` the daemon
+# closed its output, which it does only when exiting, so it is not signalled.
 _fasthl_fail() {
   emulate -L zsh
-  _fasthl_kill KILL
+  if [[ ${1-} == eof ]]; then
+    _fasthl_kill ''
+  else
+    _fasthl_kill KILL
+  fi
   if (( _fasthl_backoff <= 0 )); then
     _fasthl_backoff=0.5
   elif (( _fasthl_backoff < 60 )); then
@@ -274,8 +312,9 @@ _fasthl_start() {
     2>/dev/null <$dir/in >$dir/out &!
   _fasthl_pid=$!
   # Read-write opens of a FIFO never block. Close-on-exec keeps the fds out of commands the
-  # user runs, so the daemon sees EOF when the shell goes away.
-  sysopen -rw -o cloexec -u _fasthl_wfd $dir/in 2>/dev/null || return 1
+  # user runs, so the daemon sees EOF when the shell goes away. Writes do not block either
+  # (see _fasthl_write).
+  sysopen -rw -o cloexec,nonblock -u _fasthl_wfd $dir/in 2>/dev/null || return 1
   sysopen -rw -o cloexec -u _fasthl_rfd $dir/out 2>/dev/null || return 1
   _fasthl_ping_id=$(( ++_fasthl_id ))
   syswrite -o $_fasthl_wfd "FH1 P $_fasthl_ping_id 0"$'\n' 2>/dev/null || return 1
@@ -286,17 +325,20 @@ _fasthl_start() {
   return 0
 }
 
-# Read one frame answering request $1, discarding older frames, until time $2.
-# Sets _fasthl_rtype and _fasthl_rbody. Returns 0, 1 timeout, 2 EOF or read error, 3 framing.
+# Read one frame answering request $1, discarding older frames, until time $2. Past the
+# deadline the fd is polled once, so a caller with no time to wait still sees data that is
+# already there. Sets _fasthl_rtype and _fasthl_rbody. Returns 0, 1 timeout, 2 EOF or read
+# error, 3 framing.
 _fasthl_read_frame() {
   emulate -L zsh
   setopt nomultibyte
-  local -i expect=$1 hl len need st
+  local -i expect=$1 hl len need have polled st
   local -F deadline=$2
   local -F 6 rem
   local hdr chunk
-  local -a parts
+  local -a parts chunks
   while true; do
+    need=0
     if [[ $_fasthl_rbuf == *$'\n'* ]]; then
       hdr=${_fasthl_rbuf%%$'\n'*}
       hl=${#hdr}
@@ -309,7 +351,8 @@ _fasthl_read_frame() {
       len=$parts[4]
       (( len <= 16777216 )) || return 3
       need=$(( hl + 1 + len ))
-      if (( ${#_fasthl_rbuf} >= need )); then
+      have=${#_fasthl_rbuf}
+      if (( have >= need )); then
         _fasthl_rtype=$parts[2]
         _fasthl_rbody=${_fasthl_rbuf[hl+2,need]}
         _fasthl_rbuf=${_fasthl_rbuf[need+1,-1]}
@@ -320,42 +363,56 @@ _fasthl_read_frame() {
     elif (( ${#_fasthl_rbuf} >= 64 )); then
       return 3
     fi
-    (( rem = deadline - EPOCHREALTIME ))
-    (( rem < 0 )) && rem=0
-    chunk=
-    sysread -t $rem -s 65536 -i $_fasthl_rfd chunk 2>/dev/null
-    st=$?
-    case $st in
-      (0) _fasthl_rbuf+=$chunk ;;
-      (4) return 1 ;;
-      (*) return 2 ;;
-    esac
+    # Read until the frame is complete (or, without a header yet, once). The pieces of a large
+    # body are joined once at the end: appending each to the buffer would copy it every time.
+    chunks=()
+    while true; do
+      (( rem = deadline - EPOCHREALTIME ))
+      if (( rem <= 0 )); then
+        (( polled++ )) && return 1
+        rem=0
+      fi
+      chunk=
+      sysread -t $rem -s 65536 -i $_fasthl_rfd chunk 2>/dev/null
+      st=$?
+      case $st in
+        (0) chunks+=("$chunk") ;;
+        (4) return 1 ;;
+        (*) return 2 ;;
+      esac
+      (( need )) || break
+      (( have += ${#chunk} ))
+      (( have >= need )) && break
+    done
+    _fasthl_rbuf+=${(j::)chunks}
   done
 }
 
-# Write $1 to the daemon by time $2. Large frames go out in pieces no bigger than the pipe
-# atomic write size, each after zselect reports the pipe writable, so a daemon that stopped
-# reading cannot block the shell.
+# Write $1 to the daemon by time $2. The fd is non-blocking: syswrite stops at a full pipe and
+# reports how much went out, and the rest waits for zselect to report the pipe writable, so a
+# daemon that stopped reading cannot block the shell. Returns 1 when the deadline passed first.
+#
+# Each syswrite gets at most 64 KiB, taken by byte offset. Handing it the whole remainder
+# instead would copy the remainder for every call, and slicing by index rescans the string
+# more slowly; the offset form still scans up to the offset, but a 1 MiB frame goes out in
+# tens of milliseconds rather than half a second.
 _fasthl_write() {
   emulate -L zsh
   setopt nomultibyte
-  local data=$1
   local -F deadline=$2
-  local -i n=${#data} pos=1 piece cs
-  local -a reply
-  if (( n <= 4096 )) || (( ! ${+builtins[zselect]} )); then
-    syswrite -o $_fasthl_wfd -- $data 2>/dev/null
-    return
-  fi
-  [[ $OSTYPE == linux* ]] && piece=4096 || piece=512
-  while (( pos <= n )); do
+  local -i total=${#1} off=0 n cs
+  while true; do
+    n=0
+    syswrite -c n -o $_fasthl_wfd -- "${1:$off:65536}" 2>/dev/null
+    (( off += n ))
+    (( off < total )) || return 0
+    (( deadline > EPOCHREALTIME )) || return 1
+    (( n == 65536 )) && continue
     (( cs = (deadline - EPOCHREALTIME) * 100 ))
-    (( cs < 0 )) && cs=0
-    zselect -t $cs -w $_fasthl_wfd 2>/dev/null || return 1
-    syswrite -o $_fasthl_wfd -- ${data[pos,pos+piece-1]} 2>/dev/null || return 1
-    (( pos += piece ))
+    if (( ${+builtins[zselect]} )); then
+      zselect -t $cs -w $_fasthl_wfd 2>/dev/null || return 1
+    fi
   done
-  return 0
 }
 
 # Send a frame: type $1, id $2, body $3, by time $4.
@@ -373,9 +430,15 @@ _fasthl_handshake() {
   _fasthl_read_frame $_fasthl_ping_id $1
   st=$?
   if (( st == 1 )); then
-    if (( EPOCHREALTIME > _fasthl_start_deadline )) || ! kill -0 $_fasthl_pid 2>/dev/null; then
+    if ! kill -0 $_fasthl_pid 2>/dev/null; then
+      _fasthl_fail eof
+    elif (( EPOCHREALTIME > _fasthl_start_deadline )); then
       _fasthl_fail
     fi
+    return 1
+  fi
+  if (( st == 2 )); then
+    _fasthl_fail eof
     return 1
   fi
   if (( st != 0 )) || [[ $_fasthl_rtype != A ]]; then
@@ -409,36 +472,47 @@ _fasthl_ensure() {
   _fasthl_handshake $1
 }
 
-# Send the parts of the shell's command namespace that changed, by time $1. The ack is not
-# read here: waiting for it would put the daemon's work on the state (a $PATH rescan, say) on
-# a deadline meant for a round trip, and there is nothing to do with the answer anyway (an E
+# Encode the arguments as a list value (docs/protocol.md): each entry followed by a NUL, so an
+# empty entry (the directory of `hash -d name=`) survives at any position. Sets $REPLY.
+_fasthl_list() {
+  if (( $# )); then
+    REPLY="${(pj:\0:)@}"$'\0'
+  else
+    REPLY=
+  fi
+}
+
+# Send the parts of the shell's command namespace that changed, by time $1, and the `rehash`
+# field after the user ran `rehash` or `hash -r` (see _fasthl_preexec). The ack is not read
+# here: waiting for it would put the daemon's work on the state (a $PATH rescan, say) on a
+# deadline meant for a round trip, and there is nothing to do with the answer anyway (an E
 # means the daemon rejected the frame, and resending it would not help). _fasthl_read_frame
 # discards the ack when it reads the answer to a later request.
 _fasthl_sync_state() {
   emulate -L zsh
   setopt nomultibyte
   local -A cur
-  local body= k
+  local body= k REPLY
   local -i id
-  cur=(
-    alias     "${(pj:\0:)${(@k)aliases}}"
-    galias    "${(pj:\0:)${(@k)galiases}}"
-    salias    "${(pj:\0:)${(@k)saliases}}"
-    func      "${(pj:\0:)${(@k)functions}}"
-    builtin   "${(pj:\0:)${(@k)builtins}}"
-    reswords  "${(pj:\0:)reswords}"
-    nameddirs "${(pj:\0:)${(@kv)nameddirs}}"
-    path      "$PATH"
-  )
+  _fasthl_list "${(@k)aliases}";    cur[alias]=$REPLY
+  _fasthl_list "${(@k)galiases}";   cur[galias]=$REPLY
+  _fasthl_list "${(@k)saliases}";   cur[salias]=$REPLY
+  _fasthl_list "${(@k)functions}";  cur[func]=$REPLY
+  _fasthl_list "${(@k)builtins}";   cur[builtin]=$REPLY
+  _fasthl_list "${(@)reswords}";    cur[reswords]=$REPLY
+  _fasthl_list "${(@kv)nameddirs}"; cur[nameddirs]=$REPLY
+  cur[path]=$PATH
   for k in alias galias salias func builtin reswords nameddirs path; do
     if (( ! ${+_fasthl_sent[$k]} )) || [[ $cur[$k] != "$_fasthl_sent[$k]" ]]; then
       body+="$k ${#cur[$k]}"$'\n'"$cur[$k]"$'\n'
     fi
   done
+  (( _fasthl_rehash )) && body+="rehash 0"$'\n\n'
   if [[ -n $body ]]; then
     id=$(( ++_fasthl_id ))
     _fasthl_send S $id "$body" $1 || { _fasthl_fail; return 1 }
     _fasthl_sent=("${(@kv)cur}")
+    _fasthl_rehash=0
   fi
   _fasthl_synced=1
   return 0
@@ -492,22 +566,46 @@ _fasthl_apply() {
   fi
 }
 
-# Turn the R body in $_fasthl_rbody into region_highlight entries in $_fasthl_entries.
+# Turn the R body in $_fasthl_rbody into region_highlight entries in $_fasthl_entries, by time
+# $1. $2 is the length of BUFFER in the request's offset unit. Lines that are not
+# `start end kind` with start <= end <= $2, and kinds without a style, are dropped. Returns 1,
+# with no entries, when the deadline passed first.
+#
+# A response can hold a thousand spans, so the work is done with whole-array expansions (a
+# loop with a few statements per span costs several times as much) and in slices, with the
+# deadline checked between them.
 _fasthl_parse_spans() {
   emulate -L zsh
   setopt extendedglob
-  local line s e k st memo=
+  local -F deadline=$1
+  local -i max=$2 i
+  local k memo= fp pat
+  local -a lines part
   (( _fasthl_memo )) && memo=' memo=fast-highlight'
+  # kind -> "style memo" for the kinds with a style, rebuilt when FASTHL_STYLES changes.
+  fp="$memo ${(@kv)FASTHL_STYLES}"
+  if [[ $fp != "$_fasthl_smap_fp" ]]; then
+    _fasthl_smap=()
+    for k in ${(k)FASTHL_STYLES}; do
+      [[ -n $FASTHL_STYLES[$k] ]] && _fasthl_smap[$k]=$FASTHL_STYLES[$k]$memo
+    done
+    _fasthl_smap_fp=$fp
+  fi
   _fasthl_entries=()
-  for line in ${(f)_fasthl_rbody}; do
-    s=${line%% *}
-    line=${line#* }
-    e=${line%% *}
-    k=${line#* }
-    [[ $s == <-> && $e == <-> && $k == [[:alpha:]-]## ]] || continue
-    st=${FASTHL_STYLES[$k]-}
-    [[ -n $st ]] && _fasthl_entries+=("$s $e $st$memo")
+  lines=(${(f)_fasthl_rbody})
+  pat="<0-$max> <0-$max> [[:alpha:]-]##"
+  for (( i = 1; i <= ${#lines}; i += 256 )); do
+    if (( i > 1 && EPOCHREALTIME >= deadline )); then
+      _fasthl_entries=()
+      return 1
+    fi
+    part=(${(M)lines[i,i+255]:#${~pat}})
+    # A start past the end becomes -1 and an unstyled kind leaves a trailing space; both are
+    # then removed.
+    part=("${(@)part/(#b)(<->) (<->) (*)/$(( match[1] > match[2] ? -1 : match[1] )) $match[2] ${_fasthl_smap[$match[3]]-}}")
+    _fasthl_entries+=(${part:#(-*|* )})
   done
+  return 0
 }
 
 # Highlight the current editor state. $1 holds the user's option letters (see
@@ -518,11 +616,15 @@ _fasthl_highlight() {
   setopt extendedglob
   local opt=$1 key REPLY
   local -F deadline=${3:-0}
+  local -i bytes len
   (( _fasthl_enabled )) || return 0
-  if [[ -z $BUFFER || $CONTEXT == (select|vared) ]]; then
+  () { setopt localoptions nomultibyte; (( bytes = ${#PREBUFFER} + ${#BUFFER} )) }
+  _fasthl_max_length
+  if [[ -z $BUFFER || $CONTEXT == (select|vared) ]] || (( bytes > REPLY )); then
     _fasthl_apply
-    # Nothing to highlight, but a dead daemon is restarted (or a pending handshake polled) so
-    # it is ready by the time something is typed.
+    # Nothing to highlight (or too much: the daemon would answer with nothing, after the cost
+    # of sending it all), but a dead daemon is restarted (or a pending handshake polled) so it
+    # is ready by the time something is typed.
     if [[ $_fasthl_state != ready ]] && _fasthl_ensure $(( EPOCHREALTIME + $2 )); then
       _fasthl_timeout
       (( ! _fasthl_synced )) && _fasthl_sync_state $(( EPOCHREALTIME + REPLY ))
@@ -534,7 +636,12 @@ _fasthl_highlight() {
   # with the option on. The daemon decodes UTF-8 only, so other locales are sent as bytes.
   setopt multibyte
   local u8=$'\xc3\xa9'
-  (( ${#u8} == 1 )) && [[ ${LC_ALL:-${LC_CTYPE:-${LANG-}}} == (#i)*utf(-|)8* ]] && opt=u$opt
+  if (( ${#u8} == 1 )) && [[ ${LC_ALL:-${LC_CTYPE:-${LANG-}}} == (#i)*utf(-|)8* ]]; then
+    opt=u$opt
+    len=${#BUFFER}
+  else
+    () { setopt localoptions nomultibyte; len=${#BUFFER} }
+  fi
   key=$opt$'\0'$CURSOR$'\0'$PWD$'\0'$PREBUFFER$'\0'$BUFFER
   if [[ $_fasthl_state == ready && $key == "$_fasthl_key" ]]; then
     _fasthl_apply "${(@)_fasthl_entries}"
@@ -554,18 +661,19 @@ _fasthl_highlight() {
     _fasthl_apply
     return 0
   fi
-  _fasthl_request "$opt" $deadline || { _fasthl_apply; return 0 }
+  _fasthl_request "$opt" $deadline $len || { _fasthl_apply; return 0 }
   _fasthl_key=$key
   _fasthl_apply "${(@)_fasthl_entries}"
 }
 
-# Send an H request for the current editor state and read the answer into $_fasthl_entries.
+# Send an H request for the current editor state with option letters $1, by time $2, and read
+# the answer into $_fasthl_entries. $3 is the length of BUFFER in the request's offset unit.
 _fasthl_request() {
   emulate -L zsh
   setopt nomultibyte
   local opt=$1 body
   local -F deadline=$2
-  local -i id
+  local -i id st
   body="buf ${#BUFFER}"$'\n'"$BUFFER"$'\n'
   [[ -n $PREBUFFER ]] && body+="pre ${#PREBUFFER}"$'\n'"$PREBUFFER"$'\n'
   body+="cur ${#CURSOR}"$'\n'"$CURSOR"$'\n'
@@ -573,11 +681,20 @@ _fasthl_request() {
   body+="opt ${#opt}"$'\n'"$opt"$'\n'
   id=$(( ++_fasthl_id ))
   _fasthl_send H $id "$body" $deadline || { _fasthl_fail; return 1 }
-  _fasthl_read_frame $id $deadline || { _fasthl_fail; return 1 }
+  _fasthl_read_frame $id $deadline
+  st=$?
+  if (( st == 2 )); then
+    _fasthl_fail eof
+    return 1
+  elif (( st )); then
+    _fasthl_fail
+    return 1
+  fi
   _fasthl_sent_cwd=$PWD
   case $_fasthl_rtype in
     (R)
-      _fasthl_parse_spans
+      # Running out of time here is no fault of the daemon's: this state goes unhighlighted.
+      _fasthl_parse_spans $deadline $3
       _fasthl_backoff=0
       ;;
     (E) _fasthl_entries=() ;;
@@ -650,6 +767,26 @@ _fasthl_precmd() {
   return _fasthl_ret
 }
 
+# preexec hook: after `rehash` or `hash -r` the next state update asks the daemon to rescan
+# $PATH. The daemon notices most changes by itself, from the modification times of the
+# directories, but not, for example, `chmod +x` on a file already there. $3 is the command line
+# with aliases expanded. Any word `rehash` counts, as does `hash` followed by an option word
+# containing r; a false match costs one rescan.
+_fasthl_preexec() {
+  emulate -L zsh
+  [[ $3 == *hash* ]] || return 0
+  local -a w
+  local -i i
+  w=(${(z)3})
+  for (( i = 1; i <= ${#w}; i++ )); do
+    if [[ $w[i] == rehash ]] || [[ $w[i] == hash && $w[i+1] == -*r* ]]; then
+      _fasthl_rehash=1
+      return 0
+    fi
+  done
+  return 0
+} 2>/dev/null
+
 _fasthl_zshexit() {
   emulate -L zsh
   # A forked copy of the shell must not stop the parent's daemon.
@@ -666,6 +803,7 @@ _fasthl_enable() {
   add-zle-hook-widget zle-line-pre-redraw _fasthl_redraw
   add-zle-hook-widget zle-line-finish _fasthl_redraw
   add-zsh-hook precmd _fasthl_precmd
+  add-zsh-hook preexec _fasthl_preexec
   add-zsh-hook zshexit _fasthl_zshexit
   _fasthl_enabled=1
   _fasthl_backoff=0
@@ -695,6 +833,7 @@ fasthl-disable() {
     add-zle-hook-widget -d zle-line-pre-redraw _fasthl_redraw
     add-zle-hook-widget -d zle-line-finish _fasthl_redraw
     add-zsh-hook -d precmd _fasthl_precmd
+    add-zsh-hook -d preexec _fasthl_preexec
     add-zsh-hook -d zshexit _fasthl_zshexit
     zle && _fasthl_apply
   } 2>/dev/null

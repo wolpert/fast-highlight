@@ -25,6 +25,10 @@
 #                       theme and survive fasthl-reload. An empty style leaves a kind unstyled.
 #   FASTHL_SERVE_ARGS   Array of extra arguments for `fast-highlight serve`, for example
 #                       (--timing). Read when the daemon starts.
+#   FASTHL_MAX_LENGTH   Most bytes of command line (PREBUFFER plus BUFFER) the plugin sends to
+#                       the daemon. Longer command lines get no highlighting and cost nothing.
+#                       Default 65536, the daemon's default limits.hard-cap-bytes; raising it
+#                       helps only if that limit is raised too.
 #
 # User-facing functions:
 #

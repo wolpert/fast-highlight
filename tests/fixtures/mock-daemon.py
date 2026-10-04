@@ -25,6 +25,13 @@ Environment:
                  die         write to stderr and exit before reading anything
                  die-once    like die while MOCK_MARKER does not exist (creating it), behave
                              normally afterwards
+                 partial     answer H with a header and half the body, close stdout, log
+                             `partial lingered` 0.5 s later (unless killed first), and exit
+                 garbage     answer H with an invalid header and stay alive
+                 oversize    answer H with a header declaring a body above 16 MiB and stay
+                             alive
+                 badspans    answer H with the normal spans plus malformed span lines
+                 flood       answer H with MOCK_SPANS (default 50000) spans `0 1 command`
   MOCK_MARKER    marker file for crash-once and die-once
   MOCK_LOG       append one line per request to this file
   MOCK_NO_STYLES when set, `styles` fails with exit status 1
@@ -32,6 +39,10 @@ Environment:
                  real binary does on a broken config or theme
   MOCK_START_DELAY  seconds to sleep before serving
   MOCK_STATE_DELAY  seconds to sleep before handling each S request (logged after the sleep)
+
+List fields of S requests are checked more strictly than the protocol requires: a non-empty
+value that does not end in NUL is logged as `S-badlist NAME`, since the plugin terminates every
+entry. `nameddirs` is logged as `S-nameddirs name=dir ...`, sorted.
 """
 
 import os
@@ -41,6 +52,18 @@ import time
 
 MAX_HEADER = 64
 MAX_BODY = 16 * 1024 * 1024
+LIST_FIELDS = ("alias", "galias", "salias", "func", "builtin", "reswords", "nameddirs")
+BAD_SPANS = (
+    b"0 99 command\n"  # end past the buffer
+    b"0 1 nosuchkind\n"  # unknown kind
+    b"2 1 command\n"  # start after end
+    b"x 1 command\n"  # non-numeric start
+    b"0 y command\n"  # non-numeric end
+    b"1 2\n"  # no kind
+    b"-1 2 command\n"  # negative start
+    b"0 1 com mand\n"  # extra field
+    b"\n"  # empty line
+)
 
 
 def log(line):
@@ -110,6 +133,13 @@ def text(fields, name, default="-"):
     if name not in fields:
         return default
     return fields[name].decode("utf-8", "replace").replace("\n", "\\n")
+
+
+def linger(ppid):
+    """Stay alive without reading until the parent goes away."""
+    while os.getppid() == ppid:
+        time.sleep(0.1)
+    sys.exit(0)
 
 
 class Reader:
@@ -194,6 +224,16 @@ def serve():
             if "alias" in fields:
                 names = [n.decode() for n in fields["alias"].split(b"\0") if n]
                 log("S-alias %s" % " ".join(sorted(names)))
+            for name in LIST_FIELDS:
+                value = fields.get(name, b"")
+                if value and not value.endswith(b"\0"):
+                    log("S-badlist %s" % name)
+            if "nameddirs" in fields:
+                entries = [e.decode() for e in fields["nameddirs"].split(b"\0")[:-1]]
+                pairs = ["%s=%s" % (entries[i], entries[i + 1]) for i in range(0, len(entries) - 1, 2)]
+                if len(entries) % 2:
+                    pairs.append("odd-count")
+                log("S-nameddirs %s" % " ".join(sorted(pairs)))
             os.write(1, frame("A", rid))
             if mode == "stuck":
                 while os.getppid() == reader.ppid:
@@ -230,6 +270,27 @@ def serve():
             continue
         if mode == "stale" and rid > 0:
             os.write(1, frame("R", rid - 1, b"0 1 command\n"))
+        if mode == "partial":
+            data = frame("R", rid, spans(fields))
+            header_len = data.index(b"\n") + 1
+            os.write(1, data[: header_len + (len(data) - header_len) // 2])
+            os.close(1)
+            time.sleep(0.5)
+            log("partial lingered")
+            sys.exit(0)
+        if mode == "garbage":
+            os.write(1, b"XYZ not a frame\n")
+            linger(reader.ppid)
+        if mode == "oversize":
+            os.write(1, b"FH1 R %d %d\n" % (rid, MAX_BODY + 1))
+            linger(reader.ppid)
+        if mode == "badspans":
+            os.write(1, frame("R", rid, spans(fields) + BAD_SPANS))
+            continue
+        if mode == "flood":
+            count = int(os.environ.get("MOCK_SPANS", "50000"))
+            os.write(1, frame("R", rid, b"0 1 command\n" * count))
+            continue
         os.write(1, frame("R", rid, spans(fields)))
 
 
