@@ -908,7 +908,7 @@ mod tests {
         assert!(matches!(&reqs[0], Request::Invalid { id: 4, reason } if reason.contains('X')));
         assert_eq!(reqs[1], Request::Ping { id: 5 });
         // Response letters and lowercase are unknown request types too.
-        for kind in [b'R', b'A', b'E', b'h'] {
+        for kind in *b"RAEh" {
             assert!(matches!(
                 decode_one(&encode_frame(kind, 1, b"")),
                 Request::Invalid { id: 1, .. }
