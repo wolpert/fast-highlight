@@ -160,7 +160,8 @@ The daemon exits when any of the following occurs:
 
 - it receives a `Q` request,
 - its standard input reaches end of file,
-- its parent process exits (the daemon checks at least once per second), or
+- its parent process exits, or the process named by `serve --parent PID` no longer exists (the
+  daemon checks both at least once per second), or
 - it meets a framing error.
 
 The daemon writes nothing to its standard output except response frames.
