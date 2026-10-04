@@ -1,0 +1,58 @@
+# The built-in default theme for fast-highlight.
+#
+# Basic colours only, so it reads on dark and light terminals alike. The palette follows
+# zsh-syntax-highlighting: commands green, reserved words yellow, strings yellow, parameters cyan,
+# substitution delimiters magenta, globs blue, paths underlined, errors red.
+#
+# Every token kind has an entry. An empty string leaves the kind unstyled.
+
+inherits = "none"
+
+[meta]
+name = "default"
+description = "Basic colours for dark and light terminals"
+
+[styles]
+default = ""
+error = "fg=red,bold"
+
+reserved-word = "fg=yellow"
+alias = "fg=green"
+suffix-alias = "fg=magenta"
+global-alias = "fg=magenta,bold"
+function = "fg=green"
+builtin = "fg=green"
+command = "fg=green"
+precommand = "fg=green,underline"
+
+separator = "bold"
+redirection = "bold"
+heredoc = "fg=yellow"
+
+single-quoted = "fg=yellow"
+double-quoted = "fg=yellow"
+dollar-quoted = "fg=yellow"
+backquoted = "fg=magenta"
+escape = "fg=cyan"
+
+parameter = "fg=cyan"
+substitution = "fg=magenta"
+process-substitution = "fg=magenta"
+arithmetic = "fg=magenta"
+
+glob = "fg=blue"
+glob-qualifier = "fg=blue,bold"
+brace-expansion = "fg=blue"
+history-expansion = "fg=blue"
+
+comment = "fg=8"
+assignment = ""
+grouping = "fg=yellow"
+operator = "fg=yellow"
+
+path = "underline"
+path-directory = "bold,underline"
+path-prefix = "underline"
+
+subcommand = "fg=blue"
+option = "fg=cyan"
