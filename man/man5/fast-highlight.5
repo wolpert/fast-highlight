@@ -1,0 +1,803 @@
+.\" fast-highlight(5): configuration, theme, and command spec files.
+.\" Written to style.md; section structure follows man(7) conventions.
+.TH FAST-HIGHLIGHT 5 2026-10-04 "fast-highlight 0.1.0" "File Formats"
+.SH NAME
+fast-highlight \- configuration, theme, and command spec files for fast-highlight
+.SH SYNOPSIS
+.IB config /config.toml
+.br
+.IB config /theme.toml
+.br
+.IB config /themes/ name .toml
+.br
+.IB config /specs/*.toml
+.SH DESCRIPTION
+.BR fast-highlight (1)
+reads three kinds of TOML file from its config directory, written
+.I config
+on this page:
+.IP \(bu 2
+.BR config.toml ,
+the size limits, log settings, and theme name;
+.IP \(bu 2
+a theme, which maps token types to zsh highlight styles;
+.IP \(bu 2
+command specs, which declare the subcommands and options of individual commands.
+.PP
+The config directory is
+.B $FAST_HIGHLIGHT_CONFIG_DIR
+when that variable is set and not empty, else
+.B $XDG_CONFIG_HOME/fast-highlight
+when
+.B XDG_CONFIG_HOME
+is set to an absolute path, else
+.BR $HOME/.config/fast-highlight .
+.B fast-highlight check-config
+prints the directory and validates every file in it.
+.PP
+Every file is optional.
+A missing
+.B config.toml
+yields the defaults, a missing theme yields the built-in default theme, and with no spec files
+only the built-in specs apply.
+.PP
+The daemon reads
+.B config.toml
+and the spec files when it starts.
+The plugin reads the theme, through
+.BR "fast-highlight styles" ,
+when it loads.
+The zsh function
+.B fasthl-reload
+does both again, so it applies a change to any of these files to the current shell.
+.SH CONFIGURATION FILE
+.B config.toml
+has one top-level key and two tables.
+Every key is optional, and an unknown key is an error.
+When the file has an error, the daemon uses the default configuration for every key and writes
+the error to its log.
+.TP
+.BR theme " (string)"
+The name of the theme to use, as described under
+.BR "THEME SELECTION" .
+A name is not empty, does not start with
+.BR . ,
+and does not contain
+.BR / .
+.SS The [limits] table
+Sizes are measured in bytes of the text being highlighted, which is
+.B PREBUFFER
+followed by
+.BR BUFFER .
+.TP
+.BR lex-only-bytes " (integer, default 10240)"
+Above this size, the daemon skips command and filesystem lookups and reports only the syntax
+of the text.
+.TP
+.BR hard-cap-bytes " (integer, default 262144)"
+Above this size, the daemon returns no highlighting.
+The value is greater than 0 and at least
+.BR lex-only-bytes .
+.TP
+.BR max-path-checks " (integer, default 64)"
+The maximum number of filesystem checks per highlight request.
+A cached result does not count against it.
+Words beyond the limit are not checked.
+.TP
+.BR path-cache-ttl-ms " (integer, default 1000)"
+How long a cached filesystem check result stays valid, in milliseconds.
+.SS The [log] table
+.TP
+.BR timing " (boolean, default false)"
+Writes one timing line per request to the daemon's log, as
+.B serve \-\-timing
+does.
+.TP
+.BR file " (string)"
+The daemon's log file.
+The value is an absolute path, or starts with
+.B \(ti/
+or is
+.BR \(ti ,
+which expand to the home directory.
+.BI \(ti user
+is not expanded and is an error.
+A
+.B \-\-log
+option given to
+.B fast-highlight serve
+takes precedence.
+When the key is absent, the daemon uses the default location given under
+.B LOGGING
+in
+.BR fast-highlight (1).
+.SH THEME SELECTION
+When
+.B config.toml
+has no
+.B theme
+key, the theme is
+.IB config /theme.toml
+if that file exists, and the built-in
+.B default
+theme otherwise.
+.PP
+When
+.B theme
+is set to
+.IR name ,
+the theme is
+.IB config /themes/ name .toml
+if that file exists, and the built-in theme called
+.I name
+otherwise.
+It is an error when neither exists.
+.PP
+The built-in themes are:
+.TP
+.B default
+Basic colours only, for dark and light terminals.
+.TP
+.B truecolor
+24-bit colours for dark terminals, inheriting from
+.BR default .
+It needs a terminal with truecolor support, or the zsh/nearcolor module on 88- and 256-colour
+terminals.
+.PP
+.B fast-highlight styles
+prints the resolved styles of the active theme.
+.SH THEME FILES
+A theme file has these top-level keys, all optional.
+An unknown key is an error.
+.TP
+.BR inherits " (string, default \(dqdefault\(dq)"
+The theme this one is layered over: the name of a built-in theme, or
+.B none
+for an empty base.
+A theme file cannot inherit from another theme file.
+.TP
+.B [meta]
+Informational keys
+.B name
+and
+.BR description ,
+both strings.
+They are checked for typos and otherwise ignored.
+.TP
+.B [styles]
+One entry per token type, keyed by the token type names listed under
+.BR "TOKEN TYPES" .
+An entry replaces the inherited style of that token type.
+An unknown token type is an error.
+.PP
+A style is either a string or a table.
+.SS Style strings
+A style string is a comma-separated list of items, in the syntax zsh 5.9 accepts in
+.BR region_highlight .
+Whitespace around each item is removed.
+.TP
+.BI fg= colour
+The foreground colour.
+.TP
+.BI bg= colour
+The background colour.
+.TP
+.BR bold ", " underline ", " standout
+Attributes.
+zsh 5.9 does not support italic or faint, and neither is accepted.
+.TP
+.B none
+No styling.
+It is valid only on its own.
+.PP
+A
+.I colour
+is one of
+.BR black ,
+.BR red ,
+.BR green ,
+.BR yellow ,
+.BR blue ,
+.BR magenta ,
+.BR cyan ,
+.BR white ,
+and
+.BR default ;
+a number from 0 to 255; or
+.BI # rgb
+or
+.BI # rrggbb
+in hexadecimal.
+Each item appears at most once in a style.
+.PP
+The empty string leaves the token type unstyled, removing any style it would inherit.
+.SS Style tables
+A style table has the keys
+.B fg
+and
+.BR bg ,
+each a colour string or an integer from 0 to 255, and
+.BR bold ,
+.BR underline ,
+and
+.BR standout ,
+each a boolean.
+An empty table leaves the token type unstyled.
+The table
+.B {\ fg\ =\ \(dqred\(dq,\ bold\ =\ true\ }
+is the same style as the string
+.BR \(dqfg=red,bold\(dq .
+.SH TOKEN TYPES
+These are the token types the daemon reports and that themes and the plugin's
+.B FASTHL_STYLES
+table style.
+Spans nest: a string can contain a parameter, and the nested span is applied after the span that
+contains it.
+.TP
+.B default
+Plain text with no particular meaning.
+It is rarely reported, since unstyled text needs no span.
+.TP
+.B error
+A syntax error, an unknown command, an unknown subcommand, or an invalid option.
+.TP
+.B reserved-word
+A reserved word in command position:
+.BR if ,
+.BR then ,
+.BR for ,
+.BR { ,
+.BR [[ ,
+.BR ! ,
+and so on.
+.TP
+.B alias
+A command word that names a regular alias.
+.TP
+.B suffix-alias
+A command word that is resolved through a suffix alias
+.RB ( "alias \-s" ).
+.TP
+.B global-alias
+A word anywhere on the line that names a global alias
+.RB ( "alias \-g" ).
+.TP
+.B function
+A command word that names a shell function, or the name in a function definition.
+.TP
+.B builtin
+A command word that names a shell builtin.
+.TP
+.B command
+A command word that names an external command found in
+.B PATH
+or by an explicit path.
+.TP
+.B precommand
+A precommand modifier or wrapper:
+.BR sudo ,
+.BR noglob ,
+.BR nocorrect ,
+.BR exec ,
+.BR command ,
+.BR builtin ,
+.BR env ,
+.BR time ,
+and similar commands.
+.TP
+.B separator
+A command separator or pipeline operator:
+.BR ; ,
+.BR & ,
+.BR && ,
+.BR || ,
+.BR | ,
+.BR |& ,
+.BR &! ,
+and
+.BR &| .
+.TP
+.B redirection
+A redirection operator with any file descriptor prefix:
+.BR > ,
+.BR 2> ,
+.BR >&2 ,
+.BR << ,
+.BR <<< ,
+.BR &> ,
+and so on.
+.TP
+.B heredoc
+A here-document delimiter word and the here-document body.
+.TP
+.B single-quoted
+A single-quoted string,
+.BR \(aq...\(aq .
+.TP
+.B double-quoted
+A double-quoted string,
+.BR \(dq...\(dq .
+.TP
+.B dollar-quoted
+A dollar-quoted string,
+.BR $\(aq...\(aq .
+.TP
+.B backquoted
+A backquoted command substitution,
+.BR \(ga...\(ga ,
+delimiters included.
+.TP
+.B escape
+A backslash escape, inside or outside quotes.
+.TP
+.B parameter
+A parameter expansion:
+.BR $name ,
+.BR ${...} ,
+.BR $1 ,
+.BR $? ,
+and so on.
+.TP
+.B substitution
+The delimiters of a command substitution,
+.B $(
+and
+.BR ) .
+.TP
+.B process-substitution
+The delimiters of a process substitution,
+.BR <( ,
+.BR >( ,
+or
+.BR =( ,
+and
+.BR ) .
+.TP
+.B arithmetic
+An arithmetic expansion or command,
+.B $((...))\&
+or
+.BR ((...)) .
+.TP
+.B glob
+Glob characters and extended glob operators:
+.BR * ,
+.BR ? ,
+.BR [...] ,
+.BR ** ,
+.BR # ,
+.BR ^ ,
+and
+.BR \(ti .
+.TP
+.B glob-qualifier
+A glob qualifier list at the end of a word, such as
+.B (.)\&
+or
+.BR (om[1,3]) .
+.TP
+.B brace-expansion
+A brace expansion,
+.B {a,b}
+or
+.BR {1..10} .
+.TP
+.B history-expansion
+A history expansion:
+.BR !! ,
+.BR !$ ,
+.BR !\-2 ,
+.BR ^old^new ,
+and so on.
+.TP
+.B comment
+A comment.
+Comments are recognised only when
+.B INTERACTIVE_COMMENTS
+is set.
+.TP
+.B assignment
+The
+.B name=
+or
+.B name+=
+part of an assignment, and the parentheses of an array value.
+.TP
+.B grouping
+Subshell and group delimiters
+.B (
+and
+.BR ) ,
+and the parentheses of a function definition.
+.TP
+.B operator
+An operator inside
+.BR "[[ ... ]]" :
+.BR \-f ,
+.BR == ,
+.BR =\(ti ,
+.BR && ,
+.BR ! ,
+.BR < ,
+and so on.
+.TP
+.B path
+An argument that names an existing file.
+.TP
+.B path-directory
+An argument that names an existing directory.
+.TP
+.B path-prefix
+An argument that is a prefix of an existing path, while it is still being typed.
+.TP
+.B subcommand
+A subcommand known to the command's spec, such as
+.B commit
+in
+.BR "git commit" .
+.TP
+.B option
+An option known to the command's spec, such as
+.B \-\-verbose
+or
+.BR \-C .
+.SH COMMAND SPEC FILES
+A command spec declares the subcommands and options of one command, so that the daemon reports
+known ones as
+.B subcommand
+and
+.B option
+and, where the spec says its lists are complete, unknown ones as
+.BR error .
+Each spec is one TOML file.
+The file name is irrelevant; the
+.B name
+key identifies the command.
+.PP
+The built-in specs are compiled into the binary.
+They cover
+.BR git ,
+.BR cargo ,
+.BR docker ,
+.BR kubectl ,
+.BR systemctl ,
+and
+.BR npm ,
+and the precommands
+.BR sudo ,
+.BR doas ,
+.BR env ,
+.BR nice ,
+.BR nohup ,
+.BR time ,
+.BR timeout ,
+.BR stdbuf ,
+.BR ionice ,
+.BR chrt ,
+.BR taskset ,
+.BR noglob ,
+.BR nocorrect ,
+.BR exec ,
+.BR command ,
+.BR builtin ,
+and
+.BR \- .
+The regular files whose names end in
+.B .toml
+in
+.IB config /specs
+are read after the built-ins, in file-name order.
+.SS Top-level keys
+.TP
+.BR name " (string, required)"
+The command name.
+.TP
+.BR aliases " (array of strings, default [])"
+Other command names that share this spec.
+.TP
+.BR merge " (boolean, default false)"
+In a user file: merge into the existing spec of the same name instead of replacing it.
+.TP
+.BR common-options " (array of strings, default [])"
+Options valid at the top level and at every subcommand level, at any depth.
+.TP
+.BR precommand " (boolean, default false)"
+The command runs another command, as
+.BR sudo ,
+.BR env ,
+and
+.B nice
+do.
+.TP
+.BR skip-assignments " (boolean, default false)"
+Precommands only:
+.IB NAME = value
+words before the wrapped command are skipped, as for
+.BR env .
+.TP
+.BR positional " (integer, default 0)"
+Precommands only: the number of plain arguments between the options and the wrapped command, as
+in
+.BI timeout " duration command" .
+.PP
+The top level also accepts every level key.
+.SS Level keys
+These keys are valid at the top level and in every
+.BI [subcommands. name ]
+table.
+Subcommand tables nest to any depth, as in
+.BR [subcommands.remote.subcommands.add] .
+.TP
+.BR options " (array of strings, default [])"
+Options valid at this level only.
+.TP
+.BR subcommands " (table, default {})"
+The subcommands of this level, keyed by name.
+.TP
+.BR aliases " (array of strings, default [])"
+Subcommand tables only: other names for this subcommand, as
+.B ps
+is for
+.BR "docker container ls" .
+.TP
+.BR complete " (boolean, default false)"
+The subcommand list is complete: an unknown word in subcommand position is an error.
+.TP
+.BR options-complete " (boolean, default false)"
+The option list is complete: an unknown option is an error.
+.TP
+.BR options-first " (boolean, default false)"
+Options are recognised only before the first plain argument, and later words are plain, as in
+.BI "docker run " "image command " \-x\fR.
+.TP
+.BR abbreviations " (boolean, default false)"
+A unique prefix of a subcommand name or alias selects that subcommand, as
+.B inst
+does in
+.BR "npm inst" .
+.PP
+A level inherits nothing from its parent except
+.BR common-options .
+Options declared in a level's
+.B options
+apply only at that level, so the built-in
+.B git
+spec recognises
+.B \-\-git\-dir=
+before a subcommand and treats it as unknown after
+.BR commit ,
+whose level does not declare it.
+.SS Option syntax
+Each entry in
+.B options
+and
+.B common-options
+is one spelling of one option.
+.TP
+.BR \-v ", " \-\-verbose ", " \-name
+A flag that takes no value.
+.TP
+.BR \-m= ", " \-\-message=
+An option with a required value.
+The value is accepted attached
+.RB ( \-\-message=text ,
+and for single-letter options
+.BR \-mtext )
+or as the next word
+.RB ( "\-\-message text" ,
+.BR "\-m text" ).
+The value word is a plain argument.
+.TP
+.BR \-S=? ", " \-\-color=?
+An option with an optional value, accepted only attached
+.RB ( \-\-color=always ,
+.BR \-Skey ).
+The next word is never consumed.
+.TP
+.BR +* ", " \-\-no\-*
+A pattern.
+A trailing
+.B *
+matches every word that starts with the text before it.
+A pattern takes no separate value.
+A pattern is the only way a word that does not start with
+.B \-
+is an option, as
+.B +nightly
+is in
+.BR "cargo +nightly build" .
+.PP
+Every other entry starts with
+.BR \- ;
+an entry that does not is an invalid option.
+Single-letter options bundle:
+.B \-av
+is
+.B \-a \-v
+when every letter is a declared single-letter option.
+A letter that takes a value ends the bundle, and the rest of the word, or else the next word, is
+its value, as in
+.BR "\-xzf archive.tar" .
+.SS Classification
+The daemon walks a command's arguments in order, starting at the top level of its spec.
+.IP \(bu 2
+.B \-\-
+is an option and ends option parsing; every later word is plain.
+At an
+.B options-first
+level, every word after the first plain argument is plain,
+.B \-\-
+included.
+.IP \(bu 2
+A word that is just
+.B \-
+is plain, unless
+.B \-
+is declared as an option.
+.IP \(bu 2
+A word that starts with
+.BR \- ,
+or matches a pattern, is a known option or an unknown option.
+An unknown option is an error only at a level with
+.BR "options-complete = true" .
+A word of the form
+.BI \- digits
+is never an error.
+.IP \(bu 2
+The first plain word at a level is in subcommand position.
+A known subcommand name or alias there is reported as
+.BR subcommand ,
+and classification continues at that subcommand's level.
+An unknown word there is an error only at a level that has subcommands and
+.BR "complete = true" .
+A word that contains an expansion is never an error.
+.IP \(bu 2
+After the first plain word at a level, no further subcommand matching happens at that level.
+.SS Precommands
+For a spec with
+.BR "precommand = true" ,
+the daemon finds the wrapped command by skipping the precommand's options and their values, with
+unknown options assumed to be flags; then
+.IB NAME = value
+words when
+.BR "skip-assignments = true" ;
+then
+.B positional
+plain words.
+The next word is the wrapped command, which is classified as a command in its own right.
+Option parsing stops at
+.B \-\-
+or at the first word that is not an option, as POSIX
+.BR getopt (3)
+does.
+.SS Loading and overriding
+A user file whose
+.B name
+matches an existing spec replaces that spec entirely.
+With
+.B merge = true
+it is merged instead: option lists and aliases are appended, with a later spelling of the same
+option taking precedence; keys present in the user file override; and subcommand tables are
+merged recursively by name.
+Merging cannot remove anything; replacing the spec can.
+A file with
+.B merge = true
+and no existing spec of that name is loaded as a new spec.
+.PP
+A file that fails to parse, has an unknown key, or declares an invalid option is skipped with a
+warning, and the other files still load.
+The daemon writes the warning to its log;
+.B fast-highlight check-config
+and
+.B fast-highlight highlight
+print it on standard error.
+.SH FILES
+.TP
+.IB config /config.toml
+The configuration file.
+.TP
+.IB config /theme.toml
+The theme when
+.B config.toml
+has no
+.B theme
+key.
+.TP
+.IB config /themes/ name .toml
+The theme selected by
+.B theme = \(dq\fIname\fP\(dq
+in
+.BR config.toml .
+.TP
+.IB config /specs/*.toml
+User command specs.
+.SH EXAMPLES
+A
+.B config.toml
+that selects a user theme, raises the lex-only threshold, and logs request timing:
+.PP
+.RS
+.EX
+theme = "mine"
+\&
+[limits]
+lex\-only\-bytes = 20480
+hard\-cap\-bytes = 262144
+\&
+[log]
+timing = true
+file = "\(ti/.cache/fast\-highlight.log"
+.EE
+.RE
+.PP
+The theme
+.BR themes/mine.toml ,
+which keeps the default theme but greys comments, restyles errors, and leaves path prefixes
+unstyled:
+.PP
+.RS
+.EX
+inherits = "default"
+\&
+[meta]
+name = "mine"
+description = "The default theme with grey comments"
+\&
+[styles]
+comment = { fg = 244 }
+error = "fg=white,bg=red,bold"
+path\-prefix = ""
+.EE
+.RE
+.PP
+A spec for a command with no built-in spec, in
+.BR specs/just.toml :
+.PP
+.RS
+.EX
+name = "just"
+options = ["\-f=", "\-\-justfile=", "\-l", "\-\-list", "\-n", "\-\-dry\-run", "\-\-set="]
+.EE
+.RE
+.PP
+A spec that adds a subcommand to the built-in
+.B git
+spec without replacing it, in
+.BR specs/git\-local.toml :
+.PP
+.RS
+.EX
+name = "git"
+merge = true
+\&
+[subcommands.sync]
+options = ["\-\-dry\-run"]
+.EE
+.RE
+.PP
+A spec with nested subcommands and value-taking options.
+Without
+.BR "merge = true" ,
+a file in this form replaces the built-in
+.B git
+spec:
+.PP
+.RS
+.EX
+name = "git"
+common\-options = ["\-h", "\-\-help"]
+options = ["\-C=", "\-c=", "\-p", "\-\-paginate", "\-\-git\-dir=", "\-\-version"]
+\&
+[subcommands.commit]
+options = ["\-m=", "\-\-message=", "\-a", "\-\-all", "\-\-amend", "\-S=?", "\-\-gpg\-sign=?"]
+\&
+[subcommands.remote]
+complete = true
+\&
+[subcommands.remote.subcommands.remove]
+aliases = ["rm"]
+.EE
+.RE
+.SH SEE ALSO
+.BR fast-highlight (1),
+.BR zshzle (1)

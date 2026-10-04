@@ -1,0 +1,687 @@
+.\" fast-highlight(1): the fast-highlight command.
+.\" Written to style.md; section structure follows man(7) conventions.
+.TH FAST-HIGHLIGHT 1 2026-10-04 "fast-highlight 0.1.0" "User Commands"
+.SH NAME
+fast-highlight \- syntax highlighter for the zsh line editor
+.SH SYNOPSIS
+.B fast-highlight serve
+.RB [ \-\-timing ]
+.RB [ \-\-log
+.IR path ]
+.RB [ \-\-parent
+.IR pid ]
+.br
+.B fast-highlight styles
+.br
+.B fast-highlight highlight
+.RB [ \-\-cwd
+.IR dir ]
+.RB [ \-\-opts
+.IR letters ]
+.RB [ \-\-timing ]
+.RB [ \-\-repeat
+.IR n ]
+.RB [ \-\-format
+.BR spans | ansi ]
+.RB [ \-\- ]
+.RI [ text " ...]"
+.br
+.B fast-highlight check-config
+.br
+.B fast-highlight plugin-path
+.br
+.B fast-highlight help
+|
+.B \-\-help
+|
+.B \-h
+.br
+.B fast-highlight \-\-version
+|
+.B \-V
+.SH DESCRIPTION
+.B fast-highlight
+highlights the command line of the zsh line editor.
+A zsh plugin starts one
+.B fast-highlight serve
+process per interactive shell and keeps it running for the life of the shell.
+Before each redraw of the line, the plugin sends the edit buffer to the daemon, which parses it
+and returns a list of spans, each a range of the buffer and a token type such as
+.BR command ,
+.BR path ,
+or
+.BR error .
+The daemon returns token types, not styles.
+The plugin maps each token type to a zsh highlight style through its style table and fills
+.BR region_highlight .
+.PP
+The daemon checks command names against the shell's aliases, functions, builtins, and reserved
+words, which the plugin sends, and against the executables in
+.BR PATH ,
+which it scans itself.
+It checks paths on disk, recognises the subcommands and options of commands that have a
+command spec, and marks syntax errors and unknown commands with the
+.B error
+token type.
+.PP
+The other commands compile the theme into the plugin's style table, highlight text outside the
+shell for testing and timing, validate the configuration, and locate the plugin file.
+The configuration, theme, and command spec file formats are described in
+.BR fast-highlight (5).
+.SH COMMANDS
+.TP
+.B serve
+Runs the daemon.
+It reads request frames on standard input and writes response frames on standard output, as
+described under
+.BR PROTOCOL .
+The zsh plugin starts it; it is not normally run by hand.
+.IP
+The daemon reads
+.B config.toml
+and the command specs once, at startup.
+A change to either takes effect when the daemon restarts, which
+.B fasthl-reload
+does.
+When
+.B config.toml
+fails to load, the daemon uses the default configuration and writes the error to the log.
+.IP
+Nothing but response frames is written to standard output, and nothing is written to standard
+error.
+Diagnostics go to the log file described under
+.BR LOGGING .
+The daemon ignores
+.B SIGINT
+and
+.BR SIGPIPE ,
+so a Ctrl-C sent to the shell's process group does not stop it, and a write to a closed pipe
+fails instead of killing it.
+.IP
+The daemon exits when it receives a
+.B Q
+request, when standard input reaches end of file, when it meets a framing error, when reading or
+writing fails, or when its parent process exits.
+The parent process counts as exited once the daemon's parent process id differs from the one it
+had at startup.
+The daemon checks this at least once per second while its input is idle.
+.RS
+.TP
+.B \-\-timing
+Writes one timing line per request to the log.
+The
+.B timing
+key in the
+.B [log]
+table of
+.B config.toml
+has the same effect.
+.TP
+.BI \-\-log " path"
+Writes the log to
+.IR path ,
+overriding the
+.B file
+key in the
+.B [log]
+table of
+.B config.toml
+and the default location.
+.TP
+.BI \-\-parent " pid"
+Watches the process
+.I pid
+in addition to the parent process, and exits once no process with that id exists.
+.I pid
+is a positive integer.
+A process that exists but that the daemon has no permission to signal counts as existing.
+The check runs at least once per second while the input is idle.
+The plugin passes the shell's process id, so the daemon also exits when the shell dies before
+the daemon has recorded its parent, a case in which the recorded parent is already the process
+that adopted the daemon.
+.RE
+.TP
+.B styles
+Prints the active theme as zsh code that defines the global associative array
+.BR FASTHL_STYLES ,
+one token type per line, sorted by name, each style single-quoted.
+Token types with no style are omitted.
+The plugin evaluates this output when it loads and when
+.B fasthl-reload
+runs.
+.IP
+When
+.B config.toml
+fails to load,
+.B styles
+reports the error on standard error and continues with the default configuration.
+When the theme fails to load, it reports the error and prints the built-in default theme.
+Either failure makes the exit status 1.
+.TP
+.B highlight
+Highlights
+.I text
+and prints one line per span:
+.RS
+.IP
+.IR "start end kind" " \(dq" text \(dq
+.RE
+.IP
+.I start
+and
+.I end
+are a half-open range in the units selected by
+.BR \-\-opts ,
+.I kind
+is the token type, and the final field is the text the span covers, double-quoted with backslash
+escapes.
+The
+.I text
+arguments are joined by single spaces.
+With no
+.I text
+argument,
+.B highlight
+reads standard input and removes one final newline.
+A word that starts with
+.B \-\-
+and is not an option of
+.B highlight
+is a usage error unless it follows
+.BR \-\- .
+.B \-\-help
+or
+.B \-h
+before the first
+.I text
+argument prints the help.
+.IP
+.B highlight
+loads
+.B config.toml
+and the command specs as the daemon does, and reports config errors and spec warnings on
+standard error without changing the exit status.
+It knows zsh's builtins and reserved words and the executables in its own
+.BR PATH ,
+but no aliases, functions, or named directories, because no shell sends it any.
+Text longer than the
+.B hard-cap-bytes
+limit produces no spans.
+.RS
+.TP
+.BI \-\-cwd " dir"
+Resolves relative paths against
+.IR dir .
+The default is the current directory.
+.TP
+.BI \-\-opts " letters"
+Sets the option letters of the highlight request, as in the
+.B opt
+field of the protocol:
+.B u
+for offsets in characters (bytes when absent),
+.B c
+for
+.BR INTERACTIVE_COMMENTS ,
+.B a
+for
+.BR AUTO_CD ,
+.B e
+for
+.BR EXTENDED_GLOB ,
+and
+.B k
+for
+.BR KSH_GLOB .
+Unknown letters are ignored.
+The default is
+.BR u .
+.TP
+.B \-\-timing
+Prints a summary of the processing time over all runs to standard error, in the form
+.RS
+.IP
+.BI runs= n " min=" t "us median=" t "us max=" t us
+.RE
+.IP
+with times in microseconds.
+.TP
+.BI \-\-repeat " n"
+Highlights the text
+.I n
+times, for
+.BR \-\-timing .
+.I n
+is a positive integer; the default is 1.
+.TP
+.BR "\-\-format spans" | ansi
+Selects the output format.
+.B spans
+is the default and prints the span lines described above.
+.B ansi
+prints the text once, coloured with ANSI escape sequences from the active theme, followed by a
+reset sequence and a newline.
+This format always uses character offsets, adding
+.B u
+to the option letters.
+It renders
+.BR fg= ,
+.BR bg= ,
+.BR bold ,
+.BR underline ,
+.BR standout ,
+and
+.BR none ;
+three-digit
+.BI # rgb
+colours are not rendered.
+.TP
+.B \-\-
+Ends option parsing; every later argument is
+.IR text .
+.RE
+.TP
+.B check-config
+Prints the config directory, then loads
+.BR config.toml ,
+the theme, and the command specs and reports problems.
+Errors in the config file and the theme are printed on standard error as lines starting with
+.BR error: ,
+and spec files that fail to load as lines starting with
+.BR "warning: specs:" .
+The last line on standard output is
+.B ok
+when there are no problems, and otherwise the number of errors and warnings.
+The exit status is 1 when there is at least one error.
+Spec warnings alone leave it 0, because the daemon skips a broken spec file and loads the rest.
+.TP
+.B plugin-path
+Prints the path of the zsh plugin file,
+.BR fast-highlight.plugin.zsh .
+The candidates, in order, are
+.BR $FAST_HIGHLIGHT_SHARE/fast-highlight.plugin.zsh ,
+.B ../share/fast-highlight/fast-highlight.plugin.zsh
+relative to the directory of the running binary, and the
+.B plugin
+directory of the source tree the binary was built from.
+The first candidate that is a regular file is printed.
+When none is, a message goes to standard error and the exit status is 1.
+.TP
+.BR help ", " \-\-help ", " \-h
+Prints a summary of the commands and options.
+Any command other than
+.B highlight
+followed by
+.B \-\-help
+or
+.B \-h
+among its arguments does the same.
+.TP
+.BR \-\-version ", " \-V
+Prints the version.
+.SH PROTOCOL
+The plugin and the daemon exchange frames over the daemon's standard input and standard output.
+A frame is a header line,
+.BI "FH1 " "type id length" ,
+followed by a body of
+.I length
+bytes.
+The request types are
+.B H
+(highlight),
+.B S
+(shell state),
+.B P
+(ping), and
+.B Q
+(quit).
+The response types are
+.B R
+(result),
+.B A
+(acknowledgement), and
+.B E
+(error).
+Each response carries the id of the request it answers, and the plugin discards a response whose
+id is older than the request it is waiting for, so a late response is never applied to a newer
+buffer.
+.PP
+A highlight request carries
+.B BUFFER
+and
+.BR PREBUFFER ,
+the cursor position, the current directory when it has changed, and the option letters listed
+under
+.BR \-\-opts .
+A result body is one line per span,
+.IR "start end kind" ,
+in the request's offset unit.
+A state request carries the shell's aliases, global aliases, suffix aliases, functions, builtins,
+reserved words, named directories, and
+.BR PATH .
+.PP
+The normative specification is
+.B docs/protocol.md
+in the source distribution.
+.SH LOGGING
+The daemon appends diagnostics to a log file: panics, a config file that failed to load, spec
+files that failed to load, the reason for an exit caused by an error, and, when timing is
+enabled, one line per request.
+The log file is the first of:
+.IP \(bu 2
+the
+.I path
+given to
+.BR \-\-log ;
+.IP \(bu 2
+the
+.B file
+key in the
+.B [log]
+table of
+.BR config.toml ;
+.IP \(bu 2
+.BR $XDG_STATE_HOME/\:fast-highlight/\:fast-highlight.log ,
+when
+.B XDG_STATE_HOME
+is set and not empty;
+.IP \(bu 2
+.BR $HOME/\:.local/\:state/\:fast-highlight/\:fast-highlight.log ,
+when
+.B HOME
+is set and not empty.
+.PP
+When none applies, nothing is logged.
+Missing parent directories are created.
+Each line starts with the Unix time in seconds with a three-digit fractional part.
+A timing line has the form
+.PP
+.RS
+.BI id= n " type=" t " bytes=" n " spans=" n " us=" n
+.RE
+.PP
+where
+.B type
+is the request type
+.RB ( H ,
+.BR S ,
+or
+.BR P ),
+.B bytes
+is the size of
+.B PREBUFFER
+and
+.B BUFFER
+together for a highlight request and 0 otherwise, and
+.B us
+is the processing time in microseconds.
+A failure to write the log is ignored.
+.SH ZSH INTEGRATION
+The plugin is
+.BR fast-highlight.plugin.zsh ,
+sourced from
+.BR ~/.zshrc .
+Its position relative to other plugins does not matter.
+It requires zsh 5.8 or later, and does nothing in a non-interactive shell, in a shell whose
+standard input is not a terminal, or under
+.B zsh \-c
+or a script.
+zsh-syntax-highlighting and fast-syntax-highlighting both rewrite
+.B region_highlight
+on every redraw, so loading either in the same shell conflicts with the plugin.
+.PP
+The plugin starts the daemon as
+.B fast-highlight serve \-\-parent
+.I pid
+followed by the elements of
+.BR FASTHL_SERVE_ARGS ,
+with standard error sent to
+.BR /dev/null .
+When the daemon is missing, fails, or misses the timeout, that redraw has no highlighting and the
+daemon is stopped.
+The plugin starts it again on a later hook after a backoff that begins at 0.5 seconds and doubles
+up to 60 seconds; a successful highlight resets it.
+Each redraw waits at most
+.B FASTHL_TIMEOUT
+seconds for the daemon, and the plugin prints nothing to the terminal.
+.SS Shell parameters
+All are optional.
+.TP
+.B FASTHL_BIN
+The path or command name of the
+.B fast-highlight
+binary.
+When unset, the plugin uses
+.B fast-highlight
+from
+.BR PATH ,
+else
+.B ../target/release/fast-highlight
+relative to the plugin directory.
+When no binary is found, the plugin stays inactive and prints nothing.
+.TP
+.B FASTHL_TIMEOUT
+The number of seconds the plugin waits for the daemon on each redraw before giving up on that
+redraw and restarting the daemon.
+A value that is not a non-negative decimal number is ignored.
+The default is 0.05.
+.TP
+.B FASTHL_STYLES
+An associative array that maps token types to
+.B region_highlight
+styles such as
+.BR fg=green,bold .
+The plugin fills it from
+.B fast-highlight styles
+when it loads, or from a built-in table when that command fails.
+An entry assigned after the plugin is sourced overrides the theme and survives
+.BR fasthl-reload .
+An empty style leaves the token type unstyled.
+.TP
+.B FASTHL_SERVE_ARGS
+An array of extra arguments for
+.BR "fast-highlight serve" ,
+such as
+.BR "(\-\-timing)" .
+It is read each time the daemon starts.
+.SS Shell functions
+.TP
+.B fasthl-reload
+Reads the theme into
+.B FASTHL_STYLES
+again, keeping entries the user has set, and restarts the daemon, which then receives the full
+shell state again.
+.TP
+.B fasthl-disable
+Stops the daemon, removes the highlighting, and removes the plugin's hooks.
+.TP
+.B fasthl-enable
+Reverses
+.BR fasthl-disable ,
+searching for the binary again.
+When no binary is found, it prints a message on standard error and returns 1.
+.SH EXIT STATUS
+.TP
+.B 0
+Success.
+For
+.BR serve ,
+a
+.B Q
+request or end of file on standard input.
+.TP
+.B 1
+For
+.BR serve ,
+a framing error, a read or write error, or the exit of the parent process or of the process given
+to
+.BR \-\-parent .
+For
+.BR styles ,
+a config file or theme that failed to load.
+For
+.BR highlight ,
+a failure to read standard input or an internal error.
+For
+.BR check-config ,
+at least one error.
+For
+.BR plugin-path ,
+no plugin file found.
+.TP
+.B 2
+A usage error: a missing or unknown command, an unknown option, a missing or invalid option
+value, or an unexpected argument.
+The message and the usage summary go to standard error.
+.SH ENVIRONMENT
+.TP
+.B FAST_HIGHLIGHT_CONFIG_DIR
+The config directory, when set and not empty.
+.TP
+.B XDG_CONFIG_HOME
+When
+.B FAST_HIGHLIGHT_CONFIG_DIR
+is unset or empty, the config directory is
+.B $XDG_CONFIG_HOME/fast-highlight
+if this variable is set to an absolute path.
+.TP
+.B HOME
+When neither variable above applies, the config directory is
+.BR $HOME/.config/fast-highlight .
+For the config directory and for
+.B \(ti
+in the
+.B file
+key of
+.BR config.toml ,
+an unset or empty
+.B HOME
+is replaced by the home directory in the password database, or by
+.B /
+when that has none.
+.B HOME
+also locates the default log file when
+.B XDG_STATE_HOME
+is unset or empty, and is the expansion of
+.B \(ti
+in highlighted words.
+.TP
+.B XDG_STATE_HOME
+The default log file is
+.B $XDG_STATE_HOME/fast-highlight/fast-highlight.log
+when this variable is set and not empty.
+.TP
+.B FAST_HIGHLIGHT_SHARE
+The first directory
+.B plugin-path
+searches for the plugin file.
+.TP
+.B PATH
+The daemon scans the directories in its own
+.B PATH
+at startup and replaces the list with the
+.B PATH
+of the shell when the plugin sends it.
+.B highlight
+uses its own
+.BR PATH .
+.PP
+The plugin's shell parameters are described under
+.BR "ZSH INTEGRATION" .
+.SH FILES
+The config directory is written
+.I config
+below; see
+.B ENVIRONMENT
+for how it is chosen.
+.TP
+.IB config /config.toml
+Limits, log settings, and the theme name.
+.TP
+.IB config /theme.toml
+The theme when
+.B config.toml
+names none.
+.TP
+.IB config /themes/ name .toml
+The theme named
+.I name
+in
+.BR config.toml .
+.TP
+.IB config /specs/*.toml
+User command specs.
+.TP
+.B ${XDG_STATE_HOME:\-$HOME/.local/state}/fast-highlight/fast-highlight.log
+The default log file.
+.TP
+.B fast-highlight.plugin.zsh
+The zsh plugin, which sources
+.B fasthl-core.zsh
+from its own directory.
+.PP
+The formats of the files in the config directory are described in
+.BR fast-highlight (5).
+.SH EXAMPLES
+Load the plugin from
+.BR ~/.zshrc :
+.PP
+.RS
+.EX
+source "$(fast\-highlight plugin\-path)"
+.EE
+.RE
+.PP
+Highlight a command line:
+.PP
+.RS
+.EX
+$ fast\-highlight highlight \(aqls \-l /tmp | wc \-l\(aq
+0 2 command "ls"
+6 10 path\-directory "/tmp"
+11 12 separator "|"
+13 15 command "wc"
+.EE
+.RE
+.PP
+Measure the processing time of one buffer over 1000 runs:
+.PP
+.RS
+.EX
+$ fast\-highlight highlight \-\-timing \-\-repeat 1000 \(aqgit status\(aq >/dev/null
+runs=1000 min=0.4us median=0.4us max=9.1us
+.EE
+.RE
+.PP
+Show a buffer in the theme's colours:
+.PP
+.RS
+.EX
+$ echo \(aqgit commit \-m "$msg"\(aq | fast\-highlight highlight \-\-format ansi
+.EE
+.RE
+.PP
+Log per-request timing from the daemon of the current shell, and override one style, in
+.BR ~/.zshrc :
+.PP
+.RS
+.EX
+FASTHL_SERVE_ARGS=(\-\-timing)
+source "$(fast\-highlight plugin\-path)"
+FASTHL_STYLES[comment]=\(aqfg=244\(aq
+.EE
+.RE
+.PP
+Check the configuration after editing it:
+.PP
+.RS
+.EX
+$ fast\-highlight check\-config
+config directory: /home/user/.config/fast\-highlight
+ok
+.EE
+.RE
+.SH SEE ALSO
+.BR fast-highlight (5),
+.BR zsh (1),
+.BR zshzle (1)

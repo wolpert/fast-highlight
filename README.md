@@ -693,24 +693,26 @@ checks come from the cache while it is valid.
 
 ## Man pages
 
-The repository provides `man/fast-highlight.1` for the binary and `man/fast-highlight.5` for the
-configuration, theme, and spec formats. The directory is flat, so `MANPATH` cannot point at it
-directly; the pages are copied into a directory with `man1` and `man5` subdirectories.
+The repository provides `man/man1/fast-highlight.1` for the binary and `man/man5/fast-highlight.5`
+for the configuration, theme, and spec formats. The `man` directory has the layout `man` expects,
+so either of two setups makes the pages available.
 
-1. Copy the pages from a clone:
+1. Point `MANPATH` at the clone in `~/.zshrc`, keeping the system default path after it:
+
+   ```zsh
+   export MANPATH="/path/to/fast-highlight/man:$(manpath)"
+   ```
+
+   Alternatively, copy the pages into a directory that is already on the manual path:
 
    ```sh
    mkdir -p ~/.local/share/man/man1 ~/.local/share/man/man5
-   cp man/fast-highlight.1 ~/.local/share/man/man1/
-   cp man/fast-highlight.5 ~/.local/share/man/man5/
+   cp man/man1/fast-highlight.1 ~/.local/share/man/man1/
+   cp man/man5/fast-highlight.5 ~/.local/share/man/man5/
    ```
 
-2. Run `man fast-highlight`. If the page is not found, add the directory to `MANPATH` in
-   `~/.zshrc`, keeping the system default path after it:
-
-   ```zsh
-   export MANPATH="$HOME/.local/share/man:$(manpath)"
-   ```
+2. Run `man fast-highlight`. If the copied page is not found, add `$HOME/.local/share/man` to
+   `MANPATH` in the same way.
 
 3. Read the format page with `man 5 fast-highlight`.
 
