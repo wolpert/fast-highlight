@@ -1,0 +1,26 @@
+[package]
+name = "fast-highlight"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "BSD-3-Clause"
+description = "Syntax highlighter for the zsh line editor, served by a persistent daemon"
+readme = "README.md"
+keywords = ["zsh", "shell", "syntax-highlighting"]
+categories = ["command-line-utilities"]
+exclude = ["fuzz/"]
+
+[dependencies]
+libc = "0.2"
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+
+[dev-dependencies]
+insta = "1"
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+
+[profile.dev.package.insta]
+opt-level = 3
