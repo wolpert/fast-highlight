@@ -770,8 +770,8 @@ _fasthl_precmd() {
 # preexec hook: after `rehash` or `hash -r` the next state update asks the daemon to rescan
 # $PATH. The daemon notices most changes by itself, from the modification times of the
 # directories, but not changes on filesystems that leave a directory's mtime alone. $3 is the
-# command line with aliases expanded. Any word `rehash` counts, as does `hash` followed by an option word
-# containing r; a false match costs one rescan.
+# command line with aliases expanded. Any word `rehash` counts, as does `hash` followed by an
+# option word containing r; a false match costs one rescan.
 _fasthl_preexec() {
   emulate -L zsh
   [[ $3 == *hash* ]] || return 0
