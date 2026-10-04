@@ -286,14 +286,20 @@ mod tests {
         sort_spans(&mut v);
         assert_eq!(
             v,
-            vec![Span::new(0, 6, TokenKind::DoubleQuoted), Span::new(2, 4, TokenKind::Parameter)]
+            vec![
+                Span::new(0, 6, TokenKind::DoubleQuoted),
+                Span::new(2, 4, TokenKind::Parameter)
+            ]
         );
         assert!(check_spans("\"a$bc\"", &v).is_ok());
     }
 
     #[test]
     fn check_rejects_partial_overlap() {
-        let v = vec![Span::new(0, 3, TokenKind::Glob), Span::new(2, 5, TokenKind::Glob)];
+        let v = vec![
+            Span::new(0, 3, TokenKind::Glob),
+            Span::new(2, 5, TokenKind::Glob),
+        ];
         assert!(check_spans("abcdef", &v).is_err());
     }
 
