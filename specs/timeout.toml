@@ -1,0 +1,12 @@
+# timeout(1): `timeout [OPTION]... DURATION COMMAND [ARG]...`.
+name = "timeout"
+precommand = true
+positional = 1
+options = [
+  "-f", "--foreground",
+  "-k=", "--kill-after=",
+  "-p", "--preserve-status",
+  "-s=", "--signal=",
+  "-v", "--verbose",
+  "--help", "--version",
+]

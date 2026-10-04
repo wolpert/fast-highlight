@@ -1,0 +1,12 @@
+# taskset(1) from util-linux: `taskset [OPTION]... MASK COMMAND [ARG]...`. With `-c` the mask is a
+# CPU list, still given as one word.
+name = "taskset"
+precommand = true
+positional = 1
+options = [
+  "-a", "--all-tasks",
+  "-c", "--cpu-list",
+  "-p", "--pid",
+  "-h", "--help",
+  "-V", "--version",
+]

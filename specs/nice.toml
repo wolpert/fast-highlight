@@ -1,0 +1,4 @@
+# nice(1). The obsolete `-N` form (`nice -5 cmd`) is an unknown option and is skipped as a flag.
+name = "nice"
+precommand = true
+options = ["-n=", "--adjustment=", "--help", "--version"]

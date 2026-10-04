@@ -1,0 +1,4 @@
+# The zsh precommand modifier `command`.
+name = "command"
+precommand = true
+options = ["-p", "-v", "-V"]

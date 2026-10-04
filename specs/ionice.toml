@@ -1,0 +1,13 @@
+# ionice(1) from util-linux.
+name = "ionice"
+precommand = true
+options = [
+  "-c=", "--class=",
+  "-n=", "--classdata=",
+  "-p", "--pid",
+  "-P", "--pgid",
+  "-t", "--ignore",
+  "-u", "--uid",
+  "-h", "--help",
+  "-V", "--version",
+]

@@ -1,0 +1,35 @@
+# sudo(8). Options are parsed up to the first non-option word; `NAME=value` words that follow
+# are environment assignments for the command.
+name = "sudo"
+precommand = true
+skip-assignments = true
+options = [
+  "-A", "--askpass",
+  "-B", "--bell",
+  "-b", "--background",
+  "-C=", "--close-from=",
+  "-D=", "--chdir=",
+  "-E", "--preserve-env=?",
+  "-e", "--edit",
+  "-g=", "--group=",
+  "-H", "--set-home",
+  "-h", "--help", "--host=",
+  "-i", "--login",
+  "-K", "--remove-timestamp",
+  "-k", "--reset-timestamp",
+  "-l", "--list",
+  "-N", "--no-update",
+  "-n", "--non-interactive",
+  "-P", "--preserve-groups",
+  "-p=", "--prompt=",
+  "-R=", "--chroot=",
+  "-r=", "--role=",
+  "-S", "--stdin",
+  "-s", "--shell",
+  "-T=", "--command-timeout=",
+  "-t=", "--type=",
+  "-U=", "--other-user=",
+  "-u=", "--user=",
+  "-V", "--version",
+  "-v", "--validate",
+]

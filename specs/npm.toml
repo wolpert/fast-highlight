@@ -1,0 +1,213 @@
+# npm(1), versions 9 to 11. Complete: npm has no plugin mechanism, so an unknown command is an
+# error. Command aliases and the typo aliases npm accepts are listed, and `abbreviations = true`
+# matches npm's unique-prefix resolution (`npm publ`). Options are not complete: npm accepts any
+# configuration key as `--key=value`, and every boolean as `--no-key`.
+name = "npm"
+complete = true
+abbreviations = true
+common-options = [
+  "-h", "--help", "--usage", "-v", "--version", "-g", "--global", "-w=", "--workspace=", "-ws",
+  "--workspaces", "--include-workspace-root", "--prefix=", "-C=", "--registry=", "--userconfig=",
+  "--cache=", "--loglevel=", "-s", "--silent", "-q", "--quiet", "-d", "--verbose", "-l",
+  "--long", "--json", "-p", "--parseable", "-y", "--yes", "-f", "--force", "--dry-run",
+  "--color=?", "--offline", "--prefer-offline", "--prefer-online", "--no-*",
+]
+
+[subcommands.access]
+[subcommands.adduser]
+aliases = ["add-user"]
+[subcommands.audit]
+options = ["--audit-level=", "--omit=", "--include=", "--package-lock-only", "--production"]
+[subcommands.audit.subcommands.fix]
+[subcommands.audit.subcommands.signatures]
+[subcommands.bugs]
+aliases = ["issues"]
+[subcommands.cache]
+[subcommands.cache.subcommands.add]
+[subcommands.cache.subcommands.clean]
+[subcommands.cache.subcommands.ls]
+[subcommands.cache.subcommands.verify]
+[subcommands.cache.subcommands.npx]
+
+[subcommands.ci]
+aliases = ["clean-install", "ic", "install-clean", "isntall-clean"]
+options = [
+  "--install-strategy=", "--legacy-bundling", "--global-style", "--omit=", "--include=",
+  "--strict-peer-deps", "--foreground-scripts", "--ignore-scripts", "--audit", "--bin-links",
+  "--fund", "--install-links", "--legacy-peer-deps", "--cpu=", "--os=", "--libc=",
+]
+
+[subcommands.completion]
+[subcommands.config]
+aliases = ["c"]
+options = ["--location=", "-L="]
+[subcommands.config.subcommands.set]
+[subcommands.config.subcommands.get]
+[subcommands.config.subcommands.delete]
+[subcommands.config.subcommands.list]
+aliases = ["ls"]
+[subcommands.config.subcommands.edit]
+[subcommands.config.subcommands.fix]
+
+[subcommands.dedupe]
+aliases = ["ddp"]
+[subcommands.deprecate]
+options = ["--otp="]
+[subcommands.diff]
+options = ["--diff=", "--diff-name-only", "--diff-unified=", "--diff-ignore-all-space", "--diff-no-prefix", "--diff-src-prefix=", "--diff-dst-prefix=", "--diff-text", "--tag="]
+[subcommands.dist-tag]
+aliases = ["dist-tags"]
+[subcommands.dist-tag.subcommands.add]
+[subcommands.dist-tag.subcommands.rm]
+[subcommands.dist-tag.subcommands.ls]
+[subcommands.docs]
+aliases = ["home"]
+options = ["--browser="]
+[subcommands.doctor]
+[subcommands.edit]
+options = ["--editor="]
+
+[subcommands.exec]
+aliases = ["x"]
+options = ["--package=", "-c=", "--call="]
+
+[subcommands.explain]
+aliases = ["why"]
+[subcommands.explore]
+options = ["--shell="]
+[subcommands.find-dupes]
+[subcommands.fund]
+options = ["--browser=", "--which="]
+[subcommands.get]
+[subcommands.help]
+aliases = ["hlep"]
+[subcommands.help-search]
+[subcommands.hook]
+[subcommands.init]
+aliases = ["create", "innit"]
+options = ["--init-author-name=", "--init-author-url=", "--init-license=", "--init-module=", "--init-type=", "--init-version=", "--init-private", "--scope="]
+
+[subcommands.install]
+aliases = [
+  "add", "i", "in", "ins", "inst", "insta", "instal", "isnt", "isnta", "isntal", "isntall",
+]
+options = [
+  "-S", "--save", "--no-save", "-D", "--save-dev", "-P", "--save-prod", "-O", "--save-optional",
+  "--save-peer", "-E", "--save-exact", "-B", "--save-bundle", "--install-strategy=",
+  "--legacy-bundling", "--global-style", "--omit=", "--include=", "--strict-peer-deps",
+  "--prefer-dedupe", "--package-lock", "--package-lock-only", "--foreground-scripts",
+  "--ignore-scripts", "--audit", "--bin-links", "--fund", "--install-links",
+  "--legacy-peer-deps", "--cpu=", "--os=", "--libc=", "--before=", "--tag=",
+]
+
+[subcommands.install-ci-test]
+aliases = ["cit", "clean-install-test", "sit"]
+[subcommands.install-test]
+aliases = ["it"]
+[subcommands.link]
+aliases = ["ln"]
+options = ["-S", "--save", "--no-save", "-D", "--save-dev", "--install-links"]
+[subcommands.ll]
+aliases = ["la"]
+[subcommands.login]
+options = ["--auth-type=", "--scope="]
+[subcommands.logout]
+options = ["--scope="]
+
+[subcommands.ls]
+aliases = ["list"]
+options = ["-a", "--all", "--depth=", "--omit=", "--include=", "--link", "--package-lock-only", "--unicode", "--installed"]
+
+[subcommands.org]
+aliases = ["ogr"]
+[subcommands.org.subcommands.set]
+[subcommands.org.subcommands.rm]
+[subcommands.org.subcommands.ls]
+[subcommands.outdated]
+options = ["-a", "--all"]
+[subcommands.owner]
+aliases = ["author"]
+options = ["--otp="]
+[subcommands.owner.subcommands.add]
+[subcommands.owner.subcommands.rm]
+[subcommands.owner.subcommands.ls]
+[subcommands.pack]
+options = ["--pack-destination=", "--ignore-scripts"]
+[subcommands.ping]
+[subcommands.pkg]
+[subcommands.pkg.subcommands.set]
+[subcommands.pkg.subcommands.get]
+[subcommands.pkg.subcommands.delete]
+[subcommands.pkg.subcommands.fix]
+[subcommands.prefix]
+[subcommands.profile]
+[subcommands.profile.subcommands.enable-2fa]
+[subcommands.profile.subcommands.disable-2fa]
+[subcommands.profile.subcommands.get]
+[subcommands.profile.subcommands.set]
+[subcommands.prune]
+options = ["--omit=", "--include=", "--production"]
+
+[subcommands.publish]
+options = ["--tag=", "--access=", "--otp=", "--provenance", "--provenance-file=", "--ignore-scripts"]
+
+[subcommands.query]
+[subcommands.rebuild]
+aliases = ["rb"]
+options = ["--ignore-scripts", "--foreground-scripts", "--bin-links"]
+[subcommands.repo]
+options = ["--browser="]
+[subcommands.restart]
+options = ["--ignore-scripts", "--script-shell="]
+[subcommands.root]
+
+[subcommands.run]
+aliases = ["run-script", "rum", "urn"]
+options = ["--if-present", "--ignore-scripts", "--foreground-scripts", "--script-shell="]
+
+[subcommands.sbom]
+options = ["--sbom-format=", "--sbom-type=", "--omit=", "--package-lock-only"]
+[subcommands.search]
+aliases = ["find", "s", "se"]
+options = ["--searchlimit=", "--searchopts=", "--searchexclude=", "--prefer-online"]
+[subcommands.set]
+[subcommands.shrinkwrap]
+[subcommands.star]
+[subcommands.stars]
+[subcommands.start]
+options = ["--ignore-scripts", "--script-shell="]
+[subcommands.stop]
+options = ["--ignore-scripts", "--script-shell="]
+[subcommands.team]
+[subcommands.team.subcommands.create]
+[subcommands.team.subcommands.destroy]
+[subcommands.team.subcommands.add]
+[subcommands.team.subcommands.rm]
+[subcommands.team.subcommands.ls]
+[subcommands.test]
+aliases = ["t", "tst"]
+options = ["--ignore-scripts", "--script-shell="]
+[subcommands.token]
+[subcommands.token.subcommands.list]
+[subcommands.token.subcommands.revoke]
+[subcommands.token.subcommands.create]
+[subcommands.trust]
+[subcommands.undeprecate]
+[subcommands.uninstall]
+aliases = ["unlink", "remove", "rm", "r", "un"]
+options = ["-S", "--save", "--no-save", "-D", "--save-dev", "-O", "--save-optional"]
+[subcommands.unpublish]
+options = ["--otp="]
+[subcommands.unstar]
+
+[subcommands.update]
+aliases = ["up", "upgrade", "udpate"]
+options = ["-S", "--save", "--no-save", "--omit=", "--include=", "--strict-peer-deps", "--package-lock", "--foreground-scripts", "--ignore-scripts", "--audit", "--fund", "--install-links", "--legacy-peer-deps"]
+
+[subcommands.version]
+aliases = ["verison"]
+options = ["--allow-same-version", "--commit-hooks", "--git-tag-version", "--preid=", "--sign-git-tag", "-m=", "--message="]
+
+[subcommands.view]
+aliases = ["info", "show", "v"]
+[subcommands.whoami]

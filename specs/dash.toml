@@ -1,0 +1,3 @@
+# The zsh precommand modifier `-`: runs the command with a leading `-` in argv[0].
+name = "-"
+precommand = true

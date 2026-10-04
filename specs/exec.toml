@@ -1,0 +1,4 @@
+# The zsh precommand modifier `exec`.
+name = "exec"
+precommand = true
+options = ["-a=", "-c", "-l"]

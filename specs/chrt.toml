@@ -1,0 +1,23 @@
+# chrt(1) from util-linux: `chrt [OPTION]... PRIORITY COMMAND [ARG]...`.
+name = "chrt"
+precommand = true
+positional = 1
+options = [
+  "-a", "--all-tasks",
+  "-b", "--batch",
+  "-d", "--deadline",
+  "-e", "--ext",
+  "-f", "--fifo",
+  "-i", "--idle",
+  "-o", "--other",
+  "-r", "--rr",
+  "-R", "--reset-on-fork",
+  "-T=", "--sched-runtime=",
+  "-P=", "--sched-period=",
+  "-D=", "--sched-deadline=",
+  "-m", "--max",
+  "-p", "--pid",
+  "-v", "--verbose",
+  "-h", "--help",
+  "-V", "--version",
+]

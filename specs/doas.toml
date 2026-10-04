@@ -1,0 +1,4 @@
+# doas(1) from OpenBSD and OpenDoas.
+name = "doas"
+precommand = true
+options = ["-a=", "-C=", "-L", "-n", "-s", "-u="]
