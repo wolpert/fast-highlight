@@ -5,6 +5,7 @@ edition = "2024"
 rust-version = "1.88"
 license = "BSD-3-Clause"
 description = "Syntax highlighter for the zsh line editor, served by a persistent daemon"
+repository = "https://github.com/wolpert/fast-highlight"
 readme = "README.md"
 keywords = ["zsh", "shell", "syntax-highlighting"]
 categories = ["command-line-utilities"]

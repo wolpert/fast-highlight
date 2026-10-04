@@ -63,13 +63,13 @@ non-interactive shells, in shells whose standard input is not a terminal, and in
 The binary installs with `cargo install`, either directly from the repository:
 
 ```sh
-cargo install --git https://github.com/OWNER/fast-highlight
+cargo install --git https://github.com/wolpert/fast-highlight
 ```
 
 or from a local clone:
 
 ```sh
-git clone https://github.com/OWNER/fast-highlight
+git clone https://github.com/wolpert/fast-highlight
 cd fast-highlight
 cargo install --path .
 ```

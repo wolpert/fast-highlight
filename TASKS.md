@@ -400,13 +400,11 @@ Acceptance criteria:
 
 ### 33. Release publication
 
-The README installation command uses a placeholder URL
-(`https://github.com/OWNER/fast-highlight`). Packages need a public repository, tagged releases, and
-source archives with checksums.
+The repository is public at `https://github.com/wolpert/fast-highlight`. Packages need tagged
+releases and source archives with checksums.
 
 Acceptance criteria:
 
-- The README and man pages contain the real repository URL.
 - Tag `v0.1.0` exists, with a release archive and its SHA-256 checksum published.
 - A check fails the build when the Rust version in the README requirements table differs from
   `rust-version` in `Cargo.toml`.
