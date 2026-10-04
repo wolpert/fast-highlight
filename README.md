@@ -43,7 +43,7 @@ The wire protocol between the plugin and the daemon is specified in
 | zsh modules       | `zsh/system`, `zsh/datetime`, and `zsh/parameter`; `zsh/zselect` optional    |
 | External commands | `mkfifo`, run each time the daemon starts                                    |
 | Temporary storage | A writable `${TMPDIR:-/tmp}`, where the plugin creates a private FIFO directory |
-| Rust              | A stable toolchain, 1.85 or later (edition 2024), to build                   |
+| Rust              | A stable toolchain, 1.88 or later (edition 2024), to build                   |
 | Operating system  | Linux, macOS, or FreeBSD                                                     |
 
 zsh 5.9 adds the `memo=` field to `region_highlight` entries, which the plugin uses to remove
@@ -206,7 +206,7 @@ subshell, so a forked copy of the shell cannot stop the parent's daemon.
 | `fasthl-enable`  | Undoes `fasthl-disable`. Searches for the binary again; when there is none, prints `fasthl-enable: fast-highlight binary not found (set FASTHL_BIN)` to standard error and returns 1. |
 | `fasthl-reload`  | Searches for the binary again, reloads the theme into `FASTHL_STYLES` (keeping entries set or changed since the last load), and restarts the daemon, which rereads `config.toml` and the spec files and receives the full shell state. |
 
-The plugin reads four variables, all optional:
+The plugin reads five variables, all optional:
 
 | Variable            | Meaning                                                                              |
 |---------------------|--------------------------------------------------------------------------------------|
@@ -214,6 +214,7 @@ The plugin reads four variables, all optional:
 | `FASTHL_TIMEOUT`    | Seconds the plugin waits for the daemon per redraw. Default `0.05`. A value that is not a decimal number counts as unset. Read on every redraw. |
 | `FASTHL_STYLES`     | Associative array mapping token types to `region_highlight` styles. Filled from `fast-highlight styles` when the plugin loads. Entries assigned after sourcing take precedence over the theme and survive `fasthl-reload`. An empty value leaves a token type unstyled. The plugin passes values to zsh without validating them. |
 | `FASTHL_SERVE_ARGS` | Array of extra arguments for `fast-highlight serve`, such as `(--timing)` or `(--log /tmp/fh.log)`. Read each time the daemon starts. |
+| `FASTHL_MAX_LENGTH` | Most bytes of `PREBUFFER` followed by `BUFFER` the plugin sends to the daemon. Default `65536`. A longer command line is not sent and gets no highlighting. A value that is not a decimal integer of at most 15 digits counts as unset. Raising it has an effect only together with `limits.hard-cap-bytes`. Read on every redraw. |
 
 When the daemon misses `FASTHL_TIMEOUT`, crashes, or sends a malformed frame, the plugin kills it
 and leaves that redraw unhighlighted. It starts a new daemon after a backoff that begins at 0.5
@@ -305,7 +306,8 @@ through `fast-highlight styles`, when it loads. After any change in the director
 |----------------------------|---------|------------|----------------------------------------------------------------|
 | `theme`                    | string  | unset      | Theme name; see [Theme selection](#theme-selection). Must be non-empty, must not start with `.`, and must not contain `/`. |
 | `limits.lex-only-bytes`    | integer | `10240`    | Above this many bytes of text, the daemon reports syntax only. |
-| `limits.hard-cap-bytes`    | integer | `262144`   | Above this many bytes of text, the daemon reports nothing. Must be greater than 0 and at least `limits.lex-only-bytes`. |
+| `limits.hard-cap-bytes`    | integer | `65536`    | Above this many bytes of text, the daemon reports nothing. Must be greater than 0 and at least `limits.lex-only-bytes`. |
+| `limits.max-spans`         | integer | `500`      | Most ranges the daemon returns per request; a longer list is cut to its first `limits.max-spans` ranges. Must be greater than 0. |
 | `limits.max-path-checks`   | integer | `64`       | Uncached filesystem checks allowed per request. `0` disables path checks. |
 | `limits.path-cache-ttl-ms` | integer | `1000`     | Milliseconds a cached filesystem check stays valid.            |
 | `log.timing`               | boolean | `false`    | Write one timing line per request to the log.                  |
@@ -323,7 +325,8 @@ theme = "mine"
 
 [limits]
 lex-only-bytes = 10240
-hard-cap-bytes = 262144
+hard-cap-bytes = 65536
+max-spans = 500
 max-path-checks = 64
 path-cache-ttl-ms = 1000
 
@@ -409,11 +412,12 @@ FASTHL_STYLES=(
 )
 ```
 
-Token types with an empty style are omitted. When `config.toml` or the theme has an error, the
-command prints the error to standard error, prints the built-in `default` theme, and exits with
-status 1. The plugin discards the output of a failed `styles` run and uses a fallback table built
-into the plugin, which differs from the `default` theme in several entries. `fast-highlight
-check-config` shows the error.
+Token types with an empty style are omitted. When `config.toml` has an error, the command prints
+the error to standard error and selects the theme as if `config.toml` set no `theme`. When the
+theme has an error, it prints the error and the built-in `default` theme. Either error makes the
+exit status 1. The plugin uses the output whatever the exit status. Only when `styles` prints no
+table at all does the plugin use a fallback table of its own, which matches the `default` theme.
+`fast-highlight check-config` shows the error.
 
 ### Style overrides in .zshrc
 
@@ -595,21 +599,26 @@ options = [
 | `fast-highlight help`, `--help`, `-h` | Prints the usage summary.                                       |
 | `fast-highlight --version`, `-V` | Prints the version.                                                  |
 
-The exit status is 0 on success, 1 on failure, and 2 on a usage error.
+The exit status is 0 on success, 1 on failure, and 2 on a usage error. Every command other than
+`serve` ends quietly, without an error message, when its standard output is a closed pipe, as in
+`fast-highlight check-config | head -1`.
 
 ### serve
 
 | Option         | Effect                                                                           |
 |----------------|----------------------------------------------------------------------------------|
 | `--timing`     | Writes one timing line per request to the log, as `log.timing = true` does.     |
-| `--log PATH`   | Uses `PATH` as the log file, overriding `log.file`.                              |
+| `--log PATH`   | Uses `PATH` as the log file, overriding `log.file`. A relative `PATH` is resolved against the directory the daemon started in. |
 | `--parent PID` | Exits once process `PID` no longer exists. `PID` must be a positive integer.    |
 
-The daemon exits on a quit request, at end of input, on a framing error or a write error, and when
-its parent process exits. The plugin passes `--parent` with the shell's process ID, so the daemon
-also exits when the shell is gone but something else still holds the FIFOs open. The daemon writes
-nothing but response frames to standard output and nothing to standard error; diagnostics go to the
-log file.
+The daemon exits on a quit request, at end of input, on a framing error, when reading standard
+input or writing standard output fails, and when its parent process exits. The plugin passes
+`--parent` with the shell's process ID, so the daemon also exits when the shell is gone but
+something else still holds the FIFOs open. The daemon writes nothing but response frames to
+standard output and nothing to standard error; diagnostics go to the log file.
+
+The daemon's working directory is `/`, so it does not keep the file system it started on busy. It
+resolves relative paths against the directory it started in until a request names another.
 
 ### highlight
 
@@ -658,13 +667,26 @@ Size limits, measured in bytes of `PREBUFFER` followed by `BUFFER`:
 | Limit                   | Default        | Behaviour above the limit                                          |
 |-------------------------|----------------|--------------------------------------------------------------------|
 | `limits.lex-only-bytes` | 10240 (10 KiB) | Syntax only: no command classification, spec matching, or path checks, so no unknown-command errors. |
-| `limits.hard-cap-bytes` | 262144 (256 KiB) | No highlighting at all.                                          |
+| `limits.hard-cap-bytes` | 65536 (64 KiB) | No highlighting at all.                                            |
+
+The plugin applies its own limit, `FASTHL_MAX_LENGTH`, with the same default as
+`limits.hard-cap-bytes`. A command line above it is not sent to the daemon and gets no
+highlighting. Raising one of the two limits has no effect without raising the other.
+
+The daemon returns at most `limits.max-spans` ranges per request, the first ones in order.
 
 Filesystem checks are cached for `limits.path-cache-ttl-ms` and limited to
 `limits.max-path-checks` uncached checks per request. An argument whose check would exceed the
 limit gets no path highlighting, and a command word containing `/` gets no highlighting rather than
-a possibly wrong error. The daemon rescans `$PATH` when it changes and when the modification time
-of a listed directory changes, checking at most once per second.
+a possibly wrong error.
+
+Every entry of a `$PATH` directory that is not a directory counts as a command, as in zsh with
+`HASH_EXECUTABLES_ONLY` unset; permissions are not checked. The daemon caches the names in each
+directory together with the directory's modification time. When `$PATH` changes, it reads the
+directories it has not read before and those whose modification time changed. Between requests,
+at most once per second, it rereads each listed directory whose modification time has changed. A
+change the modification time does not show is picked up after `rehash` or `hash -r` in the shell:
+the plugin then asks the daemon to reread every directory.
 
 ### Timing measurement
 
@@ -737,8 +759,9 @@ so either of two setups makes the pages available.
 
 ### Unexpected colours
 
-- A theme or `config.toml` error makes the plugin use its fallback table instead of the theme.
-  `fast-highlight check-config` shows the error.
+- A theme error makes the plugin use the built-in `default` theme. A `config.toml` error makes it
+  ignore the `theme` key and use `theme.toml` or the `default` theme. `fast-highlight
+  check-config` shows the error.
 - An entry assigned to `FASTHL_STYLES` in `.zshrc` overrides the theme.
 - zsh-syntax-highlighting or fast-syntax-highlighting is still loaded; see
   [Removal of other highlighters](#removal-of-other-highlighters).
@@ -783,6 +806,11 @@ cargo fmt --check
 
 `cargo test` includes snapshot tests written with `insta`, stored in `tests/snapshots/`. After an
 intended change in output, `cargo insta review` (from the `cargo-insta` tool) updates them.
+
+`cargo test` also runs the CLI tests (`tests/cli.rs`), a replay of the committed fuzz seeds
+(`tests/fuzz_replay.rs`), and the zsh plugin suite described below (`tests/zsh_plugin.rs`), which
+passes without running the suite when `zsh` or `python3` is not installed. The latency tests run
+only in an optimised build, with `cargo test --release`.
 
 ### zsh plugin tests
 

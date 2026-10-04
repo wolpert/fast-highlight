@@ -74,10 +74,21 @@ followed by
 Above this size, the daemon skips command and filesystem lookups and reports only the syntax
 of the text.
 .TP
-.BR hard-cap-bytes " (integer, default 262144)"
+.BR hard-cap-bytes " (integer, default 65536)"
 Above this size, the daemon returns no highlighting.
 The value is greater than 0 and at least
 .BR lex-only-bytes .
+The plugin does not send a command line longer than
+.B FASTHL_MAX_LENGTH
+bytes, which defaults to the same 65536, so raising this limit has an effect only together with
+that variable.
+.TP
+.BR max-spans " (integer, default 500)"
+The most spans the daemon returns for one request.
+A longer list is cut to its first
+.B max-spans
+spans.
+The value is greater than 0.
 .TP
 .BR max-path-checks " (integer, default 64)"
 The maximum number of filesystem checks per highlight request.
@@ -722,7 +733,7 @@ theme = "mine"
 \&
 [limits]
 lex\-only\-bytes = 20480
-hard\-cap\-bytes = 262144
+hard\-cap\-bytes = 65536
 \&
 [log]
 timing = true

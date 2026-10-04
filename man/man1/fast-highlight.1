@@ -56,7 +56,7 @@ The plugin maps each token type to a zsh highlight style through its style table
 .BR region_highlight .
 .PP
 The daemon checks command names against the shell's aliases, functions, builtins, and reserved
-words, which the plugin sends, and against the executables in
+words, which the plugin sends, and against the commands in
 .BR PATH ,
 which it scans itself.
 It checks paths on disk, recognises the subcommands and options of commands that have a
@@ -105,6 +105,11 @@ writing fails, or when its parent process exits.
 The parent process counts as exited once the daemon's parent process id differs from the one it
 had at startup.
 The daemon checks this at least once per second while its input is idle.
+.IP
+The daemon changes its working directory to
+.BR / ,
+so it does not keep the file system it started on busy.
+It resolves relative paths against the directory it started in until a request names another.
 .RS
 .TP
 .B \-\-timing
@@ -127,6 +132,9 @@ key in the
 table of
 .B config.toml
 and the default location.
+A relative
+.I path
+is resolved against the directory the daemon started in.
 .TP
 .BI \-\-parent " pid"
 Watches the process
@@ -201,7 +209,7 @@ loads
 .B config.toml
 and the command specs as the daemon does, and reports config errors and spec warnings on
 standard error without changing the exit status.
-It knows zsh's builtins and reserved words and the executables in its own
+It knows zsh's builtins and reserved words and the commands in its own
 .BR PATH ,
 but no aliases, functions, or named directories, because no shell sends it any.
 Text longer than the
@@ -271,10 +279,12 @@ It renders
 .BR underline ,
 .BR standout ,
 and
-.BR none ;
-three-digit
+.BR none .
+A three-digit
 .BI # rgb
-colours are not rendered.
+colour is rendered as
+.BI # rrggbb ,
+as zsh reads it.
 .TP
 .B \-\-
 Ends option parsing; every later argument is
@@ -356,9 +366,26 @@ under
 A result body is one line per span,
 .IR "start end kind" ,
 in the request's offset unit.
+A result holds at most
+.B max-spans
+spans, the first ones in order, and is empty when the text exceeds
+.BR hard-cap-bytes ;
+both limits are described in
+.BR fast-highlight (5).
 A state request carries the shell's aliases, global aliases, suffix aliases, functions, builtins,
 reserved words, named directories, and
-.BR PATH .
+.BR PATH ,
+and a
+.B rehash
+field after the user runs
+.B rehash
+or
+.B hash \-r
+in the shell, which makes the daemon reread every
+.B PATH
+directory.
+A malformed named-directory list is ignored with a warning in the log, and the rest of the state
+request applies.
 .PP
 The normative specification is
 .B docs/protocol.md
@@ -473,7 +500,11 @@ styles such as
 .BR fg=green,bold .
 The plugin fills it from
 .B fast-highlight styles
-when it loads, or from a built-in table when that command fails.
+when it loads, whatever its exit status, so a broken theme or config file yields the theme that
+.B styles
+falls back to.
+Only when that command prints no table does the plugin use a built-in table of its own, which
+matches the default theme.
 An entry assigned after the plugin is sourced overrides the theme and survives
 .BR fasthl-reload .
 An empty style leaves the token type unstyled.
@@ -484,6 +515,20 @@ An array of extra arguments for
 such as
 .BR "(\-\-timing)" .
 It is read each time the daemon starts.
+.TP
+.B FASTHL_MAX_LENGTH
+The most bytes of
+.B PREBUFFER
+followed by
+.B BUFFER
+the plugin sends to the daemon.
+A longer command line is not sent and gets no highlighting.
+A value that is not a decimal integer of at most 15 digits is ignored.
+The default is 65536, the default of
+.B hard-cap-bytes
+in
+.BR fast-highlight (5);
+raising one has no effect without raising the other.
 .SS Shell functions
 .TP
 .B fasthl-reload
@@ -533,6 +578,12 @@ no plugin file found.
 A usage error: a missing or unknown command, an unknown option, a missing or invalid option
 value, or an unexpected argument.
 The message and the usage summary go to standard error.
+.PP
+Every command other than
+.B serve
+ends quietly, by
+.BR SIGPIPE ,
+when its standard output is a closed pipe.
 .SH ENVIRONMENT
 .TP
 .B FAST_HIGHLIGHT_CONFIG_DIR
@@ -582,6 +633,11 @@ The daemon scans the directories in its own
 at startup and replaces the list with the
 .B PATH
 of the shell when the plugin sends it.
+Every entry of a listed directory that is not a directory counts as a command, as in zsh with
+.B HASH_EXECUTABLES_ONLY
+unset; permissions are not checked.
+The daemon caches each directory's names with its modification time and, between requests and at
+most once per second, rereads the directories whose modification time has changed.
 .B highlight
 uses its own
 .BR PATH .
