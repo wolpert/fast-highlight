@@ -20,5 +20,6 @@ pub mod protocol;
 pub mod specs;
 pub mod state;
 pub mod syntax;
+pub mod text;
 pub mod theme;
 pub mod token;
