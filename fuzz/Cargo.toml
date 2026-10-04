@@ -1,0 +1,62 @@
+# cargo-fuzz targets for fast-highlight. Not part of the main package or workspace.
+#
+# Requires a nightly toolchain and cargo-fuzz (`cargo install cargo-fuzz`). Run from the
+# repository root:
+#
+#   cargo +nightly fuzz list
+#   cargo +nightly fuzz run lexer fuzz/corpus/lexer fuzz/seeds/lexer -- -max_len=4096
+#   cargo +nightly fuzz run highlight fuzz/corpus/highlight fuzz/seeds/highlight -- -max_len=4096
+#   cargo +nightly fuzz run protocol fuzz/corpus/protocol fuzz/seeds/protocol -- -max_len=4096
+#
+# libFuzzer writes new inputs to the first directory, so create it first
+# (`mkdir -p fuzz/corpus/<target>`) or start from a copy of the seeds
+# (`mkdir -p fuzz/corpus && cp -r fuzz/seeds/* fuzz/corpus/`). Add `-max_total_time=60` for a
+# time-limited run.
+#
+# fuzz/seeds/ is committed and is regenerated from the snapshot tests and the protocol examples
+# by `python3 fuzz/make_seeds.py`. fuzz/corpus/ and fuzz/artifacts/ are not committed.
+#
+# Each target reads a small header from the start of the input; see the comment at the top of
+# its file under fuzz_targets/. To replay a crash: `cargo +nightly fuzz run <target> <file>`.
+# Reproducers for bugs found by fuzzing live in fuzz/regressions/<target>/.
+
+[package]
+name = "fast-highlight-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+arbitrary = { version = "1", features = ["derive"] }
+libfuzzer-sys = "0.4"
+
+[dependencies.fast-highlight]
+path = ".."
+
+# Keep the fuzz crate out of any parent workspace.
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "lexer"
+path = "fuzz_targets/lexer.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "highlight"
+path = "fuzz_targets/highlight.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "protocol"
+path = "fuzz_targets/protocol.rs"
+test = false
+doc = false
+bench = false
