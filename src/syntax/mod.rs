@@ -13,6 +13,11 @@
 
 use crate::token::Span;
 
+mod parser;
+#[cfg(test)]
+mod tests;
+mod word;
+
 /// Shell options that change how the input is lexed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ParseOptions {
@@ -71,6 +76,7 @@ pub struct ParseOutput {
 
 /// Parses `input` and returns its syntactic spans and command structure. Never panics.
 pub fn parse(input: &str, opts: &ParseOptions) -> ParseOutput {
-    let _ = (input, opts);
-    ParseOutput::default()
+    let mut parser = parser::Parser::new(input, *opts);
+    parser.run();
+    parser.finish()
 }

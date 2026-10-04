@@ -1,0 +1,9 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "sort <"
+spans:
+  5..6 redirection "<"
+commands:
+  "sort"

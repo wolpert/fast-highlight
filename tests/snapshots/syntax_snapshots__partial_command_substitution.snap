@@ -1,0 +1,10 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "echo $(git sta"
+spans:
+  5..7 substitution "$("
+commands:
+  "echo" | "$(git sta" (expanded)
+  "git" | "sta"

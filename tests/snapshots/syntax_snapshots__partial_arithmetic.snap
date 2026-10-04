@@ -1,0 +1,9 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "echo $((1 + (2"
+spans:
+  5..14 arithmetic "$((1 + (2"
+commands:
+  "echo" | "$((1 + (2" (expanded)

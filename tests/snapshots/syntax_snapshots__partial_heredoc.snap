@@ -1,0 +1,11 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "cat <<EOF\nline one\nli"
+spans:
+  4..6 redirection "<<"
+  6..9 heredoc "EOF"
+  10..21 heredoc "line one\nli"
+commands:
+  "cat"

@@ -1,0 +1,8 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "^old^new"
+spans:
+  0..8 history-expansion "^old^new"
+commands:

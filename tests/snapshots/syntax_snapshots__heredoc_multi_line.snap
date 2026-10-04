@@ -1,0 +1,19 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "cat <<EOF <<-'RAW' >out\nhello $USER\nEOF\n\t$not\n\tRAW\necho next"
+spans:
+  4..6 redirection "<<"
+  6..9 heredoc "EOF"
+  10..13 redirection "<<-"
+  13..18 heredoc "'RAW'"
+  19..20 redirection ">"
+  24..39 heredoc "hello $USER\nEOF"
+  30..35 parameter "$USER"
+  40..50 heredoc "\t$not\n\tRAW"
+commands:
+  "cat"
+  "echo" | "next"
+path words:
+  "out"

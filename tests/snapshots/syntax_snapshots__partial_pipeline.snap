@@ -1,0 +1,9 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "ls -l |"
+spans:
+  6..7 separator "|"
+commands:
+  "ls" | "-l"

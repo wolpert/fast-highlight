@@ -1,0 +1,22 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "foo() { local x=1 arr=(a b); y+=2 cmd $'a\\tb' }"
+spans:
+  0..3 function "foo"
+  3..4 grouping "("
+  4..5 grouping ")"
+  6..7 reserved-word "{"
+  14..16 assignment "x="
+  18..22 assignment "arr="
+  22..23 assignment "("
+  26..27 assignment ")"
+  27..28 separator ";"
+  29..32 assignment "y+="
+  38..45 dollar-quoted "$'a\\tb'"
+  41..43 escape "\\t"
+  46..47 reserved-word "}"
+commands:
+  "local" | "x=1" | "arr=(a b)" (expanded)
+  "cmd" | "$'a\\tb'" (literal "a\tb")

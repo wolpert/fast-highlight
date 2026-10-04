@@ -1,0 +1,21 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "(( i++ )); echo $(( (1+2) * $n )) $((cd /; ls)); ((cd /) | wc)"
+spans:
+  0..9 arithmetic "(( i++ ))"
+  9..10 separator ";"
+  16..33 arithmetic "$(( (1+2) * $n ))"
+  28..30 parameter "$n"
+  34..47 arithmetic "$((cd /; ls))"
+  47..48 separator ";"
+  49..50 grouping "("
+  50..51 grouping "("
+  55..56 grouping ")"
+  57..58 separator "|"
+  61..62 grouping ")"
+commands:
+  "echo" | "$(( (1+2) * $n ))" (expanded) | "$((cd /; ls))" (expanded)
+  "cd" | "/"
+  "wc"

@@ -1,0 +1,16 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "日本 | | 語 \"!! ü\" >| 🎉 fi"
+spans:
+  7..8 separator "|"
+  9..10 error "|"
+  15..22 double-quoted "\"!! ü\""
+  16..18 history-expansion "!!"
+  23..25 redirection ">|"
+commands:
+  "日本"
+  "語" | "\"!! ü\"" (expanded) | "fi"
+path words:
+  "🎉"

@@ -1,0 +1,13 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "case $x in\n  a)"
+spans:
+  0..4 reserved-word "case"
+  5..7 parameter "$x"
+  8..10 reserved-word "in"
+  14..15 grouping ")"
+commands:
+path words:
+  "$x" (expanded)

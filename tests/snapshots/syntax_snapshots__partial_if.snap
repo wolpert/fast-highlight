@@ -1,0 +1,16 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "if [[ -n $x ]]; then"
+spans:
+  0..2 reserved-word "if"
+  3..5 reserved-word "[["
+  6..8 operator "-n"
+  9..11 parameter "$x"
+  12..14 reserved-word "]]"
+  14..15 separator ";"
+  16..20 reserved-word "then"
+commands:
+path words:
+  "$x" (expanded)

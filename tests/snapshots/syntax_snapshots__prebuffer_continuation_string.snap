@@ -1,0 +1,11 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "echo \"first line\nsecond $x\" \\\n  more"
+spans:
+  5..27 double-quoted "\"first line\nsecond $x\""
+  24..26 parameter "$x"
+  28..30 escape "\\\n"
+commands:
+  "echo" | "\"first line\nsecond $x\"" (expanded) | "more"

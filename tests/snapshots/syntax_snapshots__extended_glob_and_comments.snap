@@ -1,0 +1,18 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, opts)"
+---
+input: "ls ^*.o *.c~x.c a## (#i)y *(#qN) ~/d # list $files"
+options: ParseOptions { interactive_comments: true, extended_glob: true, ksh_glob: false }
+spans:
+  3..4 glob "^"
+  4..5 glob "*"
+  8..9 glob "*"
+  11..12 glob "~"
+  17..19 glob "##"
+  20..24 glob "(#i)"
+  26..27 glob "*"
+  27..32 glob-qualifier "(#qN)"
+  37..50 comment "# list $files"
+commands:
+  "ls" | "^*.o" (expanded, glob) | "*.c~x.c" (expanded, glob) | "a##" (expanded, glob) | "(#i)y" (expanded, glob) | "*(#qN)" (expanded, glob) | "~/d" (tilde)

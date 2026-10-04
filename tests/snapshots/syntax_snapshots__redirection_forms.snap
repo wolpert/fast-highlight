@@ -1,0 +1,27 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "cmd 2>&1 >&- <&3 &>a &>>b >|c >!d <>e {fd}>f <<<\"s\" >& 2"
+spans:
+  4..8 redirection "2>&1"
+  9..12 redirection ">&-"
+  13..16 redirection "<&3"
+  17..19 redirection "&>"
+  21..24 redirection "&>>"
+  26..28 redirection ">|"
+  30..32 redirection ">!"
+  34..36 redirection "<>"
+  38..43 redirection "{fd}>"
+  45..48 redirection "<<<"
+  48..51 double-quoted "\"s\""
+  52..54 redirection ">&"
+commands:
+  "cmd"
+path words:
+  "a"
+  "b"
+  "c"
+  "d"
+  "e"
+  "f"

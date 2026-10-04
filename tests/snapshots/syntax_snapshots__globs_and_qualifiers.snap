@@ -1,0 +1,20 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "ls *(.) **/*.rs(N) [a-z]?* <1-5> (a|b).txt"
+spans:
+  3..4 glob "*"
+  4..7 glob-qualifier "(.)"
+  8..11 glob "**/"
+  11..12 glob "*"
+  15..18 glob-qualifier "(N)"
+  19..24 glob "[a-z]"
+  24..25 glob "?"
+  25..26 glob "*"
+  27..32 glob "<1-5>"
+  33..34 glob "("
+  35..36 glob "|"
+  37..38 glob ")"
+commands:
+  "ls" | "*(.)" (expanded, glob) | "**/*.rs(N)" (expanded, glob) | "[a-z]?*" (expanded, glob) | "<1-5>" (expanded, glob) | "(a|b).txt" (expanded, glob)

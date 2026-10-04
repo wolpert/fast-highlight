@@ -1,0 +1,10 @@
+---
+source: tests/syntax_snapshots.rs
+expression: "render(input, ParseOptions::default())"
+---
+input: "echo \"abc $x"
+spans:
+  5..12 double-quoted "\"abc $x"
+  10..12 parameter "$x"
+commands:
+  "echo" | "\"abc $x" (expanded)
