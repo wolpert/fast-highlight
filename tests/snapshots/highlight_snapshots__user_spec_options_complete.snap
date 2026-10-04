@@ -1,0 +1,34 @@
+---
+source: tests/highlight_snapshots.rs
+expression: out
+---
+input: "git commit --am"
+  0..3 command "git"
+  4..10 subcommand "commit"
+
+input: "git commit --am"
+cursor: 0
+  0..3 command "git"
+  4..10 subcommand "commit"
+  11..15 error "--am"
+
+input: "git commit --amx"
+  0..3 command "git"
+  4..10 subcommand "commit"
+  11..16 error "--amx"
+
+input: "git commit --amend --bogus"
+  0..3 command "git"
+  4..10 subcommand "commit"
+  11..18 option "--amend"
+  19..26 error "--bogus"
+
+input: "git commit --am notes.txt"
+cursor: 15
+  0..3 command "git"
+  4..10 subcommand "commit"
+  16..25 path "notes.txt"
+
+input: "git commit --no-ver"
+  0..3 command "git"
+  4..10 subcommand "commit"

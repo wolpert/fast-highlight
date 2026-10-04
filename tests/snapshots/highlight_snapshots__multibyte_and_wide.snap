@@ -1,0 +1,37 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "echo \"héllo 世界\" 日本語.txt $名前 🎉"
+cursor: 0
+  0..4 builtin "echo"
+  5..15 double-quoted "\"héllo 世界\""
+  16..23 path "日本語.txt"
+  24..27 parameter "$名前"
+
+input: "cat 日本"
+  0..3 command "cat"
+  4..6 path-prefix "日本"
+
+input: "ls 日本語.txt | grep 'ü' > 出力.txt"
+cursor: 0
+  0..2 command "ls"
+  3..10 path "日本語.txt"
+  11..12 separator "|"
+  13..17 command "grep"
+  18..21 single-quoted "'ü'"
+  22..23 redirection ">"
+
+input: "日本 arg"
+cursor: 0
+  0..2 error "日本"
+
+prebuffer: "echo \"日本\n"
+input: "語\" 🎉 notes.txt"
+  0..2 double-quoted "語\""
+  5..14 path "notes.txt"
+
+input: "cat 日本 x"
+cursor: 6
+  0..3 command "cat"
+  4..6 path-prefix "日本"

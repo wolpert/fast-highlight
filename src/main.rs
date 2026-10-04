@@ -16,8 +16,10 @@ const USAGE: &str = "\
 usage: fast-highlight <command> [options]
 
 commands:
-  serve [--timing] [--log PATH]
+  serve [--timing] [--log PATH] [--parent PID]
       Run the daemon on standard input and output (started by the zsh plugin).
+      It exits when its parent process exits, and with --parent also when
+      process PID no longer exists (the plugin passes the shell's $$).
   styles
       Print the active theme as zsh code for the plugin's style table.
   highlight [--cwd DIR] [--opts LETTERS] [--timing] [--repeat N]
@@ -124,6 +126,13 @@ fn parse_serve(args: &[OsString]) -> Result<ServeOptions, String> {
         match arg.to_string_lossy().as_ref() {
             "--timing" => opts.timing = true,
             "--log" => opts.log = Some(PathBuf::from(option_value("--log", &mut it)?)),
+            "--parent" => {
+                let value = option_value("--parent", &mut it)?.to_string_lossy();
+                // Zero and negative ids name process groups for kill(2); reject them.
+                let pid = value.parse().ok().filter(|&p: &libc::pid_t| p > 0);
+                opts.parent =
+                    Some(pid.ok_or_else(|| format!("--parent needs a process id, not '{value}'"))?);
+            }
             other => return Err(format!("unknown serve argument '{other}'")),
         }
     }
@@ -573,6 +582,10 @@ mod tests {
         assert!(parse(&["styles", "extra"]).is_err());
         assert!(parse(&["serve", "--bogus"]).is_err());
         assert!(parse(&["serve", "--log"]).is_err());
+        assert!(parse(&["serve", "--parent"]).is_err());
+        for bad in ["0", "-1", "x", "", "99999999999"] {
+            assert!(parse(&["serve", "--parent", bad]).is_err(), "{bad}");
+        }
         assert!(parse(&["highlight", "--repeat", "0"]).is_err());
         assert!(parse(&["highlight", "--repeat", "x"]).is_err());
         assert!(parse(&["highlight", "--format", "html"]).is_err());
@@ -591,6 +604,14 @@ mod tests {
             Ok(Command::Serve(ServeOptions {
                 timing: true,
                 log: Some(PathBuf::from("/tmp/x.log")),
+                parent: None,
+            }))
+        );
+        assert_eq!(
+            parse(&["serve", "--parent", "4242"]),
+            Ok(Command::Serve(ServeOptions {
+                parent: Some(4242),
+                ..ServeOptions::default()
             }))
         );
     }

@@ -1,0 +1,53 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "gi"
+
+input: "gi"
+cursor: 0
+  0..2 error "gi"
+
+input: "gix"
+  0..3 error "gix"
+
+input: "mk"
+
+input: "./bui"
+  0..5 path-prefix "./bui"
+
+input: "./zz"
+  0..4 error "./zz"
+
+input: "systemctl stat"
+  0..9 command "systemctl"
+
+input: "systemctl stat"
+cursor: 0
+  0..9 command "systemctl"
+  10..14 error "stat"
+
+input: "systemctl statx"
+  0..9 command "systemctl"
+  10..15 error "statx"
+
+input: "docker container l"
+  0..6 command "docker"
+  7..16 subcommand "container"
+
+input: "git remote ad"
+  0..3 command "git"
+  4..10 subcommand "remote"
+
+input: "npm st"
+  0..3 command "npm"
+
+input: "systemctl stat nginx"
+cursor: 14
+  0..9 command "systemctl"
+
+input: "ls not src"
+cursor: 6
+  0..2 command "ls"
+  3..6 path-prefix "not"
+  7..10 path-directory "src"

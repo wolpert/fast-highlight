@@ -1,0 +1,54 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "echo \"unterminated $HOME"
+  0..4 builtin "echo"
+  5..24 double-quoted "\"unterminated $HOME"
+  19..24 parameter "$HOME"
+
+input: "echo 'unterminated"
+  0..4 builtin "echo"
+  5..18 single-quoted "'unterminated"
+
+input: "echo $(ls"
+  0..4 builtin "echo"
+  5..7 substitution "$("
+  7..9 command "ls"
+
+input: "echo ${HO"
+  0..4 builtin "echo"
+  5..9 parameter "${HO"
+
+input: "echo $((1 +"
+  0..4 builtin "echo"
+  5..11 arithmetic "$((1 +"
+
+input: "if true; then"
+  0..2 reserved-word "if"
+  3..7 builtin "true"
+  7..8 separator ";"
+  9..13 reserved-word "then"
+
+input: "for x in"
+  0..3 reserved-word "for"
+  6..8 reserved-word "in"
+
+input: "ls |"
+  0..2 command "ls"
+  3..4 separator "|"
+
+input: "ls &&"
+  0..2 command "ls"
+  3..5 separator "&&"
+
+input: "ls >"
+  0..2 command "ls"
+  3..4 redirection ">"
+
+input: "git "
+  0..3 command "git"
+
+input: "case x in"
+  0..4 reserved-word "case"
+  7..9 reserved-word "in"

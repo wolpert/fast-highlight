@@ -1,0 +1,58 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "ls > out.txt 2>&1 >> notes.txt < notes.txt"
+cursor: 0
+  0..2 command "ls"
+  3..4 redirection ">"
+  13..17 redirection "2>&1"
+  18..20 redirection ">>"
+  21..30 path "notes.txt"
+  31..32 redirection "<"
+  33..42 path "notes.txt"
+
+input: "ls &> /dev/null 2>/dev/null >| out"
+cursor: 0
+  0..2 command "ls"
+  3..5 redirection "&>"
+  6..15 path "/dev/null"
+  16..18 redirection "2>"
+  18..27 path "/dev/null"
+  28..30 redirection ">|"
+
+input: "cat <<< \"here string\""
+cursor: 0
+  0..3 command "cat"
+  4..7 redirection "<<<"
+  8..21 double-quoted "\"here string\""
+
+input: "cat <<EOF\nline $HOME\nEOF"
+cursor: 0
+  0..3 command "cat"
+  4..6 redirection "<<"
+  6..9 heredoc "EOF"
+  10..24 heredoc "line $HOME\nEOF"
+  15..20 parameter "$HOME"
+
+input: "cat <<-'EOF' > out\n\tliteral $x\n\tEOF\nls"
+cursor: 0
+  0..3 command "cat"
+  4..7 redirection "<<-"
+  7..12 heredoc "'EOF'"
+  13..14 redirection ">"
+  19..35 heredoc "\tliteral $x\n\tEOF"
+  36..38 command "ls"
+
+input: "cat <<EOF\nunterminated"
+  0..3 command "cat"
+  4..6 redirection "<<"
+  6..9 heredoc "EOF"
+  10..22 heredoc "unterminated"
+
+input: "exec 3<> notes.txt 4>&-"
+cursor: 0
+  0..4 precommand "exec"
+  5..8 redirection "3<>"
+  9..18 path "notes.txt"
+  19..23 redirection "4>&-"

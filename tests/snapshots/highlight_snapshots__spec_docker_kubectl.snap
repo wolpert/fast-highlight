@@ -1,0 +1,62 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "docker run --rm -it -e A=1 ubuntu bash -l"
+cursor: 0
+  0..6 command "docker"
+  7..10 subcommand "run"
+  11..15 option "--rm"
+  16..19 option "-it"
+  20..22 option "-e"
+
+input: "docker container ls -a"
+cursor: 0
+  0..6 command "docker"
+  7..16 subcommand "container"
+  17..19 subcommand "ls"
+  20..22 option "-a"
+
+input: "docker container frob"
+cursor: 0
+  0..6 command "docker"
+  7..16 subcommand "container"
+  17..21 error "frob"
+
+input: "docker ps -q"
+cursor: 0
+  0..6 command "docker"
+  7..9 subcommand "ps"
+  10..12 option "-q"
+
+input: "docker compose up -d"
+cursor: 0
+  0..6 command "docker"
+  7..14 subcommand "compose"
+  15..17 subcommand "up"
+  18..20 option "-d"
+
+input: "kubectl get pods -n kube-system -o wide"
+cursor: 0
+  0..7 command "kubectl"
+  8..11 subcommand "get"
+  17..19 option "-n"
+  32..34 option "-o"
+
+input: "kubectl config use-context prod"
+cursor: 0
+  0..7 command "kubectl"
+  8..14 subcommand "config"
+  15..26 subcommand "use-context"
+
+input: "kubectl config frob"
+cursor: 0
+  0..7 command "kubectl"
+  8..14 subcommand "config"
+  15..19 error "frob"
+
+input: "kubectl rollout restart deployment/web"
+cursor: 0
+  0..7 command "kubectl"
+  8..15 subcommand "rollout"
+  16..23 subcommand "restart"

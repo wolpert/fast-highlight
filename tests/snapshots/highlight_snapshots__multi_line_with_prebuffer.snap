@@ -1,0 +1,42 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+prebuffer: "echo \"first line\n"
+input: "second $HOME\" notes.txt"
+  0..13 double-quoted "second $HOME\""
+  7..12 parameter "$HOME"
+  14..23 path "notes.txt"
+
+prebuffer: "if true\nthen\n"
+input: "ls src\nfi"
+  0..2 command "ls"
+  3..6 path-directory "src"
+  7..9 reserved-word "fi"
+
+prebuffer: "for f in *.txt; do\n"
+input: "cat $f"
+  0..3 command "cat"
+  4..6 parameter "$f"
+
+prebuffer: "git commit \\\n"
+input: "--amend notes.txt"
+  0..7 option "--amend"
+  8..17 path "notes.txt"
+
+prebuffer: "cat <<EOF\n"
+input: "body $x\nEOF"
+  0..11 heredoc "body $x\nEOF"
+  5..7 parameter "$x"
+
+prebuffer: "if true; then ls\n"
+input: "fi; fi"
+  0..2 reserved-word "fi"
+  2..3 separator ";"
+  4..6 error "fi"
+
+input: "ls src\ngit status\ngi"
+  0..2 command "ls"
+  3..6 path-directory "src"
+  7..10 command "git"
+  11..17 subcommand "status"

@@ -461,6 +461,42 @@ impl CommandSpec {
     /// classify the precommand's own options.
     pub fn classify_args(&self, args: &[ArgInput<'_>]) -> Vec<Option<TokenKind>> {
         let mut out = vec![None; args.len()];
+        self.walk(args, &mut out, None);
+        out
+    }
+
+    /// True when `args[index]` is a literal that is a proper prefix of a subcommand name or
+    /// alias (in subcommand position) or of an option spelling or pattern (in option position)
+    /// at the level [`CommandSpec::classify_args`] reaches for it. The semantic pass uses this
+    /// to avoid flagging a word as an error while the user is still typing it
+    /// (`systemctl stat`, `git commit --am`).
+    pub fn completes_at(&self, args: &[ArgInput<'_>], index: usize) -> bool {
+        let Some(word) = args.get(index).and_then(|a| a.literal) else {
+            return false;
+        };
+        let proper_prefix = |name: &str| name.len() > word.len() && name.starts_with(word);
+        let mut out = vec![None; args.len()];
+        match self.walk(args, &mut out, Some(index)) {
+            Some((level, Slot::Option)) => {
+                level.options.exact.keys().any(|n| proper_prefix(n))
+                    || level.options.prefixes.iter().any(|p| proper_prefix(p))
+            }
+            Some((level, Slot::Subcommand)) => {
+                level.subcommand_names.keys().any(|n| proper_prefix(n))
+            }
+            None => false,
+        }
+    }
+
+    /// Classifies `args` into `out` (same length). When `stop` is `Some(i)` and the walk reaches
+    /// `args[i]` as an option-shaped word or in subcommand position, returns the level and slot
+    /// there without classifying further.
+    fn walk<'s>(
+        &'s self,
+        args: &[ArgInput<'_>],
+        out: &mut [Option<TokenKind>],
+        stop: Option<usize>,
+    ) -> Option<(&'s CommandSpec, Slot)> {
         let mut level = self;
         let mut positional_seen = false;
         let mut i = 0;
@@ -478,6 +514,9 @@ impl CommandSpec {
                 break;
             }
             if level.options.is_option_word(word) {
+                if stop == Some(i) {
+                    return Some((level, Slot::Option));
+                }
                 match level.options.match_word(word) {
                     OptionMatch::Known => out[i] = Some(TokenKind::CmdOption),
                     OptionMatch::KnownTakesNext => {
@@ -494,6 +533,9 @@ impl CommandSpec {
                 continue;
             }
             if !positional_seen && !level.subcommands.is_empty() && word != "-" {
+                if stop == Some(i) {
+                    return Some((level, Slot::Subcommand));
+                }
                 if let Some(sub) = level.subcommand(word) {
                     out[i] = Some(TokenKind::Subcommand);
                     level = sub;
@@ -504,11 +546,21 @@ impl CommandSpec {
                     out[i] = Some(TokenKind::Error);
                 }
             }
+            if stop == Some(i) {
+                return None;
+            }
             positional_seen = true;
             i += 1;
         }
-        out
+        None
     }
+}
+
+/// Where [`CommandSpec::walk`] met the word it stopped at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Slot {
+    Option,
+    Subcommand,
 }
 
 /// `NAME=value` with `NAME` a shell identifier.

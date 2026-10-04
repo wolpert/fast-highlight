@@ -1,0 +1,83 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "ll -a"
+cursor: 0
+  0..2 alias "ll"
+
+input: "README.md"
+cursor: 0
+  0..9 suffix-alias "README.md"
+
+input: "G"
+cursor: 0
+  0..1 global-alias "G"
+
+input: "echo hi G"
+cursor: 0
+  0..4 builtin "echo"
+  8..9 global-alias "G"
+
+input: "mkcd docs"
+cursor: 0
+  0..4 function "mkcd"
+  5..9 path-directory "docs"
+
+input: "echo hi"
+cursor: 0
+  0..4 builtin "echo"
+
+input: "if true; then ls; fi"
+cursor: 0
+  0..2 reserved-word "if"
+  3..7 builtin "true"
+  7..8 separator ";"
+  9..13 reserved-word "then"
+  14..16 command "ls"
+  16..17 separator ";"
+  18..20 reserved-word "fi"
+
+input: "ls -la"
+cursor: 0
+  0..2 command "ls"
+
+input: "./build.sh"
+cursor: 0
+  0..10 command "./build.sh"
+
+input: "./notes.txt"
+cursor: 0
+  0..11 error "./notes.txt"
+
+input: "nosuchcmd arg"
+cursor: 0
+  0..9 error "nosuchcmd"
+
+input: "'nosuchcmd' arg"
+cursor: 0
+  0..11 single-quoted "'nosuchcmd'"
+  0..11 error "'nosuchcmd'"
+
+input: "\\ll"
+cursor: 0
+  0..3 error "\\ll"
+  0..2 escape "\\l"
+
+input: "'ls' src"
+cursor: 0
+  0..4 command "'ls'"
+  0..4 single-quoted "'ls'"
+  5..8 path-directory "src"
+
+input: "$EDITOR notes.txt"
+cursor: 0
+  0..7 parameter "$EDITOR"
+  8..17 path "notes.txt"
+
+input: "FOO=1 BAR=$x make all"
+cursor: 0
+  0..4 assignment "FOO="
+  6..10 assignment "BAR="
+  10..12 parameter "$x"
+  13..17 command "make"

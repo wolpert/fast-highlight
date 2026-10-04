@@ -258,35 +258,30 @@ fn invalid_requests_get_error_and_daemon_continues() {
     assert!(d.wait().success());
 }
 
-/// With every engine module implemented this yields `R`; before that, the engine panics and
-/// the daemon must answer `E` and keep serving. Either way the frame is well formed and the
-/// daemon survives.
+/// A highlight and a state update are answered with `R` and `A`, and the daemon keeps serving.
 #[test]
 fn highlight_gets_a_response_and_daemon_survives() {
     let mut d = Daemon::spawn("highlight", &[]);
     d.send(&highlight(1, "ls ~ | grep 日本"));
     let f = d.recv();
-    assert_eq!(f.id, 1);
-    match f.kind {
-        b'R' => {
-            let spans = result_spans(&f.body);
-            let len = "ls ~ | grep 日本".chars().count();
-            assert!(
-                spans.iter().all(|(s, e, _)| s < e && *e <= len),
-                "{spans:?}"
-            );
-        }
-        b'E' => assert!(std::str::from_utf8(&f.body).is_ok()),
-        other => panic!("unexpected frame type {}", char::from(other)),
-    }
+    assert_eq!((f.kind, f.id), (b'R', 1));
+    let spans = result_spans(&f.body);
+    let len = "ls ~ | grep 日本".chars().count();
+    assert!(
+        spans.iter().all(|(s, e, _)| s < e && *e <= len),
+        "{spans:?}"
+    );
+    assert!(
+        spans.contains(&(5, 6, "separator".to_string())),
+        "{spans:?}"
+    );
     let update = StateUpdate {
         path: Some("/usr/bin:/bin".into()),
         ..StateUpdate::default()
     };
     d.send(&encode_state(2, &update));
     let f = d.recv();
-    assert_eq!(f.id, 2);
-    assert!(f.kind == b'A' || f.kind == b'E');
+    assert_eq!((f.kind, f.id), (b'A', 2));
     d.send(&encode_ping(3));
     assert_eq!(d.recv().kind, b'A');
     d.send(&encode_quit(4));
@@ -295,8 +290,7 @@ fn highlight_gets_a_response_and_daemon_survives() {
 
 #[test]
 fn hard_cap_returns_empty_result() {
-    // The default hard cap is 256 KiB; the engine is never consulted, so this works even
-    // before the engine modules exist.
+    // The default hard cap is 256 KiB; the engine is never consulted.
     let mut d = Daemon::spawn("hard-cap", &[]);
     let big = "x".repeat(300 * 1024);
     d.send(&highlight(1, &big));
@@ -343,7 +337,6 @@ fn timing_lines_are_logged() {
 }
 
 #[test]
-#[ignore = "needs engine"]
 fn highlight_returns_spans() {
     let mut d = Daemon::spawn("spans", &[]);
     let dir = scratch("spans-cwd");
@@ -375,7 +368,6 @@ fn highlight_returns_spans() {
 }
 
 #[test]
-#[ignore = "needs engine"]
 fn prebuffer_spans_are_clipped() {
     let mut d = Daemon::spawn("prebuffer", &[]);
     let fields = HighlightFields {
@@ -449,6 +441,48 @@ fn exits_when_parent_dies() {
     let log = std::fs::read_to_string(dir.join("daemon.log")).unwrap_or_default();
     assert!(log.contains("parent process exited"), "log: {log}");
     drop(keep_stdin_open);
+}
+
+/// Spawns a `sleep` to stand in for the shell `--parent` names. The daemon's real parent is the
+/// test process, which outlives it, so only the `--parent` check can stop the daemon.
+fn stand_in_shell() -> Child {
+    Command::new("sleep")
+        .arg("30")
+        .spawn()
+        .expect("spawn sleep")
+}
+
+fn assert_exits_for_parent(d: Daemon) {
+    let log = d.log.clone();
+    // The parent check runs at least once per second.
+    let status = d.wait();
+    assert!(!status.success(), "{status:?}");
+    let text = std::fs::read_to_string(log).unwrap_or_default();
+    assert!(text.contains("parent process exited"), "log: {text}");
+}
+
+#[test]
+fn exits_when_watched_parent_dies() {
+    let mut shell = stand_in_shell();
+    let pid = shell.id().to_string();
+    let mut d = Daemon::spawn("watched-parent", &["--parent", &pid]);
+    d.send(&encode_ping(1));
+    assert_eq!(d.recv().kind, b'A');
+    shell.kill().unwrap();
+    // Reap it: a zombie still exists as far as kill(pid, 0) is concerned.
+    shell.wait().unwrap();
+    assert_exits_for_parent(d);
+}
+
+#[test]
+fn exits_when_watched_parent_died_before_startup() {
+    // The race `--parent` exists for: the shell is already gone when the daemon starts.
+    let mut shell = stand_in_shell();
+    let pid = shell.id().to_string();
+    shell.kill().unwrap();
+    shell.wait().unwrap();
+    let d = Daemon::spawn("watched-parent-early", &["--parent", &pid]);
+    assert_exits_for_parent(d);
 }
 
 #[test]

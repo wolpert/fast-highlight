@@ -37,6 +37,11 @@ pub struct ServeOptions {
     pub timing: bool,
     /// Log file, overriding `log.file` in the config and the default location.
     pub log: Option<PathBuf>,
+    /// A process to watch in addition to the parent (`--parent PID`, the plugin passes the
+    /// shell's `$$`). The daemon exits once it no longer exists. This closes the race where the
+    /// shell dies before the daemon records its parent pid, which is then already that of the
+    /// reaper and never changes.
+    pub parent: Option<libc::pid_t>,
 }
 
 /// What the serve loop needs from a highlighter.
@@ -52,8 +57,12 @@ impl Engine for Highlighter {
         Highlighter::highlight(self, req)
     }
 
+    /// Also brings the `$PATH` scan up to date, so a changed `PATH` is scanned while the shell
+    /// is between commands (the plugin sends state from `precmd`) rather than on the next
+    /// keystroke.
     fn update_state(&mut self, update: StateUpdate) {
         self.state.apply_update(update);
+        self.state.refresh_path();
     }
 }
 
@@ -314,18 +323,27 @@ pub fn run<E: Engine, R: Read, W: Write>(
     }
 }
 
+/// True when no process with id `pid` exists. A process we may not signal (`EPERM`) exists.
+fn process_gone(pid: libc::pid_t) -> bool {
+    // SAFETY: signal 0 performs only the existence and permission checks.
+    let rc = unsafe { libc::kill(pid, 0) };
+    rc != 0 && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
+}
+
 /// Standard input read through `poll` with a one-second timeout, so the parent process can be
 /// checked while the input is idle. Reads fail once the parent pid differs from the one
-/// recorded at startup (the parent exited and this process was reparented).
+/// recorded at startup (the parent exited and this process was reparented), or once the
+/// watched process, if any, no longer exists.
 struct PollStdin {
     parent: libc::pid_t,
+    watched: Option<libc::pid_t>,
 }
 
 impl Read for PollStdin {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         loop {
             // SAFETY: getppid has no preconditions.
-            if unsafe { libc::getppid() } != self.parent {
+            if unsafe { libc::getppid() } != self.parent || self.watched.is_some_and(process_gone) {
                 return Err(io::Error::other("parent process exited"));
             }
             let mut pfd = libc::pollfd {
@@ -480,7 +498,11 @@ pub fn serve(opts: ServeOptions) -> i32 {
 
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("/"));
     let mut session = Session::new(engine, config.limits.hard_cap_bytes, cwd, log);
-    let exit = run(&mut session, &mut PollStdin { parent }, &mut RawStdout);
+    let mut input = PollStdin {
+        parent,
+        watched: opts.parent,
+    };
+    let exit = run(&mut session, &mut input, &mut RawStdout);
     match &exit {
         Exit::Quit | Exit::Eof => {}
         Exit::Framing(e) => session.log().line(&format!("exit: {e}")),
@@ -878,6 +900,46 @@ mod tests {
         );
         run_bytes(&mut s, &encode_ping(1));
         assert!(!path.exists());
+    }
+
+    #[test]
+    fn state_update_scans_path_before_the_next_highlight() {
+        let dir = std::env::temp_dir().join(format!("fh-daemon-path-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let tool = dir.join("fh-tool");
+        fs::write(&tool, b"#!/bin/sh\n").unwrap();
+        fs::set_permissions(&tool, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+        let mut h = Highlighter {
+            config: Config::default(),
+            state: ShellState::new(),
+            paths: PathChecker::default(),
+            specs: SpecRegistry::default(),
+        };
+        Engine::update_state(
+            &mut h,
+            StateUpdate {
+                path: Some(dir.to_string_lossy().into_owned()),
+                ..StateUpdate::default()
+            },
+        );
+        assert!(h.state.is_path_command("fh-tool"));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn process_gone_detects_reaped_children_only() {
+        // SAFETY: getpid has no preconditions.
+        assert!(!process_gone(unsafe { libc::getpid() }));
+        let mut child = std::process::Command::new("sleep")
+            .arg("30")
+            .spawn()
+            .unwrap();
+        let pid = child.id() as libc::pid_t;
+        assert!(!process_gone(pid));
+        child.kill().unwrap();
+        child.wait().unwrap();
+        assert!(process_gone(pid));
     }
 
     #[test]

@@ -1,0 +1,87 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "git -C src --no-pager log --oneline -n 5"
+cursor: 0
+  0..3 command "git"
+  4..6 option "-C"
+  7..10 path-directory "src"
+  11..21 option "--no-pager"
+  22..25 subcommand "log"
+  26..35 option "--oneline"
+  36..38 option "-n"
+
+input: "git commit -am msg --amend"
+cursor: 0
+  0..3 command "git"
+  4..10 subcommand "commit"
+  11..14 option "-am"
+  19..26 option "--amend"
+
+input: "git commit --bogus notes.txt"
+cursor: 0
+  0..3 command "git"
+  4..10 subcommand "commit"
+  19..28 path "notes.txt"
+
+input: "git remote add origin url"
+cursor: 0
+  0..3 command "git"
+  4..10 subcommand "remote"
+  11..14 subcommand "add"
+
+input: "git remote rm origin"
+cursor: 0
+  0..3 command "git"
+  4..10 subcommand "remote"
+  11..13 subcommand "rm"
+
+input: "git remote frobnicate"
+cursor: 0
+  0..3 command "git"
+  4..10 subcommand "remote"
+  11..21 error "frobnicate"
+
+input: "git stash push -m wip"
+cursor: 0
+  0..3 command "git"
+  4..9 subcommand "stash"
+  10..14 subcommand "push"
+  15..17 option "-m"
+
+input: "git frobnicate"
+cursor: 0
+  0..3 command "git"
+
+input: "git -c user.name=x status -sb"
+cursor: 0
+  0..3 command "git"
+  4..6 option "-c"
+  19..25 subcommand "status"
+  26..29 option "-sb"
+
+input: "cargo +nightly build --release -p fast-highlight"
+cursor: 0
+  0..5 command "cargo"
+  6..14 option "+nightly"
+  15..20 subcommand "build"
+  21..30 option "--release"
+  31..33 option "-p"
+
+input: "cargo test -- --nocapture"
+cursor: 0
+  0..5 command "cargo"
+  6..10 subcommand "test"
+  11..13 option "--"
+
+input: "cargo run --bin x -- --help"
+cursor: 0
+  0..5 command "cargo"
+  6..9 subcommand "run"
+  10..15 option "--bin"
+  18..20 option "--"
+
+input: "cargo frobnicate"
+cursor: 0
+  0..5 command "cargo"

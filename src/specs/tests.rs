@@ -337,6 +337,69 @@ common-options = ["--no-*"]
     assert_eq!(classify(&s, "build +x"), vec![SUB, PLAIN]);
 }
 
+fn completes(spec: &CommandSpec, line: &str, index: usize) -> bool {
+    let words: Vec<&str> = line.split_whitespace().collect();
+    spec.completes_at(&args(&words), index)
+}
+
+#[test]
+fn completes_at_subcommand_prefixes() {
+    let s = spec(GIT_LIKE);
+    // Top level is not complete, but a prefix is still reported; the caller only asks when
+    // classification said error.
+    assert!(completes(&s, "comm", 0));
+    assert!(completes(&s, "remote ad", 1));
+    // An alias counts.
+    let r = spec("name = \"x\"\ncomplete = true\n[subcommands.remove]\naliases = [\"rmdir\"]\n");
+    assert!(completes(&r, "rmd", 0));
+    // Exact names, non-prefixes, and words past the subcommand slot do not complete.
+    assert!(!completes(&s, "commit", 0));
+    assert!(!completes(&s, "remote addx", 1));
+    assert!(!completes(&s, "commit comm", 1));
+    assert!(!completes(&s, "remote add ad", 2));
+    // An option value is never a subcommand slot.
+    assert!(!completes(&s, "-C comm", 1));
+    assert!(completes(&s, "-C dir comm", 2));
+    // Out of range or not literal.
+    assert!(!completes(&s, "comm", 1));
+    assert!(!completes(&s, "$x", 0));
+}
+
+#[test]
+fn completes_at_option_prefixes() {
+    let s = spec(GIT_LIKE);
+    assert_eq!(classify(&s, "strict --al"), vec![SUB, ERR]);
+    assert!(completes(&s, "strict --al", 1));
+    // `--` ends options and is never an error, so it never needs completing.
+    assert_eq!(classify(&s, "strict --")[1], OPT);
+    assert!(!completes(&s, "strict --", 1));
+    // Common options are part of every level.
+    assert!(completes(&s, "strict --hel", 1));
+    // Options of another level do not count.
+    assert!(!completes(&s, "strict --amen", 1));
+    assert!(completes(&s, "commit --amen", 1));
+    // Exact spellings and non-prefixes.
+    assert!(!completes(&s, "strict --all", 1));
+    assert!(!completes(&s, "strict --allx", 1));
+    // Patterns: `--no` is a prefix of `--no-*`.
+    let p = spec("name = \"x\"\noptions-complete = true\noptions = [\"--no-*\"]\n");
+    assert_eq!(classify(&p, "--no"), vec![ERR]);
+    assert!(completes(&p, "--no", 0));
+    assert!(!completes(&p, "--yes", 0));
+}
+
+#[test]
+fn builtin_specs_complete_typed_prefixes() {
+    let systemctl = builtin("systemctl");
+    assert_eq!(classify(systemctl, "stat"), vec![ERR]);
+    assert!(completes(systemctl, "stat", 0));
+    assert!(!completes(systemctl, "stax", 0));
+    let npm = builtin("npm");
+    // `npm st` is ambiguous (star, stars, start, ...), so it is an error, but a prefix.
+    assert_eq!(classify(npm, "st"), vec![ERR]);
+    assert!(completes(npm, "st", 0));
+}
+
 #[test]
 fn classification_is_total_on_odd_input() {
     let s = spec(GIT_LIKE);

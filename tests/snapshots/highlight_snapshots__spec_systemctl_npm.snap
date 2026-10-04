@@ -1,0 +1,53 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "systemctl --user restart pipewire"
+cursor: 0
+  0..9 command "systemctl"
+  10..16 option "--user"
+  17..24 subcommand "restart"
+
+input: "systemctl status nginx --no-pager"
+cursor: 0
+  0..9 command "systemctl"
+  10..16 subcommand "status"
+  23..33 option "--no-pager"
+
+input: "systemctl frob nginx"
+cursor: 0
+  0..9 command "systemctl"
+  10..14 error "frob"
+
+input: "sudo systemctl stop nginx"
+cursor: 0
+  0..4 precommand "sudo"
+  5..14 command "systemctl"
+  15..19 subcommand "stop"
+
+input: "npm install --save-dev typescript"
+cursor: 0
+  0..3 command "npm"
+  4..11 subcommand "install"
+  12..22 option "--save-dev"
+
+input: "npm i -g npm"
+cursor: 0
+  0..3 command "npm"
+  4..5 subcommand "i"
+  6..8 option "-g"
+
+input: "npm inst lodash"
+cursor: 0
+  0..3 command "npm"
+  4..8 subcommand "inst"
+
+input: "npm run build"
+cursor: 0
+  0..3 command "npm"
+  4..7 subcommand "run"
+
+input: "npm frob"
+cursor: 0
+  0..3 command "npm"
+  4..8 error "frob"

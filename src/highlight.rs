@@ -53,6 +53,8 @@ pub trait Spec {
     fn wrapped_command(&self, args: &[ArgInput<'_>]) -> Option<usize>;
     /// See [`CommandSpec::classify_args`].
     fn classify_args(&self, args: &[ArgInput<'_>]) -> Vec<Option<TokenKind>>;
+    /// See [`CommandSpec::completes_at`].
+    fn completes_at(&self, args: &[ArgInput<'_>], index: usize) -> bool;
 }
 
 /// Finds the spec for a command name. Implemented by [`SpecRegistry`].
@@ -71,6 +73,10 @@ impl Spec for CommandSpec {
 
     fn classify_args(&self, args: &[ArgInput<'_>]) -> Vec<Option<TokenKind>> {
         CommandSpec::classify_args(self, args)
+    }
+
+    fn completes_at(&self, args: &[ArgInput<'_>], index: usize) -> bool {
+        CommandSpec::completes_at(self, args, index)
     }
 }
 
@@ -270,13 +276,19 @@ impl Pass<'_, '_> {
                 let own = wrapped.unwrap_or(args.len());
                 // The precommand's own options; their plain arguments (`-u root`, `-n 5`) are
                 // not path-checked.
-                let kinds = spec.map(|s| s.classify_args(&arg_in[..own]));
-                for (i, w) in args[..own].iter().enumerate() {
-                    if self.global_alias(w) {
-                        continue;
+                if let Some(s) = spec {
+                    let kinds = s.classify_args(&arg_in[..own]);
+                    for (i, w) in args[..own].iter().enumerate() {
+                        if self.global_alias(w) {
+                            continue;
+                        }
+                        if let Some(k) = self.spec_kind(s, &arg_in[..own], &kinds, i, w) {
+                            self.push(w, k);
+                        }
                     }
-                    if let Some(Some(k)) = kinds.as_ref().and_then(|k| k.get(i)) {
-                        self.push(w, *k);
+                } else {
+                    for w in &args[..own] {
+                        self.global_alias(w);
                     }
                 }
                 match wrapped {
@@ -356,10 +368,33 @@ impl Pass<'_, '_> {
             if self.global_alias(w) {
                 continue;
             }
-            match kinds.as_ref().and_then(|k| k.get(i)) {
-                Some(Some(k)) => self.push(w, *k),
-                _ => self.path_arg(w),
+            let (Some(s), Some(kinds)) = (spec, kinds.as_ref()) else {
+                self.path_arg(w);
+                continue;
+            };
+            match self.spec_kind(s, inputs, kinds, i, w) {
+                Some(k) => self.push(w, k),
+                // A suppressed error is a subcommand or option being typed, not a path.
+                None if kinds.get(i) == Some(&Some(TokenKind::Error)) => {}
+                None => self.path_arg(w),
             }
+        }
+    }
+
+    /// The spec classification of argument `i`, except that an error for the word being typed
+    /// is dropped when the word is a prefix of a valid subcommand or option there: marking it
+    /// red on every keystroke until it is complete would only flash, as for command words.
+    fn spec_kind(
+        &self,
+        spec: &dyn Spec,
+        inputs: &[ArgInput<'_>],
+        kinds: &[Option<TokenKind>],
+        i: usize,
+        w: &Word,
+    ) -> Option<TokenKind> {
+        match kinds.get(i).copied().flatten() {
+            Some(TokenKind::Error) if self.typing(w) && spec.completes_at(inputs, i) => None,
+            k => k,
         }
     }
 
@@ -390,9 +425,10 @@ impl Pass<'_, '_> {
 /// Merges word-level semantic spans with the syntactic spans into one sorted, well-nested list.
 ///
 /// Semantic spans go first so that, after the stable sort, a syntactic span with the identical
-/// range comes later and wins. A semantic span that partially overlaps a syntactic one is
-/// dropped (the syntactic span is kept). Spans out of bounds or off character boundaries are
-/// dropped too.
+/// range comes later and wins, except that a semantic error goes last: a quoted unknown command
+/// (`'nosuch'`) must still show as an error. A semantic span that partially overlaps a syntactic
+/// one is dropped (the syntactic span is kept). Spans out of bounds or off character boundaries
+/// are dropped too.
 fn merge(semantic: Vec<Span>, syntactic: &[Span], text: &str) -> Vec<Span> {
     let valid = |s: &Span| {
         s.start < s.end
@@ -406,7 +442,18 @@ fn merge(semantic: Vec<Span>, syntactic: &[Span], text: &str) -> Vec<Span> {
         .chain(syntactic.iter().map(|s| (*s, false)))
         .filter(|(s, _)| valid(s))
         .collect();
-    all.sort_by(|a, b| a.0.start.cmp(&b.0.start).then(b.0.end.cmp(&a.0.end)));
+    // Among identical ranges: semantic, then syntactic, then a semantic error.
+    let rank = |(s, semantic): &(Span, bool)| match (semantic, s.kind) {
+        (true, TokenKind::Error) => 2,
+        (true, _) => 0,
+        (false, _) => 1,
+    };
+    all.sort_by(|a, b| {
+        a.0.start
+            .cmp(&b.0.start)
+            .then(b.0.end.cmp(&a.0.end))
+            .then(rank(a).cmp(&rank(b)))
+    });
     let mut keep = vec![true; all.len()];
     let mut stack: Vec<usize> = Vec::new();
     for i in 0..all.len() {
@@ -511,6 +558,15 @@ mod tests {
                 out.push(k);
             }
             out
+        }
+
+        /// A proper prefix of a subcommand name, wherever the word is.
+        fn completes_at(&self, args: &[ArgInput<'_>], index: usize) -> bool {
+            args[index].literal.is_some_and(|w| {
+                self.subcommands
+                    .iter()
+                    .any(|s| s.len() > w.len() && s.starts_with(w))
+            })
         }
     }
 
@@ -861,6 +917,41 @@ mod tests {
     }
 
     #[test]
+    fn spec_error_suppressed_while_typing_a_subcommand_prefix() {
+        let mut f = fixture();
+        // `stat` is a prefix of `status`: no span while the cursor is at its end. The word is
+        // not path-checked either; it sits in the subcommand slot.
+        assert_eq!(f.run_typing("git stat"), spans(&[("git", K::Command)]));
+        assert_eq!(f.run_typing("git com"), spans(&[("git", K::Command)]));
+        // Not at the cursor, not a prefix, or already complete: unchanged.
+        assert_eq!(
+            f.run("git stat"),
+            spans(&[("git", K::Command), ("stat", K::Error)])
+        );
+        assert_eq!(
+            f.run_typing("git statx"),
+            spans(&[("git", K::Command), ("statx", K::Error)])
+        );
+        assert_eq!(
+            f.run_opts("git stat notes.txt", 8, RequestOptions::default()),
+            spans(&[("git", K::Command), ("notes.txt", K::Path)])
+        );
+        assert_eq!(
+            f.run_typing("git stat notes.txt"),
+            spans(&[
+                ("git", K::Command),
+                ("stat", K::Error),
+                ("notes.txt", K::Path)
+            ])
+        );
+        // Through a precommand chain too.
+        assert_eq!(
+            f.run_typing("sudo git sta"),
+            spans(&[("sudo", K::Precommand), ("git", K::Command)])
+        );
+    }
+
+    #[test]
     fn auto_cd() {
         let mut f = fixture();
         let auto = RequestOptions {
@@ -1071,6 +1162,21 @@ mod tests {
                 // `15..17` partially overlaps `16..18` and is dropped.
                 Span::new(16, 18, K::Glob),
             ]
+        );
+        crate::token::check_spans(text, &out).unwrap();
+    }
+
+    #[test]
+    fn merge_semantic_error_wins_over_identical_syntactic_span() {
+        let text = "'nosuch' x";
+        let out = merge(
+            vec![Span::new(0, 8, K::Error)],
+            &[Span::new(0, 8, K::SingleQuoted)],
+            text,
+        );
+        assert_eq!(
+            out,
+            vec![Span::new(0, 8, K::SingleQuoted), Span::new(0, 8, K::Error)]
         );
         crate::token::check_spans(text, &out).unwrap();
     }

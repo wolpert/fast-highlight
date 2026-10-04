@@ -1,0 +1,75 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "cat notes.txt src src/ src/main.rs missing.txt"
+cursor: 0
+  0..3 command "cat"
+  4..13 path "notes.txt"
+  14..17 path-directory "src"
+  18..22 path-directory "src/"
+  23..34 path "src/main.rs"
+
+input: "cat not"
+  0..3 command "cat"
+  4..7 path-prefix "not"
+
+input: "cat src/ma"
+  0..3 command "cat"
+  4..10 path-prefix "src/ma"
+
+input: "cat src/zz"
+  0..3 command "cat"
+
+input: "cat not"
+cursor: 0
+  0..3 command "cat"
+
+input: "ls ~ ~/ ~/.zshrc ~/Downloads ~/nope"
+cursor: 0
+  0..2 command "ls"
+  3..4 path-directory "~"
+  5..7 path-directory "~/"
+  8..16 path "~/.zshrc"
+  17..28 path-directory "~/Downloads"
+
+input: "ls ~/Dow"
+  0..2 command "ls"
+  3..8 path-prefix "~/Dow"
+
+input: "ls ~proj ~proj/Cargo.toml ~proj/src ~proj/nope"
+cursor: 0
+  0..2 command "ls"
+  3..8 path-directory "~proj"
+  9..25 path "~proj/Cargo.toml"
+  26..35 path-directory "~proj/src"
+
+input: "ls ~proj/Car"
+  0..2 command "ls"
+  3..12 path-prefix "~proj/Car"
+
+input: "ls 'my file.txt' my\\ file.txt \"my file.txt\""
+cursor: 0
+  0..2 command "ls"
+  3..16 path "'my file.txt'"
+  3..16 single-quoted "'my file.txt'"
+  17..29 path "my\\ file.txt"
+  19..21 escape "\\ "
+  30..43 path "\"my file.txt\""
+  30..43 double-quoted "\"my file.txt\""
+
+input: "ls '~'/x"
+cursor: 0
+  0..2 command "ls"
+  3..6 single-quoted "'~'"
+
+input: "ls -- -notes.txt"
+cursor: 0
+  0..2 command "ls"
+
+input: "cat docs/guide/ ./docs ../work/notes.txt"
+cursor: 0
+  0..3 command "cat"
+  4..15 path-directory "docs/guide/"
+  16..22 path-directory "./docs"
+  23..40 path "../work/notes.txt"

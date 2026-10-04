@@ -1,0 +1,56 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "fi"
+cursor: 0
+  0..2 error "fi"
+
+input: "ls; fi"
+cursor: 0
+  0..2 command "ls"
+  2..3 separator ";"
+  4..6 error "fi"
+
+input: "| grep foo"
+cursor: 0
+  0..1 error "|"
+  2..6 command "grep"
+
+input: "ls > ;"
+cursor: 0
+  0..2 command "ls"
+  3..4 error ">"
+  5..6 separator ";"
+
+input: "ls && || ls"
+cursor: 0
+  0..2 command "ls"
+  3..5 separator "&&"
+  6..8 error "||"
+  9..11 command "ls"
+
+input: "ls )"
+cursor: 0
+  0..2 command "ls"
+  3..4 error ")"
+
+input: "then ls"
+cursor: 0
+  0..4 error "then"
+  5..7 command "ls"
+
+input: "done"
+cursor: 0
+  0..4 error "done"
+
+input: "ls ;; ls"
+cursor: 0
+  0..2 command "ls"
+  3..5 error ";;"
+  6..8 command "ls"
+
+input: "echo }"
+cursor: 0
+  0..4 builtin "echo"
+  5..6 error "}"

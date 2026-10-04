@@ -1,0 +1,64 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "sudo -u root git status"
+cursor: 0
+  0..4 precommand "sudo"
+  5..7 option "-u"
+  13..16 command "git"
+  17..23 subcommand "status"
+
+input: "sudo -E env FOO=1 nice -n 5 make"
+cursor: 0
+  0..4 precommand "sudo"
+  5..7 option "-E"
+  8..11 precommand "env"
+  18..22 precommand "nice"
+  23..25 option "-n"
+  28..32 command "make"
+
+input: "noglob ls *.txt"
+cursor: 0
+  0..6 precommand "noglob"
+  7..9 command "ls"
+  10..11 glob "*"
+
+input: "command -v git"
+cursor: 0
+  0..7 precommand "command"
+  8..10 option "-v"
+  11..14 command "git"
+
+input: "builtin echo x"
+cursor: 0
+  0..7 precommand "builtin"
+  8..12 builtin "echo"
+
+input: "exec -a name ls"
+cursor: 0
+  0..4 precommand "exec"
+  5..7 option "-a"
+  13..15 command "ls"
+
+input: "nocorrect ls"
+cursor: 0
+  0..9 precommand "nocorrect"
+  10..12 command "ls"
+
+input: "time ls"
+cursor: 0
+  0..4 precommand "time"
+  5..7 command "ls"
+
+input: "sudo nosuchcmd"
+cursor: 0
+  0..4 precommand "sudo"
+  5..14 error "nosuchcmd"
+
+input: "sudo"
+  0..4 precommand "sudo"
+
+input: "sudo -u"
+  0..4 precommand "sudo"
+  5..7 option "-u"
