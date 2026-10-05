@@ -343,7 +343,7 @@ A theme maps token types to zsh `region_highlight` styles. The plugin loads it i
 ### Theme selection
 
 - With no `theme` key in `config.toml`, the theme is `<config_dir>/theme.toml` when that file
-  exists, else the built-in `default` theme.
+  exists, else the built-in `truecolor` theme.
 - With `theme = "NAME"`, the theme is `<config_dir>/themes/NAME.toml` when that file exists, else
   the built-in theme `NAME`. When neither exists, the theme is an error.
 
@@ -351,10 +351,11 @@ A theme maps token types to zsh `region_highlight` styles. The plugin loads it i
 
 | Name        | Description                                                                          |
 |-------------|--------------------------------------------------------------------------------------|
-| `default`   | Basic colours only, readable on dark and light terminals. Every token type has an entry. |
-| `truecolor` | 24-bit colours for dark terminals, inheriting from `default`. Requires a terminal with truecolor support, or the `zsh/nearcolor` module on 88- and 256-colour terminals. |
+| `default`   | Basic colours only, readable on dark and light terminals and on terminals without truecolor support. Every token type has an entry. |
+| `truecolor` | The default theme. 24-bit colours for dark terminals, inheriting from `default`. Requires a terminal with truecolor support, or the `zsh/nearcolor` module on 88- and 256-colour terminals. |
 
-The sources are `themes/default.toml` and `themes/truecolor.toml`.
+The sources are `themes/default.toml` and `themes/truecolor.toml`. On a terminal without truecolor
+support, set `theme = "default"` in `config.toml`.
 
 ### Theme file format
 
@@ -363,7 +364,7 @@ inherits = "default"
 
 [meta]
 name = "mine"
-description = "Default theme with bolder errors and grey comments"
+description = "Basic colours with bolder errors and grey comments"
 
 [styles]
 error = { fg = "red", bg = "#202020", bold = true }
@@ -374,7 +375,7 @@ path-prefix = ""
 
 | Key                | Type   | Default     | Meaning                                                           |
 |--------------------|--------|-------------|-------------------------------------------------------------------|
-| `inherits`         | string | `"default"` | The base theme: `"none"` or the name of a built-in theme. A theme file in the configuration directory cannot be inherited. |
+| `inherits`         | string | `"truecolor"` | The base theme: `"none"` or the name of a built-in theme. A theme file in the configuration directory cannot be inherited. |
 | `meta.name`        | string | unset       | Informational.                                                    |
 | `meta.description` | string | unset       | Informational.                                                    |
 | `styles.KIND`      | string or table | inherited | The style for token type `KIND`. An empty string leaves the type unstyled, removing the inherited style. |
@@ -406,17 +407,17 @@ loads and on `fasthl-reload`:
 ```zsh
 typeset -gA FASTHL_STYLES
 FASTHL_STYLES=(
-  alias 'fg=green'
-  arithmetic 'fg=magenta'
+  alias 'fg=#8fd18f'
+  arithmetic 'fg=#d19a66'
   ...
 )
 ```
 
 Token types with an empty style are omitted. When `config.toml` has an error, the command prints
 the error to standard error and selects the theme as if `config.toml` set no `theme`. When the
-theme has an error, it prints the error and the built-in `default` theme. Either error makes the
+theme has an error, it prints the error and the built-in `truecolor` theme. Either error makes the
 exit status 1. The plugin uses the output whatever the exit status. Only when `styles` prints no
-table at all does the plugin use a fallback table of its own, which matches the `default` theme.
+table at all does the plugin use a fallback table of its own, which matches the `truecolor` theme.
 `fast-highlight check-config` shows the error.
 
 ### Style overrides in .zshrc

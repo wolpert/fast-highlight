@@ -1,7 +1,7 @@
 //! Themes: TOML files mapping token kinds to zsh highlight specs, compiled to zsh code.
 //!
 //! ```toml
-//! inherits = "default"        # optional: "none", or a built-in theme name
+//! inherits = "truecolor"      # optional: "none", or a built-in theme name
 //! [meta]                      # optional, informational
 //! name = "mine"
 //! description = "My colours"
@@ -30,6 +30,10 @@ const BUILTIN_THEMES: &[(&str, &str)] = &[
     ("default", include_str!("../themes/default.toml")),
     ("truecolor", include_str!("../themes/truecolor.toml")),
 ];
+
+/// The built-in theme used when none is configured, and the base a theme file layers over
+/// when it does not say `inherits`.
+pub const DEFAULT_THEME: &str = "truecolor";
 
 /// The eight color names zsh accepts everywhere, plus `default`.
 const COLOR_NAMES: &[&str] = &[
@@ -66,9 +70,9 @@ struct RawMeta {
 }
 
 impl Theme {
-    /// The built-in default theme.
+    /// The built-in theme named by [`DEFAULT_THEME`].
     pub fn default_theme() -> Theme {
-        Theme::builtin("default").expect("the default theme is built in")
+        Theme::builtin(DEFAULT_THEME).expect("the default theme is built in")
     }
 
     /// Names of the built-in themes.
@@ -120,7 +124,7 @@ impl Theme {
     /// Parses theme TOML text, layered over the default theme.
     pub fn from_toml(text: &str) -> Result<Theme, ConfigError> {
         let raw: RawTheme = toml::from_str(text).map_err(|e| ConfigError(e.to_string()))?;
-        let mut theme = match raw.inherits.as_deref().unwrap_or("default") {
+        let mut theme = match raw.inherits.as_deref().unwrap_or(DEFAULT_THEME) {
             "none" => Theme {
                 styles: BTreeMap::new(),
             },
@@ -356,7 +360,7 @@ mod tests {
     }
 
     #[test]
-    fn default_theme_covers_every_kind_deliberately() {
+    fn default_toml_covers_every_kind_deliberately() {
         let raw: RawTheme = toml::from_str(include_str!("../themes/default.toml")).unwrap();
         for kind in TokenKind::ALL {
             assert!(
@@ -364,7 +368,7 @@ mod tests {
                 "default.toml lacks `{kind}`"
             );
         }
-        let theme = Theme::default_theme();
+        let theme = Theme::builtin("default").unwrap();
         let unstyled: Vec<TokenKind> = TokenKind::ALL
             .iter()
             .copied()
@@ -400,6 +404,11 @@ mod tests {
         assert_eq!(style(&theme, TokenKind::Error), Some("fg=#f05f5f,bold"));
         assert_eq!(style(&theme, TokenKind::Path), Some("underline"));
         assert!(theme.styles.values().filter(|s| s.contains('#')).count() > 20);
+    }
+
+    #[test]
+    fn default_theme_is_truecolor() {
+        assert_eq!(Theme::default_theme(), Theme::builtin("truecolor").unwrap());
     }
 
     #[test]
@@ -715,7 +724,7 @@ mod tests {
         std::fs::write(dir.join("theme.toml"), "[styles]\ncommand = \"fg=1\"\n").unwrap();
         let theme = Theme::load_from(&with_theme(None), &dir).unwrap();
         assert_eq!(style(&theme, TokenKind::Command), Some("fg=1"));
-        assert_eq!(style(&theme, TokenKind::Error), Some("fg=red,bold"));
+        assert_eq!(style(&theme, TokenKind::Error), Some("fg=#f05f5f,bold"));
     }
 
     #[test]

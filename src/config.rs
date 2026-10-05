@@ -62,7 +62,8 @@ pub struct Config {
     pub limits: Limits,
     pub log: LogConfig,
     /// Theme name: `themes/<name>.toml` in the config directory, or a built-in theme name.
-    /// `None` means `theme.toml` in the config directory if it exists, else the default theme.
+    /// `None` means `theme.toml` in the config directory if it exists, else the built-in
+    /// `truecolor` theme.
     pub theme: Option<String>,
 }
 

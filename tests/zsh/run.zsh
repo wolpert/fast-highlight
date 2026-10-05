@@ -412,7 +412,7 @@ test_rehash_real() {
   T_POST='path=($FHT_DIR/bin2 $path)'
   t_spawn || return
   t_type 'newtool_xyz'
-  t_has '0 11 fg=red,bold memo=fast-highlight' || t_fail "missing command not an error"
+  t_has '0 11 fg=\#f05f5f,bold memo=fast-highlight' || t_fail "missing command not an error"
   t_clear
   print -r -- '#!/bin/sh' >$T/bin2/newtool_xyz
   chmod +x $T/bin2/newtool_xyz
@@ -421,12 +421,12 @@ test_rehash_real() {
   t_sleep 1.1
   t_run 'true'
   t_type 'newtool_xyz'
-  t_has '0 11 fg=red,bold memo=fast-highlight' ||
+  t_has '0 11 fg=\#f05f5f,bold memo=fast-highlight' ||
     t_fail "test premise: the daemon found the command without a rehash"
   t_clear
   t_run 'rehash'
   t_type 'newtool_xyz'
-  t_has '0 11 fg=green memo=fast-highlight' || t_fail "command not found after rehash"
+  t_has '0 11 fg=\#8fd75f memo=fast-highlight' || t_fail "command not found after rehash"
   t_check_output
 }
 
@@ -445,14 +445,14 @@ test_state_real() {
   t_clear
   t_run "hash -d w=$T"
   t_type 'ls ~w'
-  t_has '3 5 bold,underline memo=fast-highlight' || t_fail "~w not a directory"
+  t_has '3 5 fg=\#87afd7,underline memo=fast-highlight' || t_fail "~w not a directory"
   t_clear
   t_type 'myfn_xyz'
-  t_has '0 8 fg=red,bold memo=fast-highlight' || t_fail "unknown function not an error"
+  t_has '0 8 fg=\#f05f5f,bold memo=fast-highlight' || t_fail "unknown function not an error"
   t_clear
   t_run 'myfn_xyz() { : }'
   t_type 'myfn_xyz'
-  t_has '0 8 fg=green memo=fast-highlight' || t_fail "new function not classified"
+  t_has '0 8 fg=\#5fd7af memo=fast-highlight' || t_fail "new function not classified"
   t_check_output
 }
 
@@ -532,7 +532,7 @@ test_fallback_styles() {
   T_POST=$T_DUMP_STYLES
   t_spawn || return
   t_type 'ls'
-  t_has '0 2 fg=green memo=fast-highlight' || t_fail "built-in style not used"
+  t_has '0 2 fg=\#8fd75f memo=fast-highlight' || t_fail "built-in style not used"
   if [[ -n $TEST_BIN ]]; then
     # An empty config directory selects the built-in default theme.
     local out k
@@ -922,8 +922,8 @@ test_real_styles() {
   fi
   t_spawn || return
   t_type 'nosuchcmd_xyz ~/'
-  t_has '0 13 fg=red,bold memo=fast-highlight' || t_fail "unknown command not in the error style"
-  t_has '14 16 bold,underline memo=fast-highlight' || t_fail "~/ not in the path-directory style"
+  t_has '0 13 fg=\#f05f5f,bold memo=fast-highlight' || t_fail "unknown command not in the error style"
+  t_has '14 16 fg=\#87afd7,underline memo=fast-highlight' || t_fail "~/ not in the path-directory style"
   t_check_output
 }
 
@@ -985,9 +985,9 @@ test_multibyte_prebuffer() {
   t_spawn || return
   t_run 'echo "日本'
   t_type '語" $HOME; true'
-  t_has '0 2 fg=yellow memo=fast-highlight' || t_fail "string continuation not at 0-2"
-  t_has '3 8 fg=cyan memo=fast-highlight' || t_fail "parameter not at 3-8"
-  t_has '10 14 fg=green memo=fast-highlight' || t_fail "builtin not at 10-14"
+  t_has '0 2 fg=\#e5c07b memo=fast-highlight' || t_fail "string continuation not at 0-2"
+  t_has '3 8 fg=\#61afef memo=fast-highlight' || t_fail "parameter not at 3-8"
+  t_has '10 14 fg=\#b5d75f memo=fast-highlight' || t_fail "builtin not at 10-14"
   t_run ''
   t_check_output
 }

@@ -162,7 +162,9 @@ When
 fails to load,
 .B styles
 reports the error on standard error and continues with the default configuration.
-When the theme fails to load, it reports the error and prints the built-in default theme.
+When the theme fails to load, it reports the error and prints the built-in
+.B truecolor
+theme.
 Either failure makes the exit status 1.
 .TP
 .B highlight
@@ -503,7 +505,9 @@ when it loads, whatever its exit status, so a broken theme or config file yields
 .B styles
 falls back to.
 Only when that command prints no table does the plugin use a built-in table of its own, which
-matches the default theme.
+matches the built-in
+.B truecolor
+theme.
 An entry assigned after the plugin is sourced overrides the theme and survives
 .BR fasthl-reload .
 An empty style leaves the token type unstyled.

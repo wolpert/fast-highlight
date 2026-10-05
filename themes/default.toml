@@ -1,4 +1,5 @@
-# The built-in default theme for fast-highlight.
+# The basic-colour built-in theme for fast-highlight. The `truecolor` theme, used when none is
+# configured, inherits from it.
 #
 # Basic colours only, so it reads on dark and light terminals alike. The palette follows
 # zsh-syntax-highlighting: commands green, reserved words yellow, strings yellow, parameters cyan,
