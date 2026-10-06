@@ -1,4 +1,8 @@
+# Verified against: GNU coreutils 9.7 and uutils coreutils 0.10.0.
 # nohup(1).
+# `nohup` on PATH may be uutils rather than GNU; both accept the same unique prefixes of the long
+# options declared here (`--vers`).
 name = "nohup"
+option-abbreviations = true
 precommand = true
 options = ["--help", "--version"]

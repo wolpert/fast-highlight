@@ -1,0 +1,194 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "kubectl exec mypod -- ls -l"
+cursor: 0
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  19..21 option "--"
+  22..24 command "ls"
+
+input: "kubectl exec mypod -- rm -f notes.txt"
+cursor: 0
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  19..21 option "--"
+  22..24 command "rm"
+  25..27 option "-f"
+  28..37 path "notes.txt"
+
+input: "kubectl exec -it -n ns mypod -- ls"
+cursor: 0
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  13..16 option "-it"
+  17..19 option "-n"
+  29..31 option "--"
+  32..34 command "ls"
+
+input: "kubectl --context prod exec mypod -- ls"
+cursor: 0
+  0..7 command "kubectl"
+  8..17 option "--context"
+  23..27 subcommand "exec"
+  34..36 option "--"
+  37..39 command "ls"
+
+input: "kubectl exec -c -- mypod -- ls"
+cursor: 0
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  13..15 option "-c"
+  25..27 option "--"
+  28..30 command "ls"
+
+input: "kubectl exec mypod ls"
+cursor: 0
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+
+input: "kubectl exec mypod --"
+cursor: 0
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  19..21 option "--"
+
+input: "kubectl get pods -- ls"
+cursor: 0
+  0..7 command "kubectl"
+  8..11 subcommand "get"
+  17..19 option "--"
+
+input: "kubectl exec mypod -- nosuchcmd"
+cursor: 0
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  19..21 option "--"
+  22..31 error "nosuchcmd"
+
+input: "kubectl exec mypod -- sudo -e notes.txt"
+cursor: 0
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  19..21 option "--"
+  22..26 precommand "sudo"
+  27..29 option "-e"
+  30..39 path "notes.txt"
+
+input: "kubectl exec pod -- sudo -e ~/.zshrc"
+cursor: 0
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  17..19 option "--"
+  20..24 precommand "sudo"
+  25..27 option "-e"
+  28..36 path "~/.zshrc"
+
+input: "sudo -e ~/.zshrc ~proj/Cargo.toml"
+cursor: 0
+  0..4 precommand "sudo"
+  5..7 option "-e"
+  8..16 path "~/.zshrc"
+  17..33 path "~proj/Cargo.toml"
+
+input: "sudo -e notes.txt docs nosuch.txt"
+cursor: 0
+  0..4 precommand "sudo"
+  5..7 option "-e"
+  8..17 path "notes.txt"
+  18..22 path-directory "docs"
+
+input: "sudo --edit notes.txt"
+cursor: 0
+  0..4 precommand "sudo"
+  5..11 option "--edit"
+  12..21 path "notes.txt"
+
+input: "sudo -Eu root -e notes.txt"
+cursor: 0
+  0..4 precommand "sudo"
+  5..8 option "-Eu"
+  14..16 option "-e"
+  17..26 path "notes.txt"
+
+input: "sudo -e -u docs notes.txt"
+cursor: 0
+  0..4 precommand "sudo"
+  5..7 option "-e"
+  8..10 option "-u"
+  11..15 path-directory "docs"
+  16..25 path "notes.txt"
+
+input: "sudo -e notes.txt -n -- -notes.txt"
+cursor: 0
+  0..4 precommand "sudo"
+  5..7 option "-e"
+  8..17 path "notes.txt"
+  24..34 path "-notes.txt"
+
+input: "sudo -e"
+cursor: 0
+  0..4 precommand "sudo"
+  5..7 option "-e"
+
+input: "sudo -ue ls"
+cursor: 0
+  0..4 precommand "sudo"
+  5..8 option "-ue"
+  9..11 command "ls"
+
+input: "sudo ls"
+cursor: 0
+  0..4 precommand "sudo"
+  5..7 command "ls"
+
+input: "sudo -u root ls"
+cursor: 0
+  0..4 precommand "sudo"
+  5..7 option "-u"
+  13..15 command "ls"
+
+input: "timeout 5 ls"
+cursor: 0
+  0..7 precommand "timeout"
+  10..12 command "ls"
+
+input: "sudo -e not"
+  0..4 precommand "sudo"
+  5..7 option "-e"
+  8..11 path-prefix "not"
+
+input: "sudo -e "
+  0..4 precommand "sudo"
+  5..7 option "-e"
+
+input: "sudo -e zzz"
+  0..4 precommand "sudo"
+  5..7 option "-e"
+
+input: "sudo -e -u r"
+  0..4 precommand "sudo"
+  5..7 option "-e"
+  8..10 option "-u"
+
+input: "kubectl exec mypod -- l"
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  19..21 option "--"
+
+input: "kubectl exec mypod -- lsx"
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  19..21 option "--"
+  22..25 error "lsx"
+
+input: "kubectl exec mypod --"
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  19..21 option "--"
+
+input: "kubectl exec mypod -- "
+  0..7 command "kubectl"
+  8..12 subcommand "exec"
+  19..21 option "--"

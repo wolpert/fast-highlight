@@ -1,7 +1,13 @@
+# Verified against: docker 27.2.1 (only swarm, stack, service and plugin were compared).
 # docker(1). Not complete: Docker CLI plugins (`docker-NAME` in the CLI plugin directories) add
 # top-level subcommands. The common plugins are listed. The core management commands
-# `container`, `image`, `network`, and `volume` are complete. `run`, `create`, and `exec` stop
-# option parsing at the image or container name, so the command after it is plain.
+# `container`, `image`, `network`, and `volume` are complete. `run`, `create`, `exec`, and
+# `service create` stop option parsing at the image or container name, so the command after it is
+# plain. Only `swarm`, `stack`, `service`, and `plugin` were compared against Docker 27.2.1; the
+# other commands predate that comparison and have known gaps (for example `stop` and `restart`
+# declare `--timeout=` where Docker 27.2.1 spells it `--time`, `run` lacks several options, and
+# `node update` and some `ls` commands declare no options). Docker 27.2.1 is also old: options and
+# subcommands added in later releases are missed by design and highlight as unknown.
 name = "docker"
 common-options = ["--help"]
 options = [
@@ -564,26 +570,35 @@ aliases = ["remove"]
 [subcommands.plugin]
 
 [subcommands.plugin.subcommands.create]
+options = ["--compress"]
 
 [subcommands.plugin.subcommands.disable]
+options = ["-f", "--force"]
 
 [subcommands.plugin.subcommands.enable]
+options = ["--timeout="]
 
 [subcommands.plugin.subcommands.inspect]
+options = ["-f=", "--format="]
 
 [subcommands.plugin.subcommands.install]
+options = ["--alias=", "--disable", "--disable-content-trust", "--grant-all-permissions"]
 
 [subcommands.plugin.subcommands.ls]
 aliases = ["list"]
+options = ["-f=", "--filter=", "--format=", "--no-trunc", "-q", "--quiet"]
 
 [subcommands.plugin.subcommands.push]
+options = ["--disable-content-trust"]
 
 [subcommands.plugin.subcommands.rm]
 aliases = ["remove"]
+options = ["-f", "--force"]
 
 [subcommands.plugin.subcommands.set]
 
 [subcommands.plugin.subcommands.upgrade]
+options = ["--disable-content-trust", "--grant-all-permissions", "--skip-remote-check"]
 
 [subcommands.secret]
 
@@ -600,62 +615,138 @@ aliases = ["remove"]
 [subcommands.service]
 
 [subcommands.service.subcommands.create]
+options-first = true
+options = [
+  "--cap-add=", "--cap-drop=", "--config=", "--constraint=", "--container-label=",
+  "--credential-spec=", "-d", "--detach", "--dns=", "--dns-option=", "--dns-search=",
+  "--endpoint-mode=", "--entrypoint=", "-e=", "--env=", "--env-file=", "--generic-resource=",
+  "--group=", "--health-cmd=", "--health-interval=", "--health-retries=",
+  "--health-start-interval=", "--health-start-period=", "--health-timeout=", "--host=",
+  "--hostname=", "--init", "--isolation=", "-l=", "--label=", "--limit-cpu=", "--limit-memory=",
+  "--limit-pids=", "--log-driver=", "--log-opt=", "--max-concurrent=", "--mode=", "--mount=",
+  "--name=", "--network=", "--no-healthcheck", "--no-resolve-image", "--oom-score-adj=",
+  "--placement-pref=", "-p=", "--publish=", "-q", "--quiet", "--read-only", "--replicas=",
+  "--replicas-max-per-node=", "--reserve-cpu=", "--reserve-memory=", "--restart-condition=",
+  "--restart-delay=", "--restart-max-attempts=", "--restart-window=", "--rollback-delay=",
+  "--rollback-failure-action=", "--rollback-max-failure-ratio=", "--rollback-monitor=",
+  "--rollback-order=", "--rollback-parallelism=", "--secret=", "--stop-grace-period=",
+  "--stop-signal=", "--sysctl=", "-t", "--tty", "--ulimit=", "--update-delay=",
+  "--update-failure-action=", "--update-max-failure-ratio=", "--update-monitor=", "--update-order=",
+  "--update-parallelism=", "-u=", "--user=", "--with-registry-auth", "-w=", "--workdir=",
+]
 
 [subcommands.service.subcommands.inspect]
+options = ["-f=", "--format=", "--pretty"]
 
 [subcommands.service.subcommands.logs]
 options = [
-  "--details", "-f", "--follow", "--since=", "-n=", "--tail=", "-t", "--timestamps", "--until=",
+  "--details", "-f", "--follow", "--no-resolve", "--no-task-ids", "--no-trunc", "--raw", "--since=",
+  "-n=", "--tail=", "-t", "--timestamps",
 ]
 
 [subcommands.service.subcommands.ls]
 aliases = ["list"]
+options = ["-f=", "--filter=", "--format=", "-q", "--quiet"]
 
 [subcommands.service.subcommands.ps]
+options = ["-f=", "--filter=", "--format=", "--no-resolve", "--no-trunc", "-q", "--quiet"]
 
 [subcommands.service.subcommands.rm]
 aliases = ["remove"]
 
 [subcommands.service.subcommands.rollback]
+options = ["-d", "--detach", "-q", "--quiet"]
 
 [subcommands.service.subcommands.scale]
+options = ["-d", "--detach"]
 
 [subcommands.service.subcommands.update]
+options = [
+  "--args=", "--cap-add=", "--cap-drop=", "--config-add=", "--config-rm=", "--constraint-add=",
+  "--constraint-rm=", "--container-label-add=", "--container-label-rm=", "--credential-spec=", "-d",
+  "--detach", "--dns-add=", "--dns-option-add=", "--dns-option-rm=", "--dns-rm=",
+  "--dns-search-add=", "--dns-search-rm=", "--endpoint-mode=", "--entrypoint=", "--env-add=",
+  "--env-rm=", "--force", "--generic-resource-add=", "--generic-resource-rm=", "--group-add=",
+  "--group-rm=", "--health-cmd=", "--health-interval=", "--health-retries=",
+  "--health-start-interval=", "--health-start-period=", "--health-timeout=", "--host-add=",
+  "--host-rm=", "--hostname=", "--image=", "--init", "--isolation=", "--label-add=", "--label-rm=",
+  "--limit-cpu=", "--limit-memory=", "--limit-pids=", "--log-driver=", "--log-opt=",
+  "--max-concurrent=", "--mount-add=", "--mount-rm=", "--network-add=", "--network-rm=",
+  "--no-healthcheck", "--no-resolve-image", "--oom-score-adj=", "--placement-pref-add=",
+  "--placement-pref-rm=", "--publish-add=", "--publish-rm=", "-q", "--quiet", "--read-only",
+  "--replicas=", "--replicas-max-per-node=", "--reserve-cpu=", "--reserve-memory=",
+  "--restart-condition=", "--restart-delay=", "--restart-max-attempts=", "--restart-window=",
+  "--rollback", "--rollback-delay=", "--rollback-failure-action=", "--rollback-max-failure-ratio=",
+  "--rollback-monitor=", "--rollback-order=", "--rollback-parallelism=", "--secret-add=",
+  "--secret-rm=", "--stop-grace-period=", "--stop-signal=", "--sysctl-add=", "--sysctl-rm=", "-t",
+  "--tty", "--ulimit-add=", "--ulimit-rm=", "--update-delay=", "--update-failure-action=",
+  "--update-max-failure-ratio=", "--update-monitor=", "--update-order=", "--update-parallelism=",
+  "-u=", "--user=", "--with-registry-auth", "-w=", "--workdir=",
+]
 
 [subcommands.stack]
 
 [subcommands.stack.subcommands.config]
+options = ["-c=", "--compose-file=", "--skip-interpolation"]
 
 [subcommands.stack.subcommands.deploy]
 aliases = ["up"]
+options = [
+  "-c=", "--compose-file=", "-d", "--detach", "--prune", "-q", "--quiet", "--resolve-image=",
+  "--with-registry-auth",
+]
 
 [subcommands.stack.subcommands.ls]
 aliases = ["list"]
+options = ["--format="]
 
 [subcommands.stack.subcommands.ps]
+options = ["-f=", "--filter=", "--format=", "--no-resolve", "--no-trunc", "-q", "--quiet"]
 
 [subcommands.stack.subcommands.rm]
 aliases = ["remove", "down"]
+options = ["-d", "--detach"]
 
 [subcommands.stack.subcommands.services]
+options = ["-f=", "--filter=", "--format=", "-q", "--quiet"]
 
 [subcommands.swarm]
 
 [subcommands.swarm.subcommands.ca]
+options = [
+  "--ca-cert=", "--ca-key=", "--cert-expiry=", "-d", "--detach", "--external-ca=", "-q", "--quiet",
+  "--rotate",
+]
 
 [subcommands.swarm.subcommands.init]
+options = [
+  "--advertise-addr=", "--autolock", "--availability=", "--cert-expiry=", "--data-path-addr=",
+  "--data-path-port=", "--default-addr-pool=", "--default-addr-pool-mask-length=",
+  "--dispatcher-heartbeat=", "--external-ca=", "--force-new-cluster", "--listen-addr=",
+  "--max-snapshots=", "--snapshot-interval=", "--task-history-limit=",
+]
 
 [subcommands.swarm.subcommands.join]
+options = [
+  "--advertise-addr=", "--availability=", "--data-path-addr=", "--listen-addr=", "--token=",
+]
 
 [subcommands.swarm.subcommands.join-token]
+options = ["-q", "--quiet", "--rotate"]
 
 [subcommands.swarm.subcommands.leave]
+options = ["-f", "--force"]
 
 [subcommands.swarm.subcommands.unlock]
 
 [subcommands.swarm.subcommands.unlock-key]
+options = ["-q", "--quiet", "--rotate"]
 
 [subcommands.swarm.subcommands.update]
+options = [
+  "--autolock", "--cert-expiry=", "--dispatcher-heartbeat=", "--external-ca=", "--max-snapshots=",
+  "--snapshot-interval=", "--task-history-limit=",
+]
 
 [subcommands.trust]
 

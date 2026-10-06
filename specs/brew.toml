@@ -1,0 +1,530 @@
+# Verified against: Homebrew 7.0.8.
+# brew(1), Homebrew 7.0.8 (brew is not installed here). The commands, aliases, and option names come
+# from the manual page of that release (docs/Manpage.md), and which options take a value from the
+# command definitions in its Library/Homebrew sources (`flag` and `comma_array` take a value,
+# `switch` does not). The top level is not complete: brew runs any external command `brew-NAME` on
+# PATH and the commands of taps, so an unknown subcommand there is not an error. The only
+# complete group is `brew services`, whose subcommands and aliases are fixed. The `bundle`,
+# `analytics`, `completions`, and `developer` subcommands are listed but their groups are not
+# complete. The dashed commands (`--cache`, `--prefix`, `--env`, ...) and `-S` are options here,
+# since a word that starts with `-` is never a subcommand. `-d`, `-q`, `-v`, and `-h` are common
+# options. The cask directory options of the manual page are declared for `install`, `reinstall`,
+# and `upgrade`.
+name = "brew"
+common-options = ["-d", "--debug", "-q", "--quiet", "-v", "--verbose", "-h", "--help"]
+options = [
+  "--cache", "--caskroom", "--cellar", "--env", "--prefix", "--repository", "--repo", "--taps",
+  "--version", "--config", "-S",
+]
+
+[subcommands.alias]
+options = ["--edit"]
+
+[subcommands.analytics]
+
+[subcommands.analytics.subcommands.state]
+
+[subcommands.analytics.subcommands.on]
+
+[subcommands.analytics.subcommands.off]
+
+[subcommands.as-brew-user]
+
+[subcommands.as-console-user]
+
+[subcommands.audit]
+options = [
+  "--os=", "--arch=", "--strict", "--git", "--online", "--installed", "--new", "--changed",
+  "--tap=", "--fix", "--display-filename", "--skip-style", "-D", "--audit-debug", "--only=",
+  "--except=", "--only-cops=", "--except-cops=", "--formula", "--cask",
+]
+
+[subcommands.autoremove]
+options = ["-n", "--dry-run"]
+
+[subcommands.benchmark]
+options = ["--exec", "--runs="]
+
+[subcommands.bottle]
+options = [
+  "--skip-relocation", "--force-core-tap", "--no-rebuild", "--keep-old", "--json", "--merge",
+  "--write", "--no-commit", "--only-json-tab", "--no-all-checks", "--root-url=",
+  "--root-url-using=",
+]
+
+[subcommands.bump]
+options = [
+  "--full-name", "--no-pull-requests", "--no-autobump", "--formula", "--cask", "--repology",
+  "--tap=", "--installed", "--no-fork", "--open-pr", "--start-with=", "--bump-synced",
+]
+
+[subcommands.bump-cask-pr]
+options = [
+  "-n", "--dry-run", "--write-only", "--commit", "--no-audit", "--no-style", "--no-browse",
+  "--no-fork", "--version=", "--version-arm=", "--version-intel=", "--version-linux-arm=",
+  "--version-linux-intel=", "--message=", "--url=", "--sha256=", "--fork-org=",
+]
+
+[subcommands.bump-compatibility-version]
+options = ["-n", "--dry-run", "--write-only", "--message="]
+
+[subcommands.bump-formula-pr]
+options = [
+  "-n", "--dry-run", "--write-only", "--commit", "--no-audit", "--strict", "--online",
+  "--no-browse", "--no-fork", "--mirror=", "--fork-org=", "--version=", "--message=", "--url=",
+  "--sha256=", "--tag=", "--revision=", "-f", "--force", "--install-dependencies",
+  "--python-package-name=", "--python-extra-packages=", "--python-exclude-packages=",
+]
+
+[subcommands.bump-revision]
+options = ["-n", "--dry-run", "--remove-bottle-block", "--write-only", "--message="]
+
+[subcommands.bump-unversioned-casks]
+options = ["-n", "--dry-run", "--limit=", "--state-file="]
+
+[subcommands.bundle]
+options = [
+  "--file=", "-g", "--global", "--install", "--services", "--check", "--no-secrets", "--formula",
+  "--cask", "--tap", "--mas", "--vscode", "--go", "--cargo", "--uv", "--flatpak", "--winget",
+  "--krew", "--npm", "--all", "--no-upgrade", "--upgrade", "--upgrade-formulae", "-f", "--force",
+  "--force-cleanup", "--zap", "--sandbox=", "--deny-network", "--no-formula", "--no-dump-brew",
+  "--no-cask", "--no-dump-cask", "--no-tap", "--no-dump-tap", "--no-mas", "--no-dump-mas",
+  "--no-vscode", "--no-dump-vscode", "--no-go", "--no-dump-go", "--no-cargo", "--no-dump-cargo",
+  "--no-uv", "--no-dump-uv", "--no-flatpak", "--no-dump-flatpak", "--no-winget", "--no-dump-winget",
+  "--no-krew", "--no-dump-krew", "--no-npm", "--no-dump-npm", "--no-describe", "--no-restart",
+  "--no-cleanup-brew", "--no-cleanup-cask", "--no-cleanup-tap", "--no-cleanup-mas",
+  "--no-cleanup-vscode", "--no-cleanup-go", "--no-cleanup-cargo", "--no-cleanup-uv",
+  "--no-cleanup-flatpak", "--no-cleanup-winget", "--no-cleanup-krew", "--no-cleanup-npm",
+]
+
+[subcommands.bundle.subcommands.add]
+
+[subcommands.bundle.subcommands.check]
+
+[subcommands.bundle.subcommands.cleanup]
+
+[subcommands.bundle.subcommands.dump]
+
+[subcommands.bundle.subcommands.edit]
+
+[subcommands.bundle.subcommands.env]
+
+[subcommands.bundle.subcommands.exec]
+
+[subcommands.bundle.subcommands.install]
+
+[subcommands.bundle.subcommands.list]
+
+[subcommands.bundle.subcommands.remove]
+
+[subcommands.bundle.subcommands.sh]
+
+[subcommands.bundle.subcommands.upgrade]
+
+[subcommands.casks]
+
+[subcommands.cat]
+options = ["--formula", "--cask"]
+
+[subcommands.cleanup]
+options = ["--prune=", "-n", "--dry-run", "-s", "--scrub", "--prune-prefix"]
+
+[subcommands.command]
+
+[subcommands.command-not-found-init]
+
+[subcommands.commands]
+options = ["--include-aliases"]
+
+[subcommands.completions]
+
+[subcommands.completions.subcommands.link]
+
+[subcommands.completions.subcommands.state]
+
+[subcommands.completions.subcommands.unlink]
+
+[subcommands.config]
+
+[subcommands.contributions]
+options = [
+  "--user=", "--repositories=", "--organisation=", "--team=", "--quarter=", "--from=", "--to=",
+  "--csv", "--maintainer-report-csv=",
+]
+
+[subcommands.create]
+options = [
+  "--autotools", "--cabal", "--cask", "--cmake", "--crystal", "--go", "--meson", "--node", "--perl",
+  "--python", "--ruby", "--rust", "--zig", "--no-fetch", "--HEAD", "--set-name=", "--set-version=",
+  "--set-license=", "--tap=", "-f", "--force",
+]
+
+[subcommands.debugger]
+options = ["-O", "--open"]
+
+[subcommands.deps]
+options = [
+  "-n", "--topological", "-1", "--direct", "--union", "--full-name", "--include-implicit",
+  "--include-build", "--include-optional", "--include-test", "--skip-recommended",
+  "--include-requirements", "--tree", "--prune", "--graph", "--dot", "--annotate", "--installed",
+  "--brewfile=", "--missing", "--for-each", "--HEAD", "--os=", "--arch=", "--formula", "--cask",
+]
+
+[subcommands.desc]
+options = ["-s", "--search", "-n", "--name", "--description", "--formula", "--cask"]
+
+[subcommands.developer]
+
+[subcommands.developer.subcommands.state]
+
+[subcommands.developer.subcommands.on]
+
+[subcommands.developer.subcommands.off]
+
+[subcommands.docs]
+
+[subcommands.doctor]
+aliases = ["dr"]
+options = ["--list-checks", "-D", "--audit-debug"]
+
+[subcommands.edit]
+options = ["--formula", "--cask", "--print-path"]
+
+[subcommands.exec]
+aliases = ["x"]
+options = ["--formulae=", "--sandbox=", "--deny-network"]
+
+[subcommands.extract]
+options = ["--git-revision=", "--version=", "-f", "--force"]
+
+[subcommands.fetch]
+options = [
+  "--os=", "--arch=", "--all-platforms", "--bottle-tag=", "--HEAD", "-f", "--force", "--retry",
+  "--deps", "-s", "--build-from-source", "--build-bottle", "--force-bottle", "--formula", "--cask",
+]
+
+[subcommands.find-appcast]
+
+[subcommands.formula]
+
+[subcommands.formulae]
+
+[subcommands.generate-cask-token]
+
+[subcommands.generate-man-completions]
+options = ["--no-exit-code"]
+
+[subcommands.generate-zap]
+options = ["--name"]
+
+[subcommands.gist-logs]
+options = ["-n", "--new-issue", "-p", "--private"]
+
+[subcommands.help]
+
+[subcommands.home]
+aliases = ["homepage"]
+options = ["--formula", "--cask"]
+
+[subcommands.info]
+aliases = ["abv"]
+options = [
+  "--analytics", "--days=", "--category=", "--github", "--json=", "--installed", "--variations",
+  "--formula", "--cask", "--sizes",
+]
+
+[subcommands.install]
+aliases = ["instal"]
+options = [
+  "--display-times", "-f", "--force", "-n", "--dry-run", "-y", "--no-ask", "--formula",
+  "--ignore-dependencies", "--only-dependencies", "--cc=", "-s", "--build-from-source",
+  "--force-bottle", "--include-test", "--HEAD", "--fetch-HEAD", "--keep-tmp", "--debug-symbols",
+  "--build-bottle", "--skip-post-install", "--skip-link", "--as-dependency", "--bottle-arch=", "-i",
+  "--interactive", "-g", "--git", "--overwrite", "--cask", "--require-sha", "--adopt",
+  "--skip-cask-deps", "--zap", "--appdir=", "--appimagedir=", "--keyboard-layoutdir=",
+  "--colorpickerdir=", "--prefpanedir=", "--qlplugindir=", "--mdimporterdir=", "--dictionarydir=",
+  "--fontdir=", "--servicedir=", "--input-methoddir=", "--internet-plugindir=",
+  "--audio-unit-plugindir=", "--vst-plugindir=", "--vst3-plugindir=", "--screen-saverdir=",
+  "--language=",
+]
+
+[subcommands.install-bundler-gems]
+options = ["--groups=", "--add-groups="]
+
+[subcommands.irb]
+options = ["--examples"]
+
+[subcommands.leaves]
+options = ["-r", "--installed-on-request", "-p", "--installed-as-dependency"]
+
+[subcommands.lgtm]
+options = ["--online"]
+
+[subcommands.link]
+aliases = ["ln"]
+options = ["--overwrite", "-n", "--dry-run", "-f", "--force", "--HEAD", "--formula", "--cask"]
+
+[subcommands.linkage]
+options = ["--test", "--strict", "--reverse", "--cached"]
+
+[subcommands.list]
+aliases = ["ls"]
+options = [
+  "--formula", "--cask", "--full-name", "--versions", "--json", "--multiple", "--pinned",
+  "--installed-on-request", "--no-installed-on-request", "--poured-from-bottle",
+  "--built-from-source", "-1", "-l", "-r", "-t",
+]
+
+[subcommands.livecheck]
+aliases = ["lc"]
+options = [
+  "--full-name", "--tap=", "--installed", "--newer-only", "--json", "-r", "--resources",
+  "--formula", "--cask", "--extract-plist", "--autobump",
+]
+
+[subcommands.log]
+options = [
+  "-p", "--patch", "--stat", "--oneline", "-1", "-n=", "--max-count=", "--formula", "--cask",
+]
+
+[subcommands.mcp-server]
+
+[subcommands.migrate]
+options = ["-f", "--force", "-n", "--dry-run", "--formula", "--cask"]
+
+[subcommands.missing]
+options = ["--hide="]
+
+[subcommands.nodenv-sync]
+
+[subcommands.options]
+options = ["--compact", "--installed"]
+
+[subcommands.outdated]
+options = [
+  "--formula", "--cask", "--json=", "--minimum-version=", "--fetch-HEAD", "-g", "--greedy",
+  "--greedy-latest", "--greedy-auto-updates",
+]
+
+[subcommands.pin]
+options = ["--formula", "--cask"]
+
+[subcommands.postinstall]
+aliases = ["post_install"]
+
+[subcommands.prof]
+options = ["--stackprof", "--vernier", "--timings"]
+
+[subcommands.pyenv-sync]
+
+[subcommands.rbenv-sync]
+
+[subcommands.readall]
+options = ["--os=", "--arch=", "--aliases", "--syntax", "--no-simulate"]
+
+[subcommands.reinstall]
+options = [
+  "--display-times", "-f", "--force", "-y", "--no-ask", "--formula", "-s", "--build-from-source",
+  "-i", "--interactive", "--force-bottle", "--keep-tmp", "--debug-symbols", "-g", "--git", "--cask",
+  "--require-sha", "--adopt", "--skip-cask-deps", "--zap", "--appdir=", "--appimagedir=",
+  "--keyboard-layoutdir=", "--colorpickerdir=", "--prefpanedir=", "--qlplugindir=",
+  "--mdimporterdir=", "--dictionarydir=", "--fontdir=", "--servicedir=", "--input-methoddir=",
+  "--internet-plugindir=", "--audio-unit-plugindir=", "--vst-plugindir=", "--vst3-plugindir=",
+  "--screen-saverdir=", "--language=",
+]
+
+[subcommands.rubocop]
+
+[subcommands.ruby]
+options = ["-r=", "-e="]
+
+[subcommands.rubydoc]
+options = ["--only-public", "--open"]
+
+[subcommands.sandbox-exec]
+options = ["--deny-network"]
+
+[subcommands.search]
+options = [
+  "--formula", "--cask", "--desc", "--pull-request", "--open", "--closed", "--alpine", "--repology",
+  "--macports", "--fink", "--opensuse", "--fedora", "--archlinux", "--debian", "--ubuntu",
+]
+
+[subcommands.services]
+complete = true
+options = ["--sudo-service-user="]
+
+[subcommands.services.subcommands.cleanup]
+aliases = ["clean", "cl", "rm"]
+options = ["--sudo-service-user="]
+
+[subcommands.services.subcommands.info]
+aliases = ["i"]
+options = ["--sudo-service-user=", "--all", "--json"]
+
+[subcommands.services.subcommands.kill]
+aliases = ["k"]
+options = ["--sudo-service-user=", "--all"]
+
+[subcommands.services.subcommands.list]
+aliases = ["ls"]
+options = ["--sudo-service-user=", "--json"]
+
+[subcommands.services.subcommands.restart]
+aliases = ["relaunch", "reload", "r"]
+options = ["--sudo-service-user=", "--file=", "--all"]
+
+[subcommands.services.subcommands.run]
+options = ["--sudo-service-user=", "--file=", "--all"]
+
+[subcommands.services.subcommands.start]
+aliases = ["launch", "load", "s", "l"]
+options = ["--sudo-service-user=", "--file=", "--all"]
+
+[subcommands.services.subcommands.stop]
+aliases = ["unload", "terminate", "term", "t", "u"]
+options = ["--sudo-service-user=", "--max-wait=", "--no-wait", "--keep", "--all"]
+
+[subcommands.setup-ruby]
+
+[subcommands.sh]
+options = ["-r", "--ruby", "--env=", "-c=", "--cmd="]
+
+[subcommands.shellenv]
+
+[subcommands.source]
+
+[subcommands.style]
+options = [
+  "--fix", "--todo", "--reset-cache", "--changed", "--formula", "--cask", "--only-cops=",
+  "--except-cops=",
+]
+
+[subcommands.tab]
+options = ["--installed-on-request", "--no-installed-on-request", "--formula", "--cask"]
+
+[subcommands.tap]
+options = ["--custom-remote", "--repair", "-f", "--force"]
+
+[subcommands.tap-info]
+options = ["--installed", "--json="]
+
+[subcommands.tap-new]
+options = ["--no-git", "--branch=", "--github-packages"]
+
+[subcommands.test]
+options = ["-f", "--force", "--HEAD", "--keep-tmp", "--retry"]
+
+[subcommands.test-bot]
+options = [
+  "--dry-run", "--cleanup", "--skip-setup", "--build-from-source", "--build-dependents-from-source",
+  "--junit", "--keep-old", "--skip-relocation", "--only-json-tab", "--local", "--tap=",
+  "--fail-fast", "--test-default-formula", "--root-url=", "--git-name=", "--git-email=",
+  "--publish", "--skip-online-checks", "--skip-new", "--skip-new-strict", "--skip-dependents",
+  "--skip-livecheck", "--skip-checksum-only-audit", "--skip-stable-version-audit",
+  "--skip-revision-audit", "--only-cleanup-before", "--only-setup", "--only-tap-syntax", "--stable",
+  "--only-formulae", "--only-formulae-detect", "--only-formulae-dependents", "--only-bottles-fetch",
+  "--only-cleanup-after", "--testing-formulae=", "--added-formulae=", "--deleted-formulae=",
+  "--skipped-or-failed-formulae=", "--tested-formulae=",
+]
+
+[subcommands.tests]
+options = [
+  "--coverage", "--generic", "--online", "--changed", "--fail-fast", "--load-only", "--no-parallel",
+  "--stackprof", "--vernier", "--ruby-prof", "--only=", "--shard=", "--profile=", "--seed=",
+]
+
+[subcommands.trust]
+options = ["--tap", "--formula", "--cask", "--command", "--json="]
+
+[subcommands.typecheck]
+aliases = ["tc"]
+options = [
+  "--fix", "--update", "--update-all", "--suggest-typed", "--lsp", "--dir=", "--file=", "--ignore=",
+]
+
+[subcommands.unalias]
+
+[subcommands.unbottled]
+options = ["--tag=", "--dependents", "--total", "--lost"]
+
+[subcommands.uninstall]
+aliases = ["remove", "rm", "uninstal"]
+options = ["-f", "--force", "--zap", "--ignore-dependencies", "--formula", "--cask"]
+
+[subcommands.unlink]
+options = ["-n", "--dry-run", "--formula", "--cask"]
+
+[subcommands.unpack]
+options = ["--destdir=", "--patch", "-g", "--git", "-f", "--force", "--formula", "--cask"]
+
+[subcommands.unpin]
+options = ["--formula", "--cask"]
+
+[subcommands.untap]
+options = ["-f", "--force"]
+
+[subcommands.untrust]
+options = ["--tap", "--formula", "--cask", "--command"]
+
+[subcommands.update]
+aliases = ["up"]
+options = ["--auto-update", "-f", "--force"]
+
+[subcommands.update-if-needed]
+
+[subcommands.update-perl-resources]
+options = ["-p", "--print-only", "--ignore-errors"]
+
+[subcommands.update-python-resources]
+options = [
+  "-p", "--print-only", "--ignore-errors", "--ignore-non-pypi-packages",
+  "--ignore-main-package-cooldown", "--install-dependencies", "--version=", "--package-name=",
+  "--extra-packages=", "--exclude-packages=",
+]
+
+[subcommands.update-reset]
+
+[subcommands.update-test]
+options = ["--to-tag", "--keep-tmp", "--commit=", "--before="]
+
+[subcommands.upgrade]
+options = [
+  "--display-times", "-f", "--force", "-n", "--dry-run", "--minimum-version=", "-y", "--no-ask",
+  "--formula", "-s", "--build-from-source", "-i", "--interactive", "--force-bottle", "--fetch-HEAD",
+  "--keep-tmp", "--debug-symbols", "--overwrite", "--cask", "--skip-cask-deps", "--no-quit", "-g",
+  "--greedy", "--greedy-latest", "--greedy-auto-updates", "--require-sha", "--appdir=",
+  "--appimagedir=", "--keyboard-layoutdir=", "--colorpickerdir=", "--prefpanedir=",
+  "--qlplugindir=", "--mdimporterdir=", "--dictionarydir=", "--fontdir=", "--servicedir=",
+  "--input-methoddir=", "--internet-plugindir=", "--audio-unit-plugindir=", "--vst-plugindir=",
+  "--vst3-plugindir=", "--screen-saverdir=", "--language=",
+]
+
+[subcommands.uses]
+options = [
+  "--recursive", "--installed", "--missing", "--include-implicit", "--include-build",
+  "--include-test", "--include-optional", "--skip-recommended", "--formula", "--cask",
+]
+
+[subcommands.vendor-gems]
+options = ["--update=", "--no-commit"]
+
+[subcommands.verify]
+options = ["--os=", "--arch=", "--bottle-tag=", "--deps", "-f", "--force", "-j", "--json"]
+
+[subcommands.version-install]
+
+[subcommands.vulns]
+options = [
+  "--deps", "--no-ignore-patches", "--brewfile=", "--fix-available", "--no-fix-available",
+  "--fix-type=", "--list-skipped", "-s=", "--severity=", "-m=", "--max-summary=", "-j", "--json",
+]
+
+[subcommands.which-formula]
+options = ["--explain"]
+
+[subcommands.which-update]
+options = [
+  "--bottle-json-dir=", "--removed-formulae-file=", "--pull-request=", "--repository=",
+  "--summary-file=",
+]

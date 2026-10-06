@@ -526,14 +526,30 @@ impl ShellState {
         }
     }
 
+    /// True when `word` names a builtin.
+    pub fn is_builtin(&self, word: &str) -> bool {
+        self.builtins.contains(word)
+    }
+
+    /// True when some builtin starts with `prefix` (an incomplete word after `builtin`).
+    pub fn is_builtin_prefix(&self, prefix: &str) -> bool {
+        has_prefix(&self.builtins, prefix)
+    }
+
+    /// True when some `$PATH` command starts with `prefix` (an incomplete word after
+    /// `command`).
+    pub fn is_path_command_prefix(&self, prefix: &str) -> bool {
+        !prefix.contains('/') && has_prefix(&self.path.commands, prefix)
+    }
+
     /// True when some alias, reserved word, function, builtin, or `$PATH` command starts with
     /// `prefix` (an incomplete command word the user may still be typing).
     pub fn is_command_prefix(&self, prefix: &str) -> bool {
         has_prefix(&self.aliases, prefix)
             || has_prefix(&self.reserved_words, prefix)
             || has_prefix(&self.functions, prefix)
-            || has_prefix(&self.builtins, prefix)
-            || (!prefix.contains('/') && has_prefix(&self.path.commands, prefix))
+            || self.is_builtin_prefix(prefix)
+            || self.is_path_command_prefix(prefix)
     }
 }
 
@@ -926,6 +942,37 @@ pub(crate) mod tests {
         }
         for p in ["gix", "zz", "echoo", "bin/g"] {
             assert!(!s.is_command_prefix(p), "{p}");
+        }
+    }
+
+    #[test]
+    fn restricted_name_lookups() {
+        let t = TempDir::new("restricted");
+        t.file("bin/gitk", 0o755);
+        let mut s = empty_state(&t.path().join("bin").to_string_lossy());
+        s.apply_update(StateUpdate {
+            aliases: strings(&["ll"]),
+            functions: strings(&["myfunc"]),
+            builtins: strings(&["echo", "-"]),
+            reserved_words: strings(&["while"]),
+            ..Default::default()
+        });
+        assert!(s.is_builtin("echo"));
+        assert!(s.is_builtin("-"));
+        for name in ["ech", "ll", "myfunc", "while", "gitk", ""] {
+            assert!(!s.is_builtin(name), "{name}");
+        }
+        for p in ["e", "ech", "echo", "-"] {
+            assert!(s.is_builtin_prefix(p), "{p}");
+        }
+        for p in ["echoo", "l", "my", "whi", "gi"] {
+            assert!(!s.is_builtin_prefix(p), "{p}");
+        }
+        for p in ["g", "gi", "gitk"] {
+            assert!(s.is_path_command_prefix(p), "{p}");
+        }
+        for p in ["gitkk", "l", "my", "ec", "whi", "bin/g", "/gi"] {
+            assert!(!s.is_path_command_prefix(p), "{p}");
         }
     }
 

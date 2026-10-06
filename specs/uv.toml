@@ -1,0 +1,474 @@
+# Verified against: uv 0.11.25.
+# uv 0.11.25 (checked against `uv --help` and the help of every subcommand). Complete: uv runs no
+# external subcommands, so an unknown subcommand is an error, at the top level and in the groups
+# `auth`, `cache`, `pip`, `python`, `self`, `tool`, and `workspace`. The hidden commands `clean`,
+# `generate-shell-completion`, and `build-backend` (whose hook subcommands are not listed) and
+# `auth helper` are included. The global, cache, and Python options of `uv --help` are common
+# options, so they are known before and after the subcommand, and their values are not taken for
+# the subcommand. `run` and `tool run` stop option parsing at the command to run.
+name = "uv"
+complete = true
+common-options = [
+  "-q", "--quiet", "-v", "--verbose", "--color=", "--system-certs", "--offline",
+  "--allow-insecure-host=", "--no-progress", "--directory=", "--project=", "--config-file=",
+  "--no-config", "-h", "--help", "-n", "--no-cache", "--cache-dir=", "--managed-python",
+  "--no-managed-python", "--no-python-downloads",
+]
+options = ["-V", "--version"]
+
+[subcommands.add]
+options = [
+  "-r=", "--requirements=", "-c=", "--constraints=", "-m=", "--marker=", "--dev", "--optional=",
+  "--group=", "--editable", "--raw", "--bounds=", "--rev=", "--tag=", "--branch=", "--lfs",
+  "--extra=", "--no-sync", "--locked", "--frozen", "--active", "--package=", "--script=",
+  "--workspace", "--no-workspace", "--no-install-project", "--no-install-workspace",
+  "--no-install-local", "--no-install-package=", "--index=", "--default-index=", "-i=",
+  "--index-url=", "--extra-index-url=", "-f=", "--find-links=", "--no-index", "--index-strategy=",
+  "--keyring-provider=", "-U", "--upgrade", "-P=", "--upgrade-package=", "--upgrade-group=",
+  "--resolution=", "--prerelease=", "--fork-strategy=", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "--reinstall",
+  "--reinstall-package=", "--link-mode=", "--compile-bytecode", "-C=", "--config-setting=",
+  "--config-settings-package=", "--no-build-isolation", "--no-build-isolation-package=",
+  "--no-build", "--no-build-package=", "--no-binary", "--no-binary-package=", "--refresh",
+  "--refresh-package=", "-p=", "--python=",
+]
+
+[subcommands.audit]
+options = [
+  "--no-extra=", "--no-dev", "--no-group=", "--no-default-groups", "--only-group=", "--only-dev",
+  "--locked", "--frozen", "--output-format=", "--script=", "--python-version=",
+  "--python-platform=", "--ignore=", "--ignore-until-fixed=", "--service-format=", "--service-url=",
+  "--no-build", "--no-build-package=", "--no-binary", "--no-binary-package=", "-C=",
+  "--config-setting=", "--config-settings-package=", "--no-build-isolation",
+  "--no-build-isolation-package=", "--index=", "--default-index=", "-i=", "--index-url=",
+  "--extra-index-url=", "-f=", "--find-links=", "--no-index", "--index-strategy=",
+  "--keyring-provider=", "-U", "--upgrade", "-P=", "--upgrade-package=", "--upgrade-group=",
+  "--resolution=", "--prerelease=", "--fork-strategy=", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "--link-mode=",
+]
+
+[subcommands.auth]
+complete = true
+
+[subcommands.auth.subcommands.dir]
+
+[subcommands.auth.subcommands.helper]
+options = ["--protocol="]
+
+[subcommands.auth.subcommands.login]
+options = ["-u=", "--username=", "--password=", "-t=", "--token=", "--keyring-provider="]
+
+[subcommands.auth.subcommands.logout]
+options = ["-u=", "--username=", "--keyring-provider="]
+
+[subcommands.auth.subcommands.token]
+options = ["-u=", "--username=", "--keyring-provider="]
+
+[subcommands.build]
+options = [
+  "--package=", "--all-packages", "-o=", "--out-dir=", "--sdist", "--wheel", "--no-build-logs",
+  "--force-pep517", "--clear", "--no-create-gitignore", "-b=", "--build-constraints=",
+  "--require-hashes", "--no-verify-hashes", "-p=", "--python=", "--index=", "--default-index=",
+  "-i=", "--index-url=", "--extra-index-url=", "-f=", "--find-links=", "--no-index",
+  "--index-strategy=", "--keyring-provider=", "-U", "--upgrade", "-P=", "--upgrade-package=",
+  "--upgrade-group=", "--resolution=", "--prerelease=", "--fork-strategy=", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "-C=", "--config-setting=",
+  "--config-settings-package=", "--no-build-isolation", "--no-build-isolation-package=",
+  "--no-build", "--no-build-package=", "--no-binary", "--no-binary-package=", "--link-mode=",
+  "--refresh", "--refresh-package=",
+]
+
+[subcommands.build-backend]
+
+[subcommands.cache]
+complete = true
+
+[subcommands.cache.subcommands.clean]
+aliases = ["clear"]
+options = ["--force"]
+
+[subcommands.cache.subcommands.dir]
+
+[subcommands.cache.subcommands.prune]
+options = ["--ci", "--force"]
+
+[subcommands.cache.subcommands.size]
+options = ["-H", "--human"]
+
+[subcommands.check]
+options = [
+  "--script=", "--extra=", "--all-extras", "--no-extra=", "--no-dev", "--only-dev", "--group=",
+  "--no-group=", "--no-default-groups", "--only-group=", "--all-groups", "--locked", "--frozen",
+  "--no-sync", "--isolated", "-p=", "--python=", "--ty-version=", "--no-project", "--index=",
+  "--default-index=", "-i=", "--index-url=", "--extra-index-url=", "-f=", "--find-links=",
+  "--no-index", "--index-strategy=", "--keyring-provider=", "-U", "--upgrade", "-P=",
+  "--upgrade-package=", "--upgrade-group=", "--resolution=", "--prerelease=", "--fork-strategy=",
+  "--exclude-newer=", "--exclude-newer-package=", "--no-sources", "--no-sources-package=",
+  "--reinstall", "--reinstall-package=", "--link-mode=", "--compile-bytecode", "-C=",
+  "--config-setting=", "--config-settings-package=", "--no-build-isolation",
+  "--no-build-isolation-package=", "--no-build", "--no-build-package=", "--no-binary",
+  "--no-binary-package=", "--refresh", "--refresh-package=",
+]
+
+[subcommands.clean]
+options = ["--force"]
+
+[subcommands.export]
+options = [
+  "--format=", "--all-packages", "--package=", "--prune=", "--extra=", "--all-extras",
+  "--no-extra=", "--no-dev", "--only-dev", "--group=", "--no-group=", "--no-default-groups",
+  "--only-group=", "--all-groups", "--no-annotate", "--no-header", "--emit-index-url",
+  "--emit-find-links", "--no-editable", "--no-editable-package=", "--no-hashes", "-o=",
+  "--output-file=", "--no-emit-project", "--no-emit-workspace", "--no-emit-local",
+  "--no-emit-package=", "--locked", "--frozen", "--script=", "--index=", "--default-index=", "-i=",
+  "--index-url=", "--extra-index-url=", "-f=", "--find-links=", "--no-index", "--index-strategy=",
+  "--keyring-provider=", "-U", "--upgrade", "-P=", "--upgrade-package=", "--upgrade-group=",
+  "--resolution=", "--prerelease=", "--fork-strategy=", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "-C=", "--config-setting=",
+  "--config-settings-package=", "--no-build-isolation", "--no-build-isolation-package=",
+  "--no-build", "--no-build-package=", "--no-binary", "--no-binary-package=", "--link-mode=",
+  "--refresh", "--refresh-package=", "-p=", "--python=",
+]
+
+[subcommands.format]
+options = ["--check", "--diff", "--version=", "--exclude-newer=", "--no-project"]
+
+[subcommands.generate-shell-completion]
+
+[subcommands.help]
+options = ["--no-pager"]
+
+[subcommands.init]
+options = [
+  "--name=", "--bare", "--package", "--no-package", "--app", "--lib", "--script", "--description=",
+  "--no-description", "--vcs=", "--build-backend=", "--no-readme", "--author-from=",
+  "--no-pin-python", "--no-workspace", "-p=", "--python=",
+]
+
+[subcommands.lock]
+options = [
+  "--check", "--check-exists", "--dry-run", "--script=", "--index=", "--default-index=", "-i=",
+  "--index-url=", "--extra-index-url=", "-f=", "--find-links=", "--no-index", "--index-strategy=",
+  "--keyring-provider=", "-U", "--upgrade", "-P=", "--upgrade-package=", "--upgrade-group=",
+  "--resolution=", "--prerelease=", "--fork-strategy=", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "-C=", "--config-setting=",
+  "--config-settings-package=", "--no-build-isolation", "--no-build-isolation-package=",
+  "--no-build", "--no-build-package=", "--no-binary", "--no-binary-package=", "--link-mode=",
+  "--refresh", "--refresh-package=", "-p=", "--python=",
+]
+
+[subcommands.pip]
+complete = true
+
+[subcommands.pip.subcommands.check]
+options = ["--system", "--python-version=", "--python-platform=", "-p=", "--python="]
+
+[subcommands.pip.subcommands.compile]
+options = [
+  "-c=", "--constraints=", "--overrides=", "--excludes=", "-b=", "--build-constraints=", "--extra=",
+  "--all-extras", "--group=", "--no-deps", "-o=", "--output-file=", "--format=",
+  "--no-strip-extras", "--no-strip-markers", "--no-annotate", "--no-header", "--annotation-style=",
+  "--custom-compile-command=", "--system", "--generate-hashes", "--no-build", "--no-binary=",
+  "--only-binary=", "--python-platform=", "--universal", "--no-emit-package=", "--emit-index-url",
+  "--emit-find-links", "--emit-build-options", "--emit-index-annotation", "--torch-backend=",
+  "--index=", "--default-index=", "-i=", "--index-url=", "--extra-index-url=", "-f=",
+  "--find-links=", "--no-index", "--index-strategy=", "--keyring-provider=", "-U", "--upgrade",
+  "-P=", "--upgrade-package=", "--upgrade-group=", "--resolution=", "--prerelease=",
+  "--fork-strategy=", "--exclude-newer=", "--exclude-newer-package=", "--no-sources",
+  "--no-sources-package=", "-C=", "--config-setting=", "--config-settings-package=",
+  "--no-build-isolation", "--no-build-isolation-package=", "--link-mode=", "--refresh",
+  "--refresh-package=", "-p=", "--python=", "--python-version=",
+]
+
+[subcommands.pip.subcommands.freeze]
+options = [
+  "--exclude-editable", "--exclude=", "--strict", "--path=", "--system", "-t=", "--target=",
+  "--prefix=", "-p=", "--python=",
+]
+
+[subcommands.pip.subcommands.install]
+options = [
+  "-r=", "--requirements=", "-e=", "--editable=", "--no-editable", "--no-editable-package=", "-c=",
+  "--constraints=", "--overrides=", "--excludes=", "-b=", "--build-constraints=", "--extra=",
+  "--all-extras", "--group=", "--no-deps", "--require-hashes", "--no-verify-hashes", "--system",
+  "--break-system-packages", "--no-break-system-packages", "-t=", "--target=", "--prefix=",
+  "--no-build", "--no-binary=", "--only-binary=", "--python-version=", "--python-platform=",
+  "--exact", "--strict", "--dry-run", "--torch-backend=", "--user", "--index=", "--default-index=",
+  "-i=", "--index-url=", "--extra-index-url=", "-f=", "--find-links=", "--no-index",
+  "--index-strategy=", "--keyring-provider=", "-U", "--upgrade", "-P=", "--upgrade-package=",
+  "--upgrade-group=", "--resolution=", "--prerelease=", "--fork-strategy=", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "--reinstall",
+  "--reinstall-package=", "--link-mode=", "--compile-bytecode", "-C=", "--config-setting=",
+  "--config-settings-package=", "--no-build-isolation", "--no-build-isolation-package=",
+  "--refresh", "--refresh-package=", "-p=", "--python=",
+]
+
+[subcommands.pip.subcommands.list]
+aliases = ["ls"]
+options = [
+  "-e", "--editable", "--exclude-editable", "--exclude=", "--format=", "--outdated", "--strict",
+  "--system", "-t=", "--target=", "--prefix=", "--index=", "--default-index=", "-i=",
+  "--index-url=", "--extra-index-url=", "-f=", "--find-links=", "--no-index", "--index-strategy=",
+  "--keyring-provider=", "--exclude-newer=", "-p=", "--python=",
+]
+
+[subcommands.pip.subcommands.show]
+options = [
+  "--strict", "-f", "--files", "--system", "-t=", "--target=", "--prefix=", "-p=", "--python=",
+]
+
+[subcommands.pip.subcommands.sync]
+options = [
+  "-c=", "--constraints=", "-b=", "--build-constraints=", "--extra=", "--all-extras", "--group=",
+  "--require-hashes", "--no-verify-hashes", "--system", "--break-system-packages",
+  "--no-break-system-packages", "-t=", "--target=", "--prefix=", "--no-build", "--no-binary=",
+  "--only-binary=", "--allow-empty-requirements", "--no-allow-empty-requirements",
+  "--python-version=", "--python-platform=", "--strict", "--dry-run", "--torch-backend=",
+  "--index=", "--default-index=", "-i=", "--index-url=", "--extra-index-url=", "-f=",
+  "--find-links=", "--no-index", "--index-strategy=", "--keyring-provider=", "--reinstall",
+  "--reinstall-package=", "--link-mode=", "--compile-bytecode", "-C=", "--config-setting=",
+  "--config-settings-package=", "--no-build-isolation", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "--refresh",
+  "--refresh-package=", "-p=", "--python=",
+]
+
+[subcommands.pip.subcommands.tree]
+options = [
+  "--show-version-specifiers", "-d=", "--depth=", "--prune=", "--package=", "--no-dedupe",
+  "--invert", "--outdated", "--show-sizes", "--strict", "--system", "--index=", "--default-index=",
+  "-i=", "--index-url=", "--extra-index-url=", "-f=", "--find-links=", "--no-index",
+  "--index-strategy=", "--keyring-provider=", "--exclude-newer=", "-p=", "--python=",
+]
+
+[subcommands.pip.subcommands.uninstall]
+options = [
+  "-r=", "--requirements=", "--keyring-provider=", "--system", "--break-system-packages",
+  "--no-break-system-packages", "-t=", "--target=", "--prefix=", "--dry-run", "-p=", "--python=",
+]
+
+[subcommands.publish]
+options = [
+  "--index=", "-u=", "--username=", "-p=", "--password=", "-t=", "--token=",
+  "--trusted-publishing=", "--keyring-provider=", "--publish-url=", "--check-url=", "--dry-run",
+  "--no-attestations",
+]
+
+[subcommands.python]
+complete = true
+
+[subcommands.python.subcommands.dir]
+options = ["--bin"]
+
+[subcommands.python.subcommands.find]
+options = [
+  "--no-project", "--system", "--script=", "--show-version", "--resolve-links",
+  "--python-downloads-json-url=",
+]
+
+[subcommands.python.subcommands.install]
+options = [
+  "-i=", "--install-dir=", "--no-bin", "--no-registry", "--mirror=", "--pypy-mirror=",
+  "--python-downloads-json-url=", "-r", "--reinstall", "-f", "--force", "-U", "--upgrade",
+  "--default", "--compile-bytecode",
+]
+
+[subcommands.python.subcommands.list]
+aliases = ["ls"]
+options = [
+  "--all-versions", "--all-platforms", "--all-arches", "--only-installed", "--only-downloads",
+  "--show-urls", "--output-format=", "--python-downloads-json-url=",
+]
+
+[subcommands.python.subcommands.pin]
+options = ["--resolved", "--no-project", "--global", "--rm", "--python-downloads-json-url="]
+
+[subcommands.python.subcommands.uninstall]
+options = ["-i=", "--install-dir=", "--all"]
+
+[subcommands.python.subcommands.update-shell]
+
+[subcommands.python.subcommands.upgrade]
+options = [
+  "-i=", "--install-dir=", "--mirror=", "--pypy-mirror=", "-r", "--reinstall",
+  "--python-downloads-json-url=", "--compile-bytecode",
+]
+
+[subcommands.remove]
+options = [
+  "--dev", "--optional=", "--group=", "--no-sync", "--active", "--locked", "--frozen", "--package=",
+  "--script=", "--index=", "--default-index=", "-i=", "--index-url=", "--extra-index-url=", "-f=",
+  "--find-links=", "--no-index", "--index-strategy=", "--keyring-provider=", "-U", "--upgrade",
+  "-P=", "--upgrade-package=", "--upgrade-group=", "--resolution=", "--prerelease=",
+  "--fork-strategy=", "--exclude-newer=", "--exclude-newer-package=", "--no-sources",
+  "--no-sources-package=", "--reinstall", "--reinstall-package=", "--link-mode=",
+  "--compile-bytecode", "-C=", "--config-setting=", "--config-settings-package=",
+  "--no-build-isolation", "--no-build-isolation-package=", "--no-build", "--no-build-package=",
+  "--no-binary", "--no-binary-package=", "--refresh", "--refresh-package=", "-p=", "--python=",
+]
+
+[subcommands.run]
+options-first = true
+options = [
+  "--extra=", "--all-extras", "--no-extra=", "--no-dev", "--group=", "--no-group=",
+  "--no-default-groups", "--only-group=", "--all-groups", "-m", "--module", "--only-dev",
+  "--no-editable", "--no-editable-package=", "--exact", "--env-file=", "--no-env-file", "-w=",
+  "--with=", "--with-editable=", "--with-requirements=", "--isolated", "--active", "--no-sync",
+  "--locked", "--frozen", "-s", "--script", "--gui-script", "--all-packages", "--package=",
+  "--no-project", "--python-platform=", "--index=", "--default-index=", "-i=", "--index-url=",
+  "--extra-index-url=", "-f=", "--find-links=", "--no-index", "--index-strategy=",
+  "--keyring-provider=", "-U", "--upgrade", "-P=", "--upgrade-package=", "--upgrade-group=",
+  "--resolution=", "--prerelease=", "--fork-strategy=", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "--reinstall",
+  "--reinstall-package=", "--link-mode=", "--compile-bytecode", "-C=", "--config-setting=",
+  "--config-settings-package=", "--no-build-isolation", "--no-build-isolation-package=",
+  "--no-build", "--no-build-package=", "--no-binary", "--no-binary-package=", "--refresh",
+  "--refresh-package=", "-p=", "--python=",
+]
+
+[subcommands.self]
+complete = true
+
+[subcommands.self.subcommands.update]
+options = ["--token=", "--dry-run"]
+
+[subcommands.self.subcommands.version]
+options = ["--short", "--output-format="]
+
+[subcommands.sync]
+options = [
+  "--extra=", "--output-format=", "--all-extras", "--no-extra=", "--no-dev", "--only-dev",
+  "--group=", "--no-group=", "--no-default-groups", "--only-group=", "--all-groups",
+  "--no-editable", "--no-editable-package=", "--inexact", "--active", "--no-install-project",
+  "--no-install-workspace", "--no-install-local", "--no-install-package=", "--locked", "--frozen",
+  "--dry-run", "--all-packages", "--package=", "--script=", "--python-platform=", "--check",
+  "--index=", "--default-index=", "-i=", "--index-url=", "--extra-index-url=", "-f=",
+  "--find-links=", "--no-index", "--index-strategy=", "--keyring-provider=", "-U", "--upgrade",
+  "-P=", "--upgrade-package=", "--upgrade-group=", "--resolution=", "--prerelease=",
+  "--fork-strategy=", "--exclude-newer=", "--exclude-newer-package=", "--no-sources",
+  "--no-sources-package=", "--reinstall", "--reinstall-package=", "--link-mode=",
+  "--compile-bytecode", "-C=", "--config-setting=", "--config-settings-package=",
+  "--no-build-isolation", "--no-build-isolation-package=", "--no-build", "--no-build-package=",
+  "--no-binary", "--no-binary-package=", "--refresh", "--refresh-package=", "-p=", "--python=",
+]
+
+[subcommands.tool]
+complete = true
+
+[subcommands.tool.subcommands.dir]
+options = ["--bin"]
+
+[subcommands.tool.subcommands.install]
+options = [
+  "-w=", "--with=", "--with-requirements=", "-e", "--editable", "--with-editable=",
+  "--with-executables-from=", "-c=", "--constraints=", "--overrides=", "--excludes=", "-b=",
+  "--build-constraints=", "--force", "--lfs", "--python-platform=", "--torch-backend=", "--index=",
+  "--default-index=", "-i=", "--index-url=", "--extra-index-url=", "-f=", "--find-links=",
+  "--no-index", "--index-strategy=", "--keyring-provider=", "-U", "--upgrade", "-P=",
+  "--upgrade-package=", "--upgrade-group=", "--resolution=", "--prerelease=", "--fork-strategy=",
+  "--exclude-newer=", "--exclude-newer-package=", "--no-sources", "--no-sources-package=",
+  "--reinstall", "--reinstall-package=", "--link-mode=", "--compile-bytecode", "-C=",
+  "--config-setting=", "--config-settings-package=", "--no-build-isolation",
+  "--no-build-isolation-package=", "--no-build", "--no-build-package=", "--no-binary",
+  "--no-binary-package=", "--refresh", "--refresh-package=", "-p=", "--python=",
+]
+
+[subcommands.tool.subcommands.list]
+aliases = ["ls"]
+options = [
+  "--show-paths", "--show-version-specifiers", "--show-with", "--show-extras", "--show-python",
+  "--outdated", "--exclude-newer=",
+]
+
+[subcommands.tool.subcommands.run]
+options-first = true
+options = [
+  "--from=", "-w=", "--with=", "--with-editable=", "--with-requirements=", "-c=", "--constraints=",
+  "-b=", "--build-constraints=", "--overrides=", "--isolated", "--env-file=", "--no-env-file",
+  "--lfs", "--python-platform=", "--torch-backend=", "--index=", "--default-index=", "-i=",
+  "--index-url=", "--extra-index-url=", "-f=", "--find-links=", "--no-index", "--index-strategy=",
+  "--keyring-provider=", "-U", "--upgrade", "-P=", "--upgrade-package=", "--upgrade-group=",
+  "--resolution=", "--prerelease=", "--fork-strategy=", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "--reinstall",
+  "--reinstall-package=", "--link-mode=", "--compile-bytecode", "-C=", "--config-setting=",
+  "--config-settings-package=", "--no-build-isolation", "--no-build-isolation-package=",
+  "--no-build", "--no-build-package=", "--no-binary", "--no-binary-package=", "--refresh",
+  "--refresh-package=", "-p=", "--python=",
+]
+
+[subcommands.tool.subcommands.uninstall]
+options = ["--all"]
+
+[subcommands.tool.subcommands.update-shell]
+
+[subcommands.tool.subcommands.upgrade]
+aliases = ["update"]
+options = [
+  "--all", "--python-platform=", "-p=", "--python=", "--resolution=", "--prerelease=",
+  "--fork-strategy=", "--exclude-newer=", "--exclude-newer-package=", "--no-sources",
+  "--no-sources-package=", "--index=", "--default-index=", "-i=", "--index-url=",
+  "--extra-index-url=", "-f=", "--find-links=", "--no-index", "--index-strategy=",
+  "--keyring-provider=", "--reinstall", "--reinstall-package=", "--link-mode=",
+  "--compile-bytecode", "-C=", "--config-setting=", "--config-setting-package=",
+  "--no-build-isolation", "--no-build-isolation-package=", "--no-build", "--no-build-package=",
+  "--no-binary", "--no-binary-package=",
+]
+
+[subcommands.tree]
+options = [
+  "--universal", "-d=", "--depth=", "--prune=", "--package=", "--no-dedupe", "--invert",
+  "--outdated", "--show-sizes", "--only-dev", "--no-dev", "--group=", "--no-group=",
+  "--no-default-groups", "--only-group=", "--all-groups", "--locked", "--frozen", "--script=",
+  "--python-version=", "--python-platform=", "--no-build", "--no-build-package=", "--no-binary",
+  "--no-binary-package=", "-C=", "--config-setting=", "--config-settings-package=",
+  "--no-build-isolation", "--no-build-isolation-package=", "--index=", "--default-index=", "-i=",
+  "--index-url=", "--extra-index-url=", "-f=", "--find-links=", "--no-index", "--index-strategy=",
+  "--keyring-provider=", "-U", "--upgrade", "-P=", "--upgrade-package=", "--upgrade-group=",
+  "--resolution=", "--prerelease=", "--fork-strategy=", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "--link-mode=", "-p=",
+  "--python=",
+]
+
+[subcommands.venv]
+options = [
+  "--no-project", "--seed", "-c", "--clear", "--force", "--allow-existing", "--prompt=",
+  "--system-site-packages", "--relocatable", "--index-strategy=", "--keyring-provider=",
+  "--exclude-newer=", "--exclude-newer-package=", "--link-mode=", "-p=", "--python=", "--index=",
+  "--default-index=", "-i=", "--index-url=", "--extra-index-url=", "-f=", "--find-links=",
+  "--no-index", "--refresh", "--refresh-package=",
+]
+
+[subcommands.version]
+options = [
+  "--bump=", "--dry-run", "--short", "--output-format=", "--no-sync", "--active", "--locked",
+  "--frozen", "--package=", "--index=", "--default-index=", "-i=", "--index-url=",
+  "--extra-index-url=", "-f=", "--find-links=", "--no-index", "--index-strategy=",
+  "--keyring-provider=", "-U", "--upgrade", "-P=", "--upgrade-package=", "--upgrade-group=",
+  "--resolution=", "--prerelease=", "--fork-strategy=", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "--reinstall",
+  "--reinstall-package=", "--link-mode=", "--compile-bytecode", "-C=", "--config-setting=",
+  "--config-settings-package=", "--no-build-isolation", "--no-build-isolation-package=",
+  "--no-build", "--no-build-package=", "--no-binary", "--no-binary-package=", "--refresh",
+  "--refresh-package=", "-p=", "--python=",
+]
+
+[subcommands.workspace]
+complete = true
+
+[subcommands.workspace.subcommands.dir]
+options = ["--package="]
+
+[subcommands.workspace.subcommands.list]
+options = ["--paths", "--scripts"]
+
+[subcommands.workspace.subcommands.metadata]
+options = [
+  "--script=", "--locked", "--frozen", "--dry-run", "--sync", "--index=", "--default-index=", "-i=",
+  "--index-url=", "--extra-index-url=", "-f=", "--find-links=", "--no-index", "--index-strategy=",
+  "--keyring-provider=", "-U", "--upgrade", "-P=", "--upgrade-package=", "--upgrade-group=",
+  "--resolution=", "--prerelease=", "--fork-strategy=", "--exclude-newer=",
+  "--exclude-newer-package=", "--no-sources", "--no-sources-package=", "-C=", "--config-setting=",
+  "--config-settings-package=", "--no-build-isolation", "--no-build-isolation-package=",
+  "--no-build", "--no-build-package=", "--no-binary", "--no-binary-package=", "--link-mode=",
+  "--refresh", "--refresh-package=", "-p=", "--python=",
+]
+

@@ -1,3 +1,6 @@
+# Verified against: zsh 5.9.
 # The zsh precommand modifier `builtin`.
+# Only `precommand` takes effect here. The grammar is built into the highlighter and ignores
+# overrides: the next word, whatever it is, must be a builtin.
 name = "builtin"
 precommand = true

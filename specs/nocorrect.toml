@@ -1,3 +1,4 @@
+# Verified against: zsh 5.9.
 # The zsh precommand modifier `nocorrect`.
 name = "nocorrect"
 precommand = true

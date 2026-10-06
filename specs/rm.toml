@@ -1,0 +1,11 @@
+# Verified against: GNU coreutils 9.7.
+# rm(1), GNU coreutils 9.7 (checked against `rm --help`). Declared so that `xargs rm -f` styles `-f`
+# as an option of `rm`. No subcommands. Every long option is declared, so `option-abbreviations`
+# resolves a unique prefix (`--rec`); `--ver` is ambiguous, as in rm.
+name = "rm"
+option-abbreviations = true
+options = [
+  "-f", "--force", "-i", "-I", "--interactive=?", "--one-file-system", "--no-preserve-root",
+  "--preserve-root=?", "-r", "-R", "--recursive", "-d", "--dir", "-v", "--verbose", "--help",
+  "--version",
+]

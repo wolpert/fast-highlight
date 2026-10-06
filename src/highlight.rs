@@ -8,7 +8,7 @@
 
 use crate::config::{Config, Limits};
 use crate::paths::{FileStat, PathChecker, PathKind, Resolution};
-use crate::specs::{ArgInput, CommandSpec, SpecRegistry};
+use crate::specs::{ArgInput, CommandSpec, SpecRegistry, Tail};
 use crate::state::{CommandClass, ShellState};
 use crate::syntax::{ParseOptions, ParseOutput, Word};
 use crate::token::{Span, TokenKind};
@@ -49,8 +49,8 @@ pub struct Highlighter {
 pub trait Spec {
     /// See [`CommandSpec::is_precommand`].
     fn is_precommand(&self) -> bool;
-    /// See [`CommandSpec::wrapped_command`].
-    fn wrapped_command(&self, args: &[ArgInput<'_>]) -> Option<usize>;
+    /// See [`CommandSpec::tail`].
+    fn tail(&self, args: &[ArgInput<'_>]) -> Tail;
     /// See [`CommandSpec::classify_args`].
     fn classify_args(&self, args: &[ArgInput<'_>]) -> Vec<Option<TokenKind>>;
     /// See [`CommandSpec::completes_at`].
@@ -67,8 +67,8 @@ impl Spec for CommandSpec {
         CommandSpec::is_precommand(self)
     }
 
-    fn wrapped_command(&self, args: &[ArgInput<'_>]) -> Option<usize> {
-        CommandSpec::wrapped_command(self, args)
+    fn tail(&self, args: &[ArgInput<'_>]) -> Tail {
+        CommandSpec::tail(self, args)
     }
 
     fn classify_args(&self, args: &[ArgInput<'_>]) -> Vec<Option<TokenKind>> {
@@ -203,23 +203,142 @@ fn arg_inputs(words: &[Word]) -> Vec<ArgInput<'_>> {
         .iter()
         .map(|w| ArgInput {
             literal: w.literal.as_deref(),
+            name_eq: w.name_eq,
         })
         .collect()
 }
 
-/// For a precommand without a spec, the index of the wrapped command in `args`: the first word
-/// that is not an option (after `--`, the next word). `exec -a NAME` takes an argument.
-fn fallback_wrapped(name: &str, args: &[ArgInput<'_>]) -> Option<usize> {
+/// For a precommand without a spec, the wrapped command in `args`: the first word that is not
+/// an option (after `--`, the next word). `exec -a NAME` takes an argument.
+fn fallback_wrapped(name: &str, args: &[ArgInput<'_>]) -> Tail {
     let mut i = 0;
     while i < args.len() {
         match args[i].literal {
-            Some("--") => return (i + 1 < args.len()).then_some(i + 1),
+            Some("--") if i + 1 < args.len() => return Tail::Command(i + 1),
+            Some("--") => return Tail::None,
             Some("-a") if name == "exec" => i += 2,
             Some(s) if s.starts_with('-') && s.len() > 1 => i += 1,
-            _ => return Some(i),
+            _ => return Tail::Command(i),
         }
     }
-    None
+    Tail::None
+}
+
+/// The options of `command` in `args`: the index of the first word after them, and whether
+/// `-v` or `-V` makes the remaining words lookups rather than a command. An option word is `-`
+/// followed by one or more of `p`, `v`, and `V`; `--` ends the options and is skipped. Any
+/// other word, a lone `-` included, is the command word.
+///
+/// zsh takes several option words only when a `v` or `V` appears among them (`-p -v ls`, `-v
+/// -p -p ls`). Without one, at most one option word may come before `--` (`-p ls`, `-p -- ls`).
+/// A second one (`-p -p ls`), or an invalid one after consumed ones (`-p -x ls`), makes the
+/// first option word the command word, so nothing is consumed.
+///
+/// The grammar of `command` and `builtin` is built in and keyed by name: it overrides the
+/// spec, which only decides whether they are precommands at all. [`fallback_wrapped`], by
+/// contrast, runs only for a precommand with no spec.
+fn command_options(args: &[ArgInput<'_>]) -> (usize, bool) {
+    let (mut query, mut words) = (false, 0);
+    let mut end = args.len();
+    let mut bad_option = false;
+    for (i, a) in args.iter().enumerate() {
+        match a.literal {
+            Some("--") => {
+                end = i + 1;
+                break;
+            }
+            Some(s) if s.len() > 1 && s.starts_with('-') => {
+                if !s[1..].bytes().all(|b| matches!(b, b'p' | b'v' | b'V')) {
+                    bad_option = true;
+                    end = i;
+                    break;
+                }
+                query |= s.contains(['v', 'V']);
+                words += 1;
+            }
+            _ => {
+                end = i;
+                break;
+            }
+        }
+    }
+    if words > 0 && (bad_option || (words > 1 && !query)) {
+        return (0, false);
+    }
+    (end, query)
+}
+
+/// For the precommand `name`: the wrapped command, whether the words from it on are `command
+/// -v` lookups, and the restriction on the wrapped command word. `builtin` wraps its first
+/// argument, whatever it is; `command` follows [`command_options`]; any other precommand
+/// follows its spec, or [`fallback_wrapped`] without one, and restricts nothing.
+fn precommand_tail(
+    name: &str,
+    spec: Option<&dyn Spec>,
+    args: &[ArgInput<'_>],
+) -> (Tail, bool, Wrap) {
+    let at = |i: usize| match i < args.len() {
+        true => Tail::Command(i),
+        false => Tail::None,
+    };
+    match (name, spec) {
+        ("builtin", _) => (at(0), false, Wrap::Builtin),
+        ("command", _) => {
+            let (i, query) = command_options(args);
+            let next = if query { Wrap::None } else { Wrap::Command };
+            (at(i), query, next)
+        }
+        (_, Some(s)) => (s.tail(args), false, Wrap::None),
+        (_, None) => (fallback_wrapped(name, args), false, Wrap::None),
+    }
+}
+
+/// The span kind of a command word of a known class; `None` for [`CommandClass::Unknown`].
+fn class_kind(class: CommandClass) -> Option<TokenKind> {
+    match class {
+        CommandClass::Alias => Some(TokenKind::Alias),
+        CommandClass::SuffixAlias => Some(TokenKind::SuffixAlias),
+        CommandClass::GlobalAlias => Some(TokenKind::GlobalAlias),
+        CommandClass::Function => Some(TokenKind::Function),
+        CommandClass::Builtin => Some(TokenKind::Builtin),
+        CommandClass::ReservedWord => Some(TokenKind::ReservedWord),
+        CommandClass::External => Some(TokenKind::Command),
+        CommandClass::Unknown => None,
+    }
+}
+
+/// What the precommand before a command word restricts that word to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Wrap {
+    /// Full command lookup: the first word, or the word after any other precommand.
+    None,
+    /// After `builtin`: builtins only.
+    Builtin,
+    /// After `command` without `-v` or `-V`: external commands only.
+    Command,
+}
+
+/// The classification of a command word.
+enum Wrapped {
+    /// A precommand: the chain continues with the command it wraps.
+    Precommand,
+    /// Any other command word, with its span kind (none while it is still being typed or
+    /// cannot be resolved yet).
+    Kind(Option<TokenKind>),
+}
+
+/// Which names [`Pass::unknown_command`] may still accept.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Lookup {
+    /// A command word with full lookup: `AUTO_CD` directories count, and a prefix of any
+    /// command name is left unstyled while typed.
+    Top,
+    /// The word after `command`: only an explicit path to an executable file, and only a
+    /// prefix of a `$PATH` command is left unstyled while typed.
+    External,
+    /// A word after `command -v` or `-V`: only an explicit path to an executable file, and a
+    /// prefix of any command name is left unstyled while typed.
+    Query,
 }
 
 impl Pass<'_, '_> {
@@ -249,10 +368,12 @@ impl Pass<'_, '_> {
         }
     }
 
-    /// Classifies one simple command, following precommand chains iteratively.
+    /// Classifies one simple command, following precommand chains and other wrapped commands
+    /// (`kubectl exec POD -- cmd`) iteratively.
     fn command(&mut self, words: &[Word]) {
         let inputs = arg_inputs(words);
         let mut at = 0;
+        let mut wrap = Wrap::None;
         while at < words.len() {
             let (cmd, args, arg_in) = (&words[at], &words[at + 1..], &inputs[at + 1..]);
             let Some(name) = cmd.literal.as_deref() else {
@@ -260,82 +381,167 @@ impl Pass<'_, '_> {
                 self.args(None, args, arg_in);
                 return;
             };
-            let quoted = self.is_quoted(cmd, name);
-            let class = self.state.classify_name(name, quoted);
             let spec = self.specs.spec(name);
             let precommand = match spec {
                 Some(s) => s.is_precommand(),
                 None => FALLBACK_PRECOMMANDS.contains(&name),
             };
-            // A function or global alias of the same name shadows the precommand. An alias
-            // does not: `alias sudo='sudo '` is the common case.
-            if precommand && !matches!(class, CommandClass::Function | CommandClass::GlobalAlias) {
-                self.push(cmd, TokenKind::Precommand);
-                let wrapped = match spec {
-                    Some(s) => s.wrapped_command(arg_in),
-                    None => fallback_wrapped(name, arg_in),
-                }
-                .filter(|&i| i < args.len());
-                let own = wrapped.unwrap_or(args.len());
-                // The precommand's own options; their plain arguments (`-u root`, `-n 5`) are
-                // not path-checked.
-                if let Some(s) = spec {
-                    let kinds = s.classify_args(&arg_in[..own]);
-                    for (i, w) in args[..own].iter().enumerate() {
-                        if self.global_alias(w) {
+            let kind = match self.wrapped_word(wrap, cmd, name, precommand) {
+                Wrapped::Kind(kind) => kind,
+                Wrapped::Precommand => {
+                    self.push(cmd, TokenKind::Precommand);
+                    let (tail, query, next) = precommand_tail(name, spec, arg_in);
+                    match tail {
+                        Tail::Command(i) if i < args.len() => {
+                            self.own_args(name, spec, &args[..i], &arg_in[..i]);
+                            if query {
+                                for w in &args[i..] {
+                                    self.query_word(w);
+                                }
+                                return;
+                            }
+                            at += 1 + i;
+                            wrap = next;
                             continue;
                         }
-                        if let Some(k) = self.spec_kind(s, &arg_in[..own], &kinds, i, w) {
-                            self.push(w, k);
-                        }
+                        // Operands, not a command (`sudo -e FILE`): checked as paths.
+                        Tail::Paths => self.args(spec, args, arg_in),
+                        Tail::Command(_) | Tail::None => self.own_args(name, spec, args, arg_in),
                     }
-                } else {
-                    for w in &args[..own] {
-                        self.global_alias(w);
-                    }
+                    return;
                 }
-                match wrapped {
-                    Some(i) => at += 1 + i,
-                    None => return,
-                }
-                continue;
-            }
-            let kind = match class {
-                CommandClass::Alias => Some(TokenKind::Alias),
-                CommandClass::SuffixAlias => Some(TokenKind::SuffixAlias),
-                CommandClass::GlobalAlias => Some(TokenKind::GlobalAlias),
-                CommandClass::Function => Some(TokenKind::Function),
-                CommandClass::Builtin => Some(TokenKind::Builtin),
-                CommandClass::ReservedWord => Some(TokenKind::ReservedWord),
-                CommandClass::External => Some(TokenKind::Command),
-                CommandClass::Unknown => self.unknown_command(cmd, name),
             };
             if let Some(k) = kind {
                 self.push(cmd, k);
+            }
+            // A word `builtin` or `command` would not run wraps nothing, whatever its spec
+            // says: its arguments are only checked as paths.
+            if wrap != Wrap::None && kind == Some(TokenKind::Error) {
+                self.args(None, args, arg_in);
+                return;
+            }
+            // A command that wraps another without being a precommand (`kubectl exec POD --
+            // cmd`): its own arguments as usual, then the wrapped command word. A precommand
+            // shadowed by a function or global alias wraps nothing.
+            if !precommand
+                && let Some(s) = spec
+                && let Tail::Command(i) = s.tail(arg_in)
+                && i < args.len()
+            {
+                self.args(spec, &args[..i], &arg_in[..i]);
+                at += 1 + i;
+                wrap = Wrap::None;
+                continue;
             }
             self.args(spec, args, arg_in);
             return;
         }
     }
 
+    /// Classifies the literal command word `name` under the restriction `wrap` left by the
+    /// precommand before it. `precommand` says whether a spec or the fallback list makes the
+    /// name a precommand.
+    ///
+    /// - [`Wrap::None`]: full lookup. A function or global alias of the same name shadows a
+    ///   precommand; an alias does not (`alias sudo='sudo '` is the common case).
+    /// - [`Wrap::Builtin`]: only a builtin, by name. There is no alias expansion and no shadow
+    ///   check; a prefix of a builtin being typed gets no span; anything else is an error.
+    /// - [`Wrap::Command`]: only a `$PATH` command or an explicit path to an executable file,
+    ///   with no shadow check; see [`Lookup::External`] for the rest.
+    fn wrapped_word(&mut self, wrap: Wrap, cmd: &Word, name: &str, precommand: bool) -> Wrapped {
+        let accepted = |kind| match precommand {
+            true => Wrapped::Precommand,
+            false => Wrapped::Kind(Some(kind)),
+        };
+        match wrap {
+            Wrap::None => {
+                let class = self.state.classify_name(name, self.is_quoted(cmd, name));
+                if precommand
+                    && !matches!(class, CommandClass::Function | CommandClass::GlobalAlias)
+                {
+                    return Wrapped::Precommand;
+                }
+                Wrapped::Kind(
+                    class_kind(class).or_else(|| self.unknown_command(cmd, name, Lookup::Top)),
+                )
+            }
+            Wrap::Builtin if self.state.is_builtin(name) => accepted(TokenKind::Builtin),
+            Wrap::Builtin if self.typing(cmd) && self.state.is_builtin_prefix(name) => {
+                Wrapped::Kind(None)
+            }
+            Wrap::Builtin => Wrapped::Kind(Some(TokenKind::Error)),
+            Wrap::Command if self.state.is_path_command(name) => accepted(TokenKind::Command),
+            Wrap::Command => Wrapped::Kind(self.unknown_command(cmd, name, Lookup::External)),
+        }
+    }
+
+    /// A word after `command -v` or `-V`: styled by what it names, as the lookup reports it,
+    /// whether or not it is quoted. A word that names nothing is an error.
+    fn query_word(&mut self, w: &Word) {
+        let Some(name) = w.literal.as_deref() else {
+            return;
+        };
+        let kind = class_kind(self.state.classify_name(name, false))
+            .or_else(|| self.unknown_command(w, name, Lookup::Query));
+        if let Some(k) = kind {
+            self.push(w, k);
+        }
+    }
+
+    /// A precommand's own arguments: global aliases and spec classification. Their plain
+    /// arguments (`-u root`, `-n 5`) are not path-checked. The options of `command` are styled
+    /// by its built-in grammar (see [`command_options`]), whatever its spec says.
+    fn own_args(
+        &mut self,
+        name: &str,
+        spec: Option<&dyn Spec>,
+        args: &[Word],
+        inputs: &[ArgInput<'_>],
+    ) {
+        if name == "command" {
+            for w in args {
+                if w.literal.as_deref() != Some("--") {
+                    self.push(w, TokenKind::CmdOption);
+                }
+            }
+            return;
+        }
+        let Some(s) = spec else {
+            for w in args {
+                self.global_alias(w);
+            }
+            return;
+        };
+        let kinds = s.classify_args(inputs);
+        for (i, w) in args.iter().enumerate() {
+            if self.global_alias(w) {
+                continue;
+            }
+            if let Some(k) = self.spec_kind(s, inputs, &kinds, i, w) {
+                self.push(w, k);
+            }
+        }
+    }
+
     /// The span for a command word that names no alias, function, builtin, or `$PATH` command.
     ///
     /// - A path containing `/` to an executable file is a command.
-    /// - With `AUTO_CD`, an existing directory is a path-directory.
+    /// - With `AUTO_CD`, an existing directory is a path-directory, for [`Lookup::Top`] only.
     /// - While the user is typing the word (cursor at its end):
     ///   - a path that is a prefix of an existing entry, or an existing directory, is a
     ///     path-prefix (the entry it leads to is not checked for executability);
     ///   - a name that is a prefix of a known alias, reserved word, function, builtin, or
-    ///     `$PATH` command, or an unresolvable `~user` prefix, gets no span. Marking it as an
-    ///     error on every keystroke until the name is complete would only flash red.
+    ///     `$PATH` command (for [`Lookup::External`], of a `$PATH` command only), or an
+    ///     unresolvable `~user` prefix, gets no span. Marking it as an error on every keystroke
+    ///     until the name is complete would only flash red.
     /// - When the per-request filesystem budget is exhausted (or a `~user` lookup is deferred,
     ///   see [`PathChecker::resolve`]), or a prefix check could not tell, the word gets no span
     ///   rather than a possibly wrong error.
     /// - Anything else is an error.
-    fn unknown_command(&mut self, cmd: &Word, name: &str) -> Option<TokenKind> {
+    fn unknown_command(&mut self, cmd: &Word, name: &str, lookup: Lookup) -> Option<TokenKind> {
         let typing = self.typing(cmd);
         let has_slash = name.contains('/');
-        let auto_cd = self.req.opts.auto_cd;
+        let auto_cd = self.req.opts.auto_cd && lookup == Lookup::Top;
         if (has_slash || auto_cd) && crate::paths::could_be_path(name) {
             let resolved = self
                 .paths
@@ -360,7 +566,11 @@ impl Pass<'_, '_> {
                 }
             }
         }
-        if typing && !has_slash && (cmd.tilde || self.state.is_command_prefix(name)) {
+        let prefix = |state: &ShellState| match lookup {
+            Lookup::Top | Lookup::Query => state.is_command_prefix(name),
+            Lookup::External => state.is_path_command_prefix(name),
+        };
+        if typing && !has_slash && (cmd.tilde || prefix(self.state)) {
             return None;
         }
         Some(TokenKind::Error)
@@ -513,6 +723,8 @@ mod tests {
 
     /// A spec for tests: options start with `-` (those in `bad` are errors), `takes_arg`
     /// options consume the next word, the first positional is checked against `subcommands`.
+    /// A precommand wraps the first word after its options, unless a `path_mode` option came
+    /// first; with `wrapped_after`, the word after the first `--` is wrapped.
     #[derive(Default)]
     struct FakeSpec {
         precommand: bool,
@@ -521,6 +733,8 @@ mod tests {
         subcommands: &'static [&'static str],
         complete: bool,
         skip_assignments: bool,
+        path_mode: &'static [&'static str],
+        wrapped_after: bool,
     }
 
     impl Spec for FakeSpec {
@@ -528,17 +742,31 @@ mod tests {
             self.precommand
         }
 
-        fn wrapped_command(&self, args: &[ArgInput<'_>]) -> Option<usize> {
+        fn tail(&self, args: &[ArgInput<'_>]) -> Tail {
+            if self.wrapped_after {
+                return match args.iter().position(|a| a.literal == Some("--")) {
+                    Some(j) if j + 1 < args.len() => Tail::Command(j + 1),
+                    _ => Tail::None,
+                };
+            }
+            if !self.precommand {
+                return Tail::None;
+            }
+            let mut paths = false;
             let mut i = 0;
             while i < args.len() {
                 match args[i].literal {
                     Some(s) if self.takes_arg.contains(&s) => i += 2,
-                    Some(s) if s.starts_with('-') => i += 1,
-                    Some(s) if self.skip_assignments && s.contains('=') => i += 1,
-                    _ => return Some(i),
+                    Some(s) if s.starts_with('-') => {
+                        paths |= self.path_mode.contains(&s);
+                        i += 1;
+                    }
+                    _ if paths => return Tail::Paths,
+                    _ if self.skip_assignments && args[i].name_eq => i += 1,
+                    _ => return Tail::Command(i),
                 }
             }
-            None
+            if paths { Tail::Paths } else { Tail::None }
         }
 
         fn classify_args(&self, args: &[ArgInput<'_>]) -> Vec<Option<TokenKind>> {
@@ -602,6 +830,7 @@ mod tests {
             FakeSpec {
                 precommand: true,
                 takes_arg: &["-u", "-g"],
+                path_mode: &["-e"],
                 ..Default::default()
             },
         );
@@ -632,11 +861,21 @@ mod tests {
             },
         );
         m.insert("make", FakeSpec::default());
+        m.insert(
+            "kubectl",
+            FakeSpec {
+                subcommands: &["exec", "get"],
+                takes_arg: &["-n"],
+                wrapped_after: true,
+                ..Default::default()
+            },
+        );
         FakeSpecs(m)
     }
 
     /// Splits `text` on single spaces into words. A word containing `$` has no literal; one
     /// containing `*` is a glob; a leading `~` sets `tilde`; quotes are removed from the literal.
+    /// `name_eq` is decided by the text before the first `$` or `*`, as the parser does.
     fn words_of(text: &str, base: usize) -> Vec<Word> {
         let mut out = Vec::new();
         let mut pos = base;
@@ -645,12 +884,14 @@ mod tests {
                 let has_glob = w.contains('*');
                 let literal =
                     (!w.contains('$') && !has_glob).then(|| w.replace(['\'', '"', '\\'], ""));
+                let head = w.split(['$', '*']).next().unwrap_or_default();
                 out.push(Word {
                     start: pos,
                     end: pos + w.len(),
                     literal,
                     tilde: w.starts_with('~'),
                     has_glob,
+                    name_eq: crate::syntax::is_name_eq(&head.replace(['\'', '"', '\\'], "")),
                 });
             }
             pos += w.len() + 1;
@@ -690,7 +931,9 @@ mod tests {
 
     fn fixture() -> Fixture {
         let dir = TempDir::new("hl");
-        for exe in ["git", "make", "sudo", "env", "nice", "ls", "gitk"] {
+        for exe in [
+            "git", "make", "sudo", "env", "nice", "ls", "gitk", "kubectl",
+        ] {
             dir.file(&format!("bin/{exe}"), 0o755);
         }
         dir.file("work/tool", 0o755);
@@ -833,6 +1076,15 @@ mod tests {
                 ("nosuch", K::Error)
             ])
         );
+        // A spec precommand wrapping a fallback precommand (`noglob` has no spec here).
+        assert_eq!(
+            f.run("sudo noglob ls"),
+            spans(&[
+                ("sudo", K::Precommand),
+                ("noglob", K::Precommand),
+                ("ls", K::Command)
+            ])
+        );
     }
 
     #[test]
@@ -874,6 +1126,708 @@ mod tests {
         );
     }
 
+    fn literals(line: &str) -> Vec<ArgInput<'_>> {
+        line.split_whitespace()
+            .map(|w| ArgInput {
+                literal: Some(w),
+                name_eq: false,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn command_options_parsing() {
+        let cases: &[(&str, (usize, bool))] = &[
+            ("", (0, false)),
+            ("ls", (0, false)),
+            ("-p ls", (1, false)),
+            ("-v ls", (1, true)),
+            ("-V ls", (1, true)),
+            ("-pv ls", (1, true)),
+            ("-Vp ls", (1, true)),
+            ("-p -V ls", (2, true)),
+            ("-v", (1, true)),
+            ("-v -- ls", (2, true)),
+            ("-- -v ls", (1, false)),
+            ("--", (1, false)),
+            ("-x ls", (0, false)),
+            ("-pvx ls", (0, false)),
+            ("- ls", (0, false)),
+            ("ls -v", (0, false)),
+            ("-p ls -v", (1, false)),
+            // Several option words need a v or V among them.
+            ("-p -p ls", (0, false)),
+            ("-p -pz ls", (0, false)),
+            ("-pp -p ls", (0, false)),
+            ("-p -p -- ls", (0, false)),
+            ("-p -p", (0, false)),
+            ("-p -v ls", (2, true)),
+            ("-v -p -p ls", (3, true)),
+            ("-p -p -v ls", (3, true)),
+            ("-p -p -v -- ls", (4, true)),
+            // An invalid option word after consumed ones: the first is the command word.
+            ("-p -x ls", (0, false)),
+            ("-v -x ls", (0, false)),
+            ("-p -v -x ls", (0, false)),
+            ("-p -- ls", (2, false)),
+            ("-p --", (2, false)),
+            ("-p - ls", (1, false)),
+        ];
+        for (line, want) in cases {
+            assert_eq!(command_options(&literals(line)), *want, "{line:?}");
+        }
+        let expansion = [ArgInput {
+            literal: None,
+            name_eq: false,
+        }];
+        assert_eq!(command_options(&expansion), (0, false));
+    }
+
+    /// The fixture with a `-` builtin, as zsh has.
+    fn wrapper_fixture() -> Fixture {
+        let mut f = fixture();
+        f.h.state.apply_update(StateUpdate {
+            builtins: strings(&["echo", "cd", "noglob", "builtin", "command", "exec", "-"]),
+            ..Default::default()
+        });
+        f
+    }
+
+    #[test]
+    fn builtin_accepts_only_builtins() {
+        let mut f = wrapper_fixture();
+        assert_eq!(
+            f.run("builtin echo"),
+            spans(&[("builtin", K::Precommand), ("echo", K::Builtin)])
+        );
+        assert_eq!(
+            f.run("builtin 'echo' x"),
+            spans(&[("builtin", K::Precommand), ("'echo'", K::Builtin)])
+        );
+        // An external command, unknown name, function, reserved word, alias, or path.
+        for word in [
+            "ls",
+            "nosuch",
+            "myfn",
+            "while",
+            "typeset",
+            "ll",
+            "time",
+            "nocorrect",
+            "./tool",
+            "--",
+        ] {
+            assert_eq!(
+                f.run(&format!("builtin {word}")),
+                spans(&[("builtin", K::Precommand), (word, K::Error)]),
+                "{word}"
+            );
+        }
+        // Precommand builtins continue the chain.
+        for (text, last) in [
+            ("builtin command ls", "ls"),
+            ("builtin exec ls", "ls"),
+            ("builtin noglob ls", "ls"),
+            ("builtin - ls", "ls"),
+        ] {
+            let middle = text.split(' ').nth(1).unwrap();
+            assert_eq!(
+                f.run(text),
+                spans(&[
+                    ("builtin", K::Precommand),
+                    (middle, K::Precommand),
+                    (last, K::Command)
+                ]),
+                "{text}"
+            );
+        }
+        assert_eq!(
+            f.run("builtin builtin echo"),
+            spans(&[
+                ("builtin", K::Precommand),
+                ("builtin", K::Precommand),
+                ("echo", K::Builtin)
+            ])
+        );
+        // Without a `-` builtin, `-` is not one.
+        let mut f = fixture();
+        assert_eq!(
+            f.run("builtin - ls"),
+            spans(&[("builtin", K::Precommand), ("-", K::Error)])
+        );
+    }
+
+    #[test]
+    fn command_accepts_only_externals() {
+        let mut f = wrapper_fixture();
+        assert_eq!(
+            f.run("command ls"),
+            spans(&[("command", K::Precommand), ("ls", K::Command)])
+        );
+        assert_eq!(
+            f.run("command 'ls'"),
+            spans(&[("command", K::Precommand), ("'ls'", K::Command)])
+        );
+        assert_eq!(
+            f.run("command ./tool"),
+            spans(&[("command", K::Precommand), ("./tool", K::Command)])
+        );
+        // Functions, aliases, suffix aliases, builtins, reserved words, precommand builtins,
+        // unknown names, and paths that are not executable files.
+        for word in [
+            "myfn",
+            "ll",
+            "\\ll",
+            "doc.pdf",
+            "cd",
+            "echo",
+            "while",
+            "typeset",
+            "command",
+            "builtin",
+            "noglob",
+            "exec",
+            "-",
+            "nosuch",
+            "./notes.txt",
+            "./src",
+        ] {
+            assert_eq!(
+                f.run(&format!("command {word}")),
+                spans(&[("command", K::Precommand), (word, K::Error)]),
+                "{word}"
+            );
+        }
+        // A builtin that also exists on PATH runs the external.
+        f.dir.file("bin/echo", 0o755);
+        f.h.state.invalidate_path();
+        assert_eq!(
+            f.run("command echo"),
+            spans(&[("command", K::Precommand), ("echo", K::Command)])
+        );
+        // External precommands continue the chain.
+        assert_eq!(
+            f.run("command sudo -u root ls"),
+            spans(&[
+                ("command", K::Precommand),
+                ("sudo", K::Precommand),
+                ("-u", K::CmdOption),
+                ("ls", K::Command)
+            ])
+        );
+    }
+
+    #[test]
+    fn command_precommand_skips_the_shadow_check() {
+        let mut f = wrapper_fixture();
+        assert_eq!(
+            f.run("command time ls"),
+            spans(&[("command", K::Precommand), ("time", K::Error)])
+        );
+        f.dir.file("bin/time", 0o755);
+        f.h.state.apply_update(StateUpdate {
+            functions: strings(&["myfn", "nice", "time"]),
+            reserved_words: strings(&["while", "typeset", "time"]),
+            rehash: true,
+            ..Default::default()
+        });
+        for (text, middle) in [("command nice ls", "nice"), ("command time ls", "time")] {
+            assert_eq!(
+                f.run(text),
+                spans(&[
+                    ("command", K::Precommand),
+                    (middle, K::Precommand),
+                    ("ls", K::Command)
+                ]),
+                "{text}"
+            );
+        }
+        // Elsewhere the function still shadows the precommand, also after `sudo`.
+        assert_eq!(f.run("nice ls"), spans(&[("nice", K::Function)]));
+        assert_eq!(
+            f.run("sudo nice ls"),
+            spans(&[("sudo", K::Precommand), ("nice", K::Function)])
+        );
+    }
+
+    #[test]
+    fn command_v_looks_names_up() {
+        let mut f = wrapper_fixture();
+        assert_eq!(
+            f.run("command -v myfn ll G doc.pdf echo while ls nosuch ./tool 'll' $x *.txt"),
+            spans(&[
+                ("command", K::Precommand),
+                ("-v", K::CmdOption),
+                ("myfn", K::Function),
+                ("ll", K::Alias),
+                ("G", K::GlobalAlias),
+                ("doc.pdf", K::SuffixAlias),
+                ("echo", K::Builtin),
+                ("while", K::ReservedWord),
+                ("ls", K::Command),
+                ("nosuch", K::Error),
+                ("./tool", K::Command),
+                ("'ll'", K::Alias),
+            ])
+        );
+        // Query words never continue a chain.
+        assert_eq!(
+            f.run("command -V sudo nosuch"),
+            spans(&[
+                ("command", K::Precommand),
+                ("-V", K::CmdOption),
+                ("sudo", K::Alias),
+                ("nosuch", K::Error)
+            ])
+        );
+        for (text, opts) in [
+            ("command -pv ls", &["-pv"][..]),
+            ("command -Vp ls", &["-Vp"]),
+            ("command -p -v ls", &["-p", "-v"]),
+            ("command -v -- ls", &["-v"]),
+        ] {
+            let mut want = vec![("command", K::Precommand)];
+            want.extend(opts.iter().map(|o| (*o, K::CmdOption)));
+            want.push(("ls", K::Command));
+            assert_eq!(f.run(text), spans(&want), "{text}");
+        }
+        assert_eq!(
+            f.run("command -v"),
+            spans(&[("command", K::Precommand), ("-v", K::CmdOption)])
+        );
+        assert_eq!(
+            f.run("command -p ls"),
+            spans(&[
+                ("command", K::Precommand),
+                ("-p", K::CmdOption),
+                ("ls", K::Command)
+            ])
+        );
+    }
+
+    #[test]
+    fn command_unknown_option_is_the_command_word() {
+        let mut f = wrapper_fixture();
+        assert_eq!(
+            f.run("command -x ls"),
+            spans(&[("command", K::Precommand), ("-x", K::Error)])
+        );
+        // After `--`, `-v` is the command word, not an option.
+        assert_eq!(
+            f.run("command -- -v ls"),
+            spans(&[("command", K::Precommand), ("-v", K::Error)])
+        );
+        assert_eq!(
+            f.run("command -- git bad"),
+            spans(&[
+                ("command", K::Precommand),
+                ("git", K::Command),
+                ("bad", K::Error)
+            ])
+        );
+    }
+
+    #[test]
+    fn command_option_words_need_v_for_several() {
+        let mut f = wrapper_fixture();
+        for (text, first) in [
+            ("command -p -p ls", "-p"),
+            ("command -p -pz ls", "-p"),
+            ("command -pp -p ls", "-pp"),
+            ("command -p -p -- ls", "-p"),
+            ("command -p -x ls", "-p"),
+            ("command -v -x ls", "-v"),
+        ] {
+            assert_eq!(
+                f.run(text),
+                spans(&[("command", K::Precommand), (first, K::Error)]),
+                "{text}"
+            );
+        }
+        assert_eq!(
+            f.run("command -p -p -v ls"),
+            spans(&[
+                ("command", K::Precommand),
+                ("-p", K::CmdOption),
+                ("-p", K::CmdOption),
+                ("-v", K::CmdOption),
+                ("ls", K::Command)
+            ])
+        );
+        assert_eq!(
+            f.run("command -p -- ls"),
+            spans(&[
+                ("command", K::Precommand),
+                ("-p", K::CmdOption),
+                ("ls", K::Command)
+            ])
+        );
+    }
+
+    #[test]
+    fn command_query_never_continues_a_chain() {
+        let mut f = wrapper_fixture();
+        // `nice` is an unshadowed external precommand: run, its `-n` would be an option.
+        assert_eq!(
+            f.run("command nice -n 5 ls"),
+            spans(&[
+                ("command", K::Precommand),
+                ("nice", K::Precommand),
+                ("-n", K::CmdOption),
+                ("ls", K::Command)
+            ])
+        );
+        // Looked up, it is just a name, and the words after it are names too.
+        assert_eq!(
+            f.run("command -v nice -n 5"),
+            spans(&[
+                ("command", K::Precommand),
+                ("-v", K::CmdOption),
+                ("nice", K::Command),
+                ("-n", K::Error),
+                ("5", K::Error)
+            ])
+        );
+        let inputs = literals("-v nice -n 5");
+        let (tail, query, wrap) = precommand_tail("command", None, &inputs);
+        assert_eq!((tail, query, wrap), (Tail::Command(1), true, Wrap::None));
+        let inputs = literals("-p nice -n 5");
+        let (tail, query, wrap) = precommand_tail("command", None, &inputs);
+        assert_eq!(
+            (tail, query, wrap),
+            (Tail::Command(1), false, Wrap::Command)
+        );
+    }
+
+    #[test]
+    fn bare_and_quoted_wrapper_words() {
+        let mut f = wrapper_fixture();
+        assert_eq!(f.run("command"), spans(&[("command", K::Precommand)]));
+        assert_eq!(f.run("builtin"), spans(&[("builtin", K::Precommand)]));
+        assert_eq!(
+            f.run("command -p"),
+            spans(&[("command", K::Precommand), ("-p", K::CmdOption)])
+        );
+        assert_eq!(
+            f.run("command 'myfn'"),
+            spans(&[("command", K::Precommand), ("'myfn'", K::Error)])
+        );
+        assert_eq!(
+            f.run("builtin 'ls'"),
+            spans(&[("builtin", K::Precommand), ("'ls'", K::Error)])
+        );
+        // Typing: a word being typed after the wrapper is not yet an error.
+        assert_eq!(
+            f.run_typing("builtin -"),
+            spans(&[("builtin", K::Precommand), ("-", K::Precommand)])
+        );
+        // Without a `-` builtin, the word being typed is already an error.
+        assert_eq!(
+            fixture().run_typing("builtin -"),
+            spans(&[("builtin", K::Precommand), ("-", K::Error)])
+        );
+        assert_eq!(
+            f.run_typing("command -p gi"),
+            spans(&[("command", K::Precommand), ("-p", K::CmdOption)])
+        );
+    }
+
+    #[test]
+    fn wrapper_chains() {
+        let mut f = wrapper_fixture();
+        assert_eq!(
+            f.run("command builtin echo"),
+            spans(&[("command", K::Precommand), ("builtin", K::Error)])
+        );
+        assert_eq!(
+            f.run("noglob command ls"),
+            spans(&[
+                ("noglob", K::Precommand),
+                ("command", K::Precommand),
+                ("ls", K::Command)
+            ])
+        );
+        assert_eq!(
+            f.run("noglob command myfn"),
+            spans(&[
+                ("noglob", K::Precommand),
+                ("command", K::Precommand),
+                ("myfn", K::Error)
+            ])
+        );
+        // Query mode reached through a chain.
+        assert_eq!(
+            f.run("builtin command -v myfn nosuch"),
+            spans(&[
+                ("builtin", K::Precommand),
+                ("command", K::Precommand),
+                ("-v", K::CmdOption),
+                ("myfn", K::Function),
+                ("nosuch", K::Error)
+            ])
+        );
+        assert_eq!(
+            f.run("builtin command -v"),
+            spans(&[
+                ("builtin", K::Precommand),
+                ("command", K::Precommand),
+                ("-v", K::CmdOption)
+            ])
+        );
+        // A PATH binary named `command` is an external precommand.
+        f.dir.file("bin/command", 0o755);
+        f.h.state.invalidate_path();
+        assert_eq!(
+            f.run("command command ls"),
+            spans(&[
+                ("command", K::Precommand),
+                ("command", K::Precommand),
+                ("ls", K::Command)
+            ])
+        );
+    }
+
+    #[test]
+    fn rejected_wrapped_word_stops_the_chain() {
+        let mut f = wrapper_fixture();
+        // The arguments are only checked as paths: no wrapped command, no spec.
+        assert_eq!(
+            f.run("builtin sudo notes.txt"),
+            spans(&[
+                ("builtin", K::Precommand),
+                ("sudo", K::Error),
+                ("notes.txt", K::Path)
+            ])
+        );
+        assert_eq!(
+            f.run("builtin git status src"),
+            spans(&[
+                ("builtin", K::Precommand),
+                ("git", K::Error),
+                ("src", K::PathDirectory)
+            ])
+        );
+        assert_eq!(
+            f.run("command exec ls"),
+            spans(&[("command", K::Precommand), ("exec", K::Error)])
+        );
+        assert_eq!(
+            f.run("builtin kubectl exec pod -- myfn"),
+            spans(&[("builtin", K::Precommand), ("kubectl", K::Error)])
+        );
+    }
+
+    #[test]
+    fn wrapped_non_precommand_tail_lifts_the_restriction() {
+        let mut f = wrapper_fixture();
+        assert_eq!(
+            f.run("command kubectl exec pod -- myfn"),
+            spans(&[
+                ("command", K::Precommand),
+                ("kubectl", K::Command),
+                ("exec", K::Subcommand),
+                ("--", K::CmdOption),
+                ("myfn", K::Function)
+            ])
+        );
+    }
+
+    #[test]
+    fn non_literal_wrapped_word_is_never_an_error() {
+        let mut f = wrapper_fixture();
+        assert_eq!(
+            f.run("command $x notes.txt"),
+            spans(&[("command", K::Precommand), ("notes.txt", K::Path)])
+        );
+        assert_eq!(f.run("builtin $x"), spans(&[("builtin", K::Precommand)]));
+        assert_eq!(f.run("command *.sh"), spans(&[("command", K::Precommand)]));
+    }
+
+    #[test]
+    fn wrapped_word_under_auto_cd() {
+        let mut f = wrapper_fixture();
+        let auto = RequestOptions {
+            auto_cd: true,
+            ..Default::default()
+        };
+        assert_eq!(
+            f.run_opts("command src", usize::MAX, auto),
+            spans(&[("command", K::Precommand), ("src", K::Error)])
+        );
+        assert_eq!(
+            f.run_opts("command sr", 10, auto),
+            spans(&[("command", K::Precommand), ("sr", K::Error)])
+        );
+        assert_eq!(
+            f.run_opts("command -v src", usize::MAX, auto),
+            spans(&[
+                ("command", K::Precommand),
+                ("-v", K::CmdOption),
+                ("src", K::Error)
+            ])
+        );
+        assert_eq!(
+            f.run_opts("builtin src", usize::MAX, auto),
+            spans(&[("builtin", K::Precommand), ("src", K::Error)])
+        );
+        // The first word still may be a directory.
+        assert_eq!(
+            f.run_opts("src", usize::MAX, auto),
+            spans(&[("src", K::PathDirectory)])
+        );
+    }
+
+    #[test]
+    fn wrapped_word_while_typing() {
+        let mut f = wrapper_fixture();
+        // A prefix of a name the wrapper accepts: no span.
+        for text in ["command gi", "builtin ec", "builtin e"] {
+            assert_eq!(
+                f.run_typing(text),
+                spans(&[(text.split(' ').next().unwrap(), K::Precommand)]),
+                "{text}"
+            );
+        }
+        // A prefix only of names the wrapper rejects: error.
+        for (text, word) in [
+            ("command my", "my"),
+            ("command ec", "ec"),
+            ("builtin l", "l"),
+            ("builtin my", "my"),
+        ] {
+            assert_eq!(
+                f.run_typing(text),
+                spans(&[
+                    (text.split(' ').next().unwrap(), K::Precommand),
+                    (word, K::Error)
+                ]),
+                "{text}"
+            );
+        }
+        // A query accepts a prefix of any name.
+        assert_eq!(
+            f.run_typing("command -v my"),
+            spans(&[("command", K::Precommand), ("-v", K::CmdOption)])
+        );
+        assert_eq!(
+            f.run_typing("command ./to"),
+            spans(&[("command", K::Precommand), ("./to", K::PathPrefix)])
+        );
+        // Not at the cursor: error.
+        assert_eq!(
+            f.run("builtin ec"),
+            spans(&[("builtin", K::Precommand), ("ec", K::Error)])
+        );
+        assert_eq!(
+            f.run("command gi"),
+            spans(&[("command", K::Precommand), ("gi", K::Error)])
+        );
+    }
+
+    #[test]
+    fn path_mode_checks_operands_as_paths() {
+        let mut f = fixture();
+        assert_eq!(
+            f.run("sudo -e notes.txt src"),
+            spans(&[
+                ("sudo", K::Precommand),
+                ("-e", K::CmdOption),
+                ("notes.txt", K::Path),
+                ("src", K::PathDirectory),
+            ])
+        );
+        // A missing file is not an error, and no operand yet is not an error either.
+        assert_eq!(
+            f.run("sudo -u root -e nosuch"),
+            spans(&[
+                ("sudo", K::Precommand),
+                ("-u", K::CmdOption),
+                ("-e", K::CmdOption)
+            ])
+        );
+        assert_eq!(
+            f.run("sudo -e"),
+            spans(&[("sudo", K::Precommand), ("-e", K::CmdOption)])
+        );
+        assert_eq!(
+            f.run_typing("sudo -e not"),
+            spans(&[
+                ("sudo", K::Precommand),
+                ("-e", K::CmdOption),
+                ("not", K::PathPrefix)
+            ])
+        );
+        // Without the mode the same word is the wrapped command.
+        assert_eq!(
+            f.run("sudo notes.txt"),
+            spans(&[("sudo", K::Precommand), ("notes.txt", K::Error)])
+        );
+    }
+
+    #[test]
+    fn non_precommand_wraps_after_its_own_arguments() {
+        let mut f = fixture();
+        assert_eq!(
+            f.run("kubectl exec pod -- ls notes.txt"),
+            spans(&[
+                ("kubectl", K::Command),
+                ("exec", K::Subcommand),
+                ("--", K::CmdOption),
+                ("ls", K::Command),
+                ("notes.txt", K::Path),
+            ])
+        );
+        // No `--`: the words are kubectl's, and `ls` is not a command.
+        assert_eq!(
+            f.run("kubectl exec pod ls"),
+            spans(&[("kubectl", K::Command), ("exec", K::Subcommand)])
+        );
+        assert_eq!(
+            f.run("kubectl exec pod --"),
+            spans(&[
+                ("kubectl", K::Command),
+                ("exec", K::Subcommand),
+                ("--", K::CmdOption)
+            ])
+        );
+        // The wrapped command is checked against the local command table.
+        assert_eq!(
+            f.run("kubectl exec pod -- nosuch"),
+            spans(&[
+                ("kubectl", K::Command),
+                ("exec", K::Subcommand),
+                ("--", K::CmdOption),
+                ("nosuch", K::Error)
+            ])
+        );
+        // Nested: a precommand in path mode inside the wrapped command.
+        assert_eq!(
+            f.run("kubectl exec pod -- sudo -e notes.txt"),
+            spans(&[
+                ("kubectl", K::Command),
+                ("exec", K::Subcommand),
+                ("--", K::CmdOption),
+                ("sudo", K::Precommand),
+                ("-e", K::CmdOption),
+                ("notes.txt", K::Path),
+            ])
+        );
+        // The wrapping does not depend on the command's class.
+        f.h.state.apply_update(StateUpdate {
+            functions: strings(&["kubectl"]),
+            ..Default::default()
+        });
+        assert_eq!(
+            f.run("kubectl exec pod -- ls"),
+            spans(&[
+                ("kubectl", K::Function),
+                ("exec", K::Subcommand),
+                ("--", K::CmdOption),
+                ("ls", K::Command)
+            ])
+        );
+    }
+
     #[test]
     fn function_shadows_precommand() {
         let mut f = fixture();
@@ -882,6 +1836,29 @@ mod tests {
             ..Default::default()
         });
         assert_eq!(f.run("noglob ls"), spans(&[("noglob", K::Function)]));
+        // With a spec: the precommand's wrapping does not apply to the function either. The
+        // fixture's `sudo` alias would win over the function, so it goes.
+        f.h.state.apply_update(StateUpdate {
+            aliases: strings(&["ll"]),
+            functions: strings(&["noglob", "sudo", "nice"]),
+            ..Default::default()
+        });
+        assert_eq!(f.run("sudo ls"), spans(&[("sudo", K::Function)]));
+        assert_eq!(
+            f.run("nice -n 5 nosuch arg"),
+            spans(&[("nice", K::Function), ("-n", K::CmdOption)])
+        );
+    }
+
+    #[test]
+    fn global_alias_shadows_precommand() {
+        let mut f = fixture();
+        f.h.state.apply_update(StateUpdate {
+            aliases: strings(&["ll"]),
+            global_aliases: strings(&["sudo"]),
+            ..Default::default()
+        });
+        assert_eq!(f.run("sudo ls"), spans(&[("sudo", K::GlobalAlias)]));
     }
 
     #[test]
@@ -1342,5 +2319,23 @@ mod tests {
         );
         // A small directory still gives a definite answer.
         assert_eq!(f.run_typing("./src/zz"), spans(&[("./src/zz", K::Error)]));
+    }
+
+    #[test]
+    fn arg_inputs_carry_name_eq_and_literal() {
+        let words = words_of("FOO=$x BAR=1 $y ls", 0);
+        let got: Vec<_> = arg_inputs(&words)
+            .iter()
+            .map(|a| (a.literal, a.name_eq))
+            .collect();
+        assert_eq!(
+            got,
+            vec![
+                (None, true),
+                (Some("BAR=1"), true),
+                (None, false),
+                (Some("ls"), false),
+            ]
+        );
     }
 }

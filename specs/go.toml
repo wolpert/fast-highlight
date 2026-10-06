@@ -1,0 +1,172 @@
+# Verified against: go 1.27.1.
+# go 1.27.1 (go is not installed here; checked against https://go.dev/doc/cmd and the cmd/go source
+# at tag go1.27.1). Complete: `go` runs no external subcommands, so an unknown subcommand is an
+# error, and so is one under `go mod` and `go work`. Options are single-dash. `-C dir` may follow
+# `go` and any command or group, so it is a common option. Go's flag parsing also accepts `--flag`
+# and `-test.NAME`; only the documented single-dash spellings are declared, so the other forms are
+# unknown options, never errors. `go run` stops option parsing at the package to run. `go test`
+# does not, since it accepts test flags after the packages. The build flags are declared on each
+# command that takes them. `go test` passes every word after `-args` to the test binary; this spec
+# does not model that, so a flag after `-args` is still classified as a `go test` option.
+name = "go"
+complete = true
+common-options = ["-C="]
+
+[subcommands.bug]
+
+[subcommands.build]
+options = [
+  "-o=", "-a", "-n", "-p=", "-race", "-msan", "-asan", "-cover", "-covermode=", "-coverpkg=", "-v",
+  "-work", "-x", "-asmflags=", "-buildmode=", "-buildvcs=?", "-compiler=", "-gccgoflags=",
+  "-gcflags=", "-installsuffix=", "-json", "-ldflags=", "-linkshared", "-mod=", "-modcacherw",
+  "-modfile=", "-overlay=", "-pgo=", "-pkgdir=", "-tags=", "-toolexec=", "-trimpath",
+]
+
+[subcommands.clean]
+options = [
+  "-i", "-r", "-cache", "-testcache", "-modcache", "-fuzzcache", "-a", "-n", "-p=", "-race",
+  "-msan", "-asan", "-cover", "-covermode=", "-coverpkg=", "-v", "-work", "-x", "-asmflags=",
+  "-buildmode=", "-buildvcs=?", "-compiler=", "-gccgoflags=", "-gcflags=", "-installsuffix=",
+  "-json", "-ldflags=", "-linkshared", "-mod=", "-modcacherw", "-modfile=", "-overlay=", "-pgo=",
+  "-pkgdir=", "-tags=", "-toolexec=", "-trimpath",
+]
+
+[subcommands.doc]
+options = ["-all", "-c", "-cmd", "-ex", "-http", "-short", "-src", "-u"]
+
+[subcommands.env]
+options = ["-json", "-changed", "-u", "-w"]
+
+[subcommands.fix]
+options = [
+  "-fixtool=", "-diff", "-c=", "-a", "-n", "-p=", "-race", "-msan", "-asan", "-cover",
+  "-covermode=", "-coverpkg=", "-v", "-work", "-x", "-asmflags=", "-buildmode=", "-buildvcs=?",
+  "-compiler=", "-gccgoflags=", "-gcflags=", "-installsuffix=", "-json", "-ldflags=", "-linkshared",
+  "-mod=", "-modcacherw", "-modfile=", "-overlay=", "-pgo=", "-pkgdir=", "-tags=", "-toolexec=",
+  "-trimpath",
+]
+
+[subcommands.fmt]
+options = ["-n", "-x", "-mod=", "-modcacherw", "-modfile="]
+
+[subcommands.generate]
+options = [
+  "-run=", "-skip=", "-a", "-n", "-p=", "-race", "-msan", "-asan", "-cover", "-covermode=",
+  "-coverpkg=", "-v", "-work", "-x", "-asmflags=", "-buildmode=", "-buildvcs=?", "-compiler=",
+  "-gccgoflags=", "-gcflags=", "-installsuffix=", "-json", "-ldflags=", "-linkshared", "-mod=",
+  "-modcacherw", "-modfile=", "-overlay=", "-pgo=", "-pkgdir=", "-tags=", "-toolexec=", "-trimpath",
+]
+
+[subcommands.get]
+options = [
+  "-t", "-u=?", "-tool", "-a", "-n", "-p=", "-race", "-msan", "-asan", "-cover", "-covermode=",
+  "-coverpkg=", "-v", "-work", "-x", "-asmflags=", "-buildmode=", "-buildvcs=?", "-compiler=",
+  "-gccgoflags=", "-gcflags=", "-installsuffix=", "-json", "-ldflags=", "-linkshared", "-mod=",
+  "-modcacherw", "-modfile=", "-overlay=", "-pgo=", "-pkgdir=", "-tags=", "-toolexec=", "-trimpath",
+]
+
+[subcommands.help]
+
+[subcommands.install]
+options = [
+  "-a", "-n", "-p=", "-race", "-msan", "-asan", "-cover", "-covermode=", "-coverpkg=", "-v",
+  "-work", "-x", "-asmflags=", "-buildmode=", "-buildvcs=?", "-compiler=", "-gccgoflags=",
+  "-gcflags=", "-installsuffix=", "-json", "-ldflags=", "-linkshared", "-mod=", "-modcacherw",
+  "-modfile=", "-overlay=", "-pgo=", "-pkgdir=", "-tags=", "-toolexec=", "-trimpath",
+]
+
+[subcommands.list]
+options = [
+  "-f=", "-json=?", "-m", "-compiled", "-deps", "-e", "-export", "-find", "-test", "-u",
+  "-versions", "-retracted", "-reuse=", "-a", "-n", "-p=", "-race", "-msan", "-asan", "-cover",
+  "-covermode=", "-coverpkg=", "-v", "-work", "-x", "-asmflags=", "-buildmode=", "-buildvcs=?",
+  "-compiler=", "-gccgoflags=", "-gcflags=", "-installsuffix=", "-ldflags=", "-linkshared", "-mod=",
+  "-modcacherw", "-modfile=", "-overlay=", "-pgo=", "-pkgdir=", "-tags=", "-toolexec=", "-trimpath",
+]
+
+[subcommands.mod]
+complete = true
+
+[subcommands.mod.subcommands.download]
+options = ["-x", "-json", "-reuse="]
+
+[subcommands.mod.subcommands.edit]
+options = [
+  "-fmt", "-print", "-json", "-module=", "-go=", "-toolchain=", "-godebug=", "-dropgodebug=",
+  "-require=", "-droprequire=", "-exclude=", "-dropexclude=", "-replace=", "-dropreplace=",
+  "-retract=", "-dropretract=", "-tool=", "-droptool=", "-ignore=", "-dropignore=", "-n", "-x",
+]
+
+[subcommands.mod.subcommands.graph]
+options = ["-go=", "-x"]
+
+[subcommands.mod.subcommands.init]
+
+[subcommands.mod.subcommands.tidy]
+options = ["-e", "-v", "-x", "-diff", "-go=", "-compat="]
+
+[subcommands.mod.subcommands.vendor]
+options = ["-e", "-v", "-o="]
+
+[subcommands.mod.subcommands.verify]
+
+[subcommands.mod.subcommands.why]
+options = ["-m", "-vendor"]
+
+[subcommands.run]
+options-first = true
+options = [
+  "-exec=", "-a", "-n", "-p=", "-race", "-msan", "-asan", "-cover", "-covermode=", "-coverpkg=",
+  "-v", "-work", "-x", "-asmflags=", "-buildmode=", "-buildvcs=?", "-compiler=", "-gccgoflags=",
+  "-gcflags=", "-installsuffix=", "-json", "-ldflags=", "-linkshared", "-mod=", "-modcacherw",
+  "-modfile=", "-overlay=", "-pgo=", "-pkgdir=", "-tags=", "-toolexec=", "-trimpath",
+]
+
+[subcommands.telemetry]
+
+[subcommands.test]
+options = [
+  "-a", "-n", "-p=", "-race", "-msan", "-asan", "-cover", "-covermode=", "-coverpkg=", "-v",
+  "-work", "-x", "-asmflags=", "-buildmode=", "-buildvcs=?", "-compiler=", "-gccgoflags=",
+  "-gcflags=", "-installsuffix=", "-json", "-ldflags=", "-linkshared", "-mod=", "-modcacherw",
+  "-modfile=", "-overlay=", "-pgo=", "-pkgdir=", "-tags=", "-toolexec=", "-trimpath", "-artifacts",
+  "-bench=", "-benchmem", "-benchtime=", "-blockprofile=", "-blockprofilerate=", "-count=",
+  "-coverprofile=", "-cpu=", "-cpuprofile=", "-failfast", "-fullpath", "-fuzz=",
+  "-fuzzminimizetime=", "-fuzztime=", "-list=", "-memprofile=", "-memprofilerate=",
+  "-mutexprofile=", "-mutexprofilefraction=", "-outputdir=", "-parallel=", "-run=", "-short",
+  "-shuffle=", "-skip=", "-timeout=", "-trace=", "-vet=", "-args", "-c", "-exec=", "-o=",
+]
+
+[subcommands.tool]
+options = ["-n", "-modcacherw", "-modfile="]
+
+[subcommands.version]
+options = ["-m", "-v", "-json"]
+
+[subcommands.vet]
+options = [
+  "-vettool=", "-diff", "-fix", "-c=", "-a", "-n", "-p=", "-race", "-msan", "-asan", "-cover",
+  "-covermode=", "-coverpkg=", "-v", "-work", "-x", "-asmflags=", "-buildmode=", "-buildvcs=?",
+  "-compiler=", "-gccgoflags=", "-gcflags=", "-installsuffix=", "-json", "-ldflags=", "-linkshared",
+  "-mod=", "-modcacherw", "-modfile=", "-overlay=", "-pgo=", "-pkgdir=", "-tags=", "-toolexec=",
+  "-trimpath",
+]
+
+[subcommands.work]
+complete = true
+
+[subcommands.work.subcommands.edit]
+options = [
+  "-fmt", "-print", "-json", "-go=", "-toolchain=", "-godebug=", "-dropgodebug=", "-use=",
+  "-dropuse=", "-replace=", "-dropreplace=",
+]
+
+[subcommands.work.subcommands.init]
+
+[subcommands.work.subcommands.sync]
+
+[subcommands.work.subcommands.use]
+options = ["-r"]
+
+[subcommands.work.subcommands.vendor]
+options = ["-e", "-v", "-o="]

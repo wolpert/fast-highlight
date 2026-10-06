@@ -456,17 +456,84 @@ Specs with subcommands:
 | `kubectl`   | No                 | `auth`, `certificate`, `config`, `create secret`, `create service`, `plugin`, `rollout`, `set`, `top` |
 | `npm`       | Yes                | None                                                                |
 | `systemctl` | Yes                | None                                                                |
+| `podman`    | Yes                | `artifact`, `container`, `farm`, `generate`, `healthcheck`, `image`, `image trust`, `kube`, `machine`, `machine os`, `manifest`, `network`, `pod`, `quadlet`, `secret`, `system`, `system connection`, `volume` |
+| `gh`        | No                 | Every command group, such as `pr`, `issue`, `repo`, `release`, `run`, and `workflow` |
+| `apt`       | Yes                | None                                                                |
+| `dnf`       | No                 | `advisory`, `config-manager`, `copr`, `environment`, `group`, `history`, `manifest`, `mark`, `module`, `offline`, `repo`, `system-upgrade`, `versionlock` |
+| `brew`      | No                 | `services`                                                          |
+| `pip`       | Yes                | None                                                                |
+| `uv`        | Yes                | `auth`, `cache`, `pip`, `python`, `self`, `tool`, `workspace`       |
+| `go`        | Yes                | `mod`, `work`                                                       |
+| `rustup`    | Yes                | `component`, `override`, `self`, `set`, `show`, `target`, `toolchain` |
+| `ip`        | Yes                | None; the object levels are not complete, since their verbs are not listed |
 
-The top levels of `git`, `cargo`, `docker`, and `kubectl` are not complete, because each runs
-external subcommands (`git-NAME`, `cargo-NAME`, Docker CLI plugins, and `kubectl-NAME`). An unknown
-subcommand of these commands is therefore not an error. No built-in spec sets `options-complete`,
+The top levels of `git`, `cargo`, `docker`, `kubectl`, `gh`, `dnf`, and `brew` are not complete,
+because each runs external subcommands (`git-NAME`, `cargo-NAME`, Docker CLI plugins, `kubectl-NAME`,
+`gh` extensions and aliases, `dnf` plugins and aliases, and `brew-NAME`). An unknown subcommand of
+these commands is therefore not an error. `ip` resolves any prefix of an object name, so its spec
+declares each prefix as an alias of the object it selects. No built-in spec sets `options-complete`,
 so an unknown option is never an error under a built-in spec.
 
+Option-only specs, for commands whose arguments are not subcommands: `make`, `ssh`, `tar`,
+`journalctl`, and `rm`. They declare options and no subcommands, and `ssh` stops option parsing at
+the destination. `tar` recognises its long options and the options that start with `-`, but not the
+old style with no leading dash (`tar xzf archive`).
+
+Long-option abbreviations (`option-abbreviations`) are enabled in the specs of commands that accept
+any unique prefix of a long option and whose specs declare every long option of the checked
+version: `tar`, `make`, `xargs`, `rm`, `journalctl`, `env`, `timeout`, `nice`, `nohup`, `stdbuf`,
+`time`, `ionice`, `taskset`, and `chrt`. In these, `tar --dir src` is `--directory src`. The other
+built-in specs do not enable it: `git`, `npm`, `docker`, `cargo`, `kubectl`, `gh`, `uv`, `ip`, and
+`ssh` either do not accept abbreviations or have option lists that are not complete enough, and
+the `sudo` checked here (sudo-rs) rejects them.
+
 Precommand specs: `sudo`, `doas`, `env`, `nice`, `nohup`, `time`, `timeout`, `stdbuf`, `ionice`,
-`chrt`, `taskset`, `noglob`, `nocorrect`, `exec`, `command`, `builtin`, and `-`. A precommand word
-gets the `precommand` type, its own options are classified by its spec, and the command it wraps is
-classified as a command word. A function or global alias with the same name as a precommand takes
-precedence over it; a regular alias does not, so `alias sudo='sudo '` keeps `sudo` a precommand.
+`chrt`, `taskset`, `xargs`, `noglob`, `nocorrect`, `exec`, `command`, `builtin`, and `-`. A
+precommand word gets the `precommand` type, its own options are classified by its spec, and the
+command it wraps is classified as a command word. A function or global alias with the same name as
+a precommand takes precedence over it, unless a regular alias or a reserved word of the same name
+also exists. A regular alias outranks both and keeps the word a precommand, so `alias sudo='sudo '`
+keeps `sudo` a precommand even when a function `sudo` is defined; the reserved words `time` and
+`nocorrect` outrank a function in the same way. A quoted word skips alias lookup, so `\sudo` is the
+function `sudo` when one is defined. This shadowing applies to every command word except the one
+directly after `builtin` or `command`, which skip functions and aliases.
+
+The word after `builtin` or `command` is looked up as zsh does:
+
+- After `builtin`, only a builtin is accepted. A builtin that is a precommand (`builtin`, `command`,
+  `exec`, `noglob`, `-`) gets the `precommand` type and its chain continues. Any other word is an
+  error: an external command, a function, an alias, a reserved word such as `time`, a path, an
+  unknown name, and `--` (`builtin` takes no options).
+- After `command`, only an external command is accepted: a command found in `PATH`, or a path to an
+  executable file. Functions, aliases, builtins (`cd`, `typeset`), reserved words, and precommand
+  builtins (`command builtin echo`, `command noglob ls`) are errors. An external precommand keeps
+  the `precommand` type and its chain continues, even when a function of the same name exists:
+  `command time ls` and `command nice ls` run the programs. A `PATH` binary named `command` or
+  `builtin` makes `command command` a precommand in the same way.
+- `command` takes the options `-p`, `-v`, and `-V`, combined in one word in any order (`-pv`, `-Vp`),
+  and `--` ends them. Several option words (`-p -v ls`) are accepted only when one of them has a
+  `v` or `V`; otherwise one option word is the most, so in `command -p -p ls` the first `-p` is the
+  command word, an error. Any other word, an unknown option (`command -x ls`, `command -p -x ls`)
+  or a lone `-` included, is the command word; after `--`, `command -- -v ls` takes `-v` as the command word.
+- With `-v` or `-V`, `command` runs nothing: every remaining word is a lookup. Each gets the type of
+  what it names (alias, global or suffix alias, function, builtin, reserved word, or command),
+  whether quoted or not, and is an error only when it names nothing. `command -v myfunc` is not an
+  error. A lookup never continues a precommand chain.
+- A word that `builtin` or `command` rejects wraps nothing: its arguments are only checked as
+  paths, so `builtin git status` does not classify `status` as a `git` subcommand. A word with an
+  expansion or a glob is never an error. A quoted word is looked up by its value, and no alias is
+  expanded. With `AUTO_CD`, a directory after either word is not a command. While the word is being
+  typed, a prefix of a name the lookup accepts (a builtin after `builtin`, a `PATH` command after
+  `command`, any name after `command -v`) has no highlighting.
+
+The specs of `builtin` and `command` decide only whether they are precommands; the lookups and the
+options above are built in and ignore spec overrides. Global aliases after these words, the
+default `PATH` search of `command -p`, and the `POSIX_BUILTINS` option are not modelled.
+
+Two built-in specs use `wrapped-after` and `path-mode-options`, described in
+[Wrapped commands and path mode](#wrapped-commands-and-path-mode): `kubectl exec` wraps the
+command after `--` (`kubectl exec mypod -- ls -l`), and `sudo -e` (`--edit`) takes files rather
+than a command (`sudo -e /etc/hosts`).
 
 ### Spec file format
 
@@ -493,31 +560,38 @@ Top-level keys:
 | `aliases`          | array of strings | `[]`       | Other command names that share this spec.                 |
 | `merge`            | boolean          | `false`    | In a user file: merge into the existing spec of the same name instead of replacing it. |
 | `common-options`   | array of strings | `[]`       | Options valid at the top level and at every subcommand level, at any depth. |
-| `precommand`       | boolean          | `false`    | The command runs another command (`sudo`, `env`, `nice`). |
-| `skip-assignments` | boolean          | `false`    | Precommands only: `NAME=value` words before the wrapped command are skipped (`env`). |
-| `positional`       | integer          | `0`        | Precommands only: the number of plain arguments between the options and the wrapped command (`timeout DURATION cmd`). |
+| `precommand`       | boolean          | `false`    | The command runs another command (`sudo`, `env`, `nice`). The top level wraps with `positional = 0` unless it sets `positional` or `wrapped-after`. |
+| `skip-assignments` | boolean          | `false`    | When the top level wraps: `NAME=value` words before the wrapped command are skipped (`env`), also when the value contains an expansion (`FOO=$x`). |
 
 The top level also accepts every level key.
 
 Level keys, valid at the top level and in every `[subcommands.NAME]` table:
 
-| Key                | Type             | Default | Meaning                                                      |
-|--------------------|------------------|---------|--------------------------------------------------------------|
-| `options`          | array of strings | `[]`    | Options valid at this level only.                            |
-| `subcommands`      | table            | `{}`    | Subcommands of this level, keyed by name.                    |
-| `aliases`          | array of strings | `[]`    | Subcommand tables only: other names for this subcommand (`docker container ls` and `ps`). |
-| `complete`         | boolean          | `false` | The subcommand list is complete: an unknown word in subcommand position is an error. |
-| `options-complete` | boolean          | `false` | The option list is complete: an unknown option is an error.  |
-| `options-first`    | boolean          | `false` | Options are recognised only before the first plain argument; later words are plain (`docker run IMAGE CMD -x`). |
-| `abbreviations`    | boolean          | `false` | A unique prefix of a subcommand name or alias selects that subcommand (`npm inst`). |
+| Key                    | Type             | Default | Meaning                                                      |
+|------------------------|------------------|---------|--------------------------------------------------------------|
+| `options`              | array of strings | `[]`    | Options valid at this level only.                            |
+| `subcommands`          | table            | `{}`    | Subcommands of this level, keyed by name.                    |
+| `aliases`              | array of strings | `[]`    | Subcommand tables only: other names for this subcommand (`docker container ls` and `ps`). |
+| `complete`             | boolean          | `false` | The subcommand list is complete: an unknown word in subcommand position is an error. |
+| `options-complete`     | boolean          | `false` | The option list is complete: an unknown option is an error.  |
+| `options-first`        | boolean          | `false` | Options are recognised only before the first plain argument; later words are plain (`docker run IMAGE CMD -x`). |
+| `abbreviations`        | boolean          | `false` | A unique prefix of a subcommand name or alias selects that subcommand (`npm inst`). For options, see `option-abbreviations`. |
+| `option-abbreviations` | boolean          | `false` | A unique prefix of a declared long option selects that option (`--verb` for `--verbose`). For subcommands, see `abbreviations`. |
+| `positional`           | integer          | unset   | The level wraps a command: the number of plain arguments between the options and the wrapped command (`timeout DURATION cmd`). |
+| `wrapped-after`        | string           | unset   | The level wraps the command after the first `--` (`kubectl exec POD -- cmd`). `"--"` is the only accepted value. |
+| `path-mode-options`    | array of strings | `[]`    | Options of this level that make the remaining words files rather than a command (`sudo -e FILE`). |
 
 Subcommand tables nest to any depth, as in `[subcommands.remote.subcommands.add]`. A level inherits
-nothing from its parent except `common-options`. Options in a level's `options` apply only at that
-level, so `git -C dir` is an option before the subcommand and unknown after it.
+nothing from its parent except `common-options` and `option-abbreviations`: a level that leaves
+`option-abbreviations` unset uses its parent's setting, and an explicit value applies to that level
+and to its descendants that leave it unset. Options in a level's `options` apply only at that
+level, so `git -C dir` is an option before the subcommand and unknown after it. A level sets at
+most one of `positional` and `wrapped-after`.
 
 ### Option syntax
 
-Each entry in `options` and `common-options` is one spelling of one option:
+Each entry in `options`, `common-options`, and `path-mode-options` is one spelling of one option.
+`path-mode-options` takes no patterns.
 
 | Form                     | Meaning                                                                       |
 |--------------------------|-------------------------------------------------------------------------------|
@@ -530,6 +604,24 @@ Single-letter options bundle: `-av` is `-a -v` when every letter is a declared s
 option. A letter that takes a value ends the bundle, and the rest of the word, or else the next
 word, is its value (`-xzf archive.tar`).
 
+With `option-abbreviations = true`, a word that starts with `--` and is not a declared spelling is
+matched by its stem, the text before the first `=`. The stem selects an option when it is a proper
+prefix of exactly one declared spelling that starts with `--`, and the word then takes that
+option's arity: for `--output=`, `--out file` consumes `file` and `--out=file` is complete; for the
+flag `--verbose`, `--verb=1` is unknown.
+
+- Only long options abbreviate. A word with a single `-` never does.
+- Only declared spellings count, and patterns are never candidates. A spec that enables the key
+  should declare every long option of its command; otherwise a prefix that the command finds
+  ambiguous selects the one option that is declared.
+- An exact spelling takes precedence over a prefix: `--exclude` is `--exclude` even when
+  `--exclude-caches` is declared, and `--flag=x` for a declared flag `--flag` is unknown.
+- The rule is strict: a stem that matches more than one spelling is ambiguous, even when the
+  spellings are aliases of one option with the same arity (`--colo` for `--color` and `--colour`),
+  which `getopt_long` would accept.
+- An ambiguous stem and a stem that matches nothing are unknown options, which are errors only
+  where the level has `options-complete = true`.
+
 ### Classification rules
 
 The daemon walks a command's arguments in order, starting at the top level of its spec:
@@ -539,7 +631,8 @@ The daemon walks a command's arguments in order, starting at the top level of it
 - A word that is just `-` is plain, unless `-` is declared as an option.
 - A word starting with `-`, or matching a pattern, is a known or an unknown option. An unknown
   option is an error only at a level with `options-complete = true`. A word of the form
-  `-<digits>` is never an error.
+  `-<digits>` is never an error. With `option-abbreviations`, a unique prefix of a long option is
+  that option, and an ambiguous or unmatched prefix is an unknown option.
 - The first plain word at a level is in subcommand position. A known subcommand name or alias gets
   the `subcommand` type, and classification continues at that subcommand's level. An unknown word
   there is an error only at a level that has subcommands and `complete = true`. A word containing
@@ -549,10 +642,71 @@ The daemon walks a command's arguments in order, starting at the top level of it
   subcommand or option in its position. With the cursor at the end of `systemctl stat`, `stat` has
   no highlighting, because it begins `status`; with the cursor elsewhere, it is an error.
 
-For a precommand, the daemon skips the precommand's options and their values (treating unknown
-options as flags), then `NAME=value` words when `skip-assignments = true`, then `positional` plain
-words. The next word is the wrapped command. Option parsing stops at `--` or at the first word that
-is not an option, as POSIX `getopt` does.
+### Wrapped commands and path mode
+
+A level wraps a command when it sets `positional` or `wrapped-after`. The top level of a
+`precommand = true` spec wraps with `positional = 0` unless it sets one of them. A top level that
+wraps without `precommand` gets no `precommand` type. Before `positional` became a level key, a
+top-level `positional` without `precommand` was ignored; it now wraps.
+
+The daemon descends through subcommands as in classification, and only the level it ends at
+counts; when that level does not wrap, there is no wrapped command.
+
+- `positional = N`: the daemon skips the level's options and their values (treating unknown
+  options, ambiguous abbreviations included, as flags), then `NAME=value` words when
+  `skip-assignments = true` and the level is the top level, then `N` plain words. The next word is
+  the wrapped command. Option parsing stops at `--` or at the first word that is not an option, as
+  POSIX `getopt` does.
+- `wrapped-after = "--"`: options are parsed as in classification, and the word after the first
+  `--` is the wrapped command, after `NAME=value` words when `skip-assignments = true` and the level
+  is the top level. With no `--`, or nothing after it, there is no wrapped command. At an
+  `options-first` level `--` is found only in option position; after a plain word it is plain.
+- The wrapped command is classified as a command word in its own right, against the local command
+  table, so a command that exists only in a container or pod shows as an error. The arguments of a
+  precommand before it are classified by its spec and not checked as paths; the arguments of
+  another command before it are highlighted as usual.
+
+A word is `NAME=value` when, after quote removal, it starts with an ASCII shell identifier and `=`
+before any expansion: `FOO=1`, `FOO=$x`, and `"FOO"=$(date)` are skipped, `FOO$x=1` and `$cmd` are
+not.
+
+```toml
+[subcommands.exec]
+wrapped-after = "--"
+options = ["-c=", "--container=", "-i", "-t"]
+```
+
+With this level in the `kubectl` spec, `kubectl exec -it mypod -- ls -l` highlights `ls` as a
+command and `-l` by the spec of `ls`, if it has one. `kubectl exec mypod ls` has no wrapped command.
+
+`path-mode-options` lists options that make the remaining words operands, as `sudo -e FILE` does.
+Each entry declares the option at its level with the syntax of `options`; an entry also in
+`options` or `common-options` takes the arity given here. This lets a user file make an existing
+option select path mode by listing it again; the built-in specs do not repeat a spelling within a
+level. When such an option is given at the level the descent ends at, while options are still
+parsed, there is no wrapped command:
+
+- The option counts when the word resolves to it: an exact spelling, the name of `--name=value`, an
+  abbreviation (`--ed` for `--edit` with `option-abbreviations`), or a letter of a bundle up to and
+  including the first letter that takes a value. `-Ee` and `-eu root` select the mode; `-ue` does
+  not, because `e` is the value of `-u`. Unknown and ambiguous options never select it.
+- The mode is sticky: later options are still parsed (`-u root` consumes `root`) and never cancel
+  it. `NAME=value` words are not skipped and no plain words are counted.
+- Every argument is classified and checked as a path as for a command that wraps nothing: an
+  existing file gets a path type, a missing one gets none, and words after `--` are operands.
+  Option values are checked too (`sudo -e -u root f` checks `root`).
+- On a level that does not wrap, `path-mode-options` declares its options and has no other effect.
+
+```toml
+name = "sudo"
+precommand = true
+options-first = true
+path-mode-options = ["-e", "--edit"]
+options = ["-u=", "--user=", "-E"]
+```
+
+With this spec, `sudo -e /etc/hosts` highlights `/etc/hosts` as a path, while `sudo ls` still
+highlights `ls` as a command.
 
 ### Merge and override
 
@@ -561,10 +715,15 @@ it is merged instead: option lists and aliases are appended (a later spelling of
 takes precedence), keys present in the user file override, and subcommand tables are merged
 recursively by name. Merging cannot remove anything; replacing the spec is the only way to do that.
 A file with `merge = true` and no existing spec of that name loads as a new spec.
+`path-mode-options` is appended like `options`. `positional` and `wrapped-after` are one setting: a
+merged level that sets either replaces the level's start and clears the other.
 
 A file that fails to parse, has an unknown key, or declares an invalid option is skipped with a
-warning, and the other files still load. The daemon writes the warnings to its log;
-`fast-highlight check-config` prints them.
+warning, and the other files still load. So is a file with a level that sets both `positional` and
+`wrapped-after`, sets `wrapped-after` to anything but `"--"`, or lists a pattern in
+`path-mode-options`; the warning names the command path of the level. A user file is checked on
+its own before it is merged, so a `merge = true` file must pass these checks by itself. The daemon
+writes the warnings to its log; `fast-highlight check-config` prints them.
 
 A user file that makes the `git` top level complete and the options of `git commit` complete:
 

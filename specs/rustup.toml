@@ -1,0 +1,160 @@
+# Verified against: rustup 1.29.1.
+# rustup 1.29.1 (checked against `rustup --help` and the help of every subcommand). Complete:
+# rustup has no external subcommands, so an unknown word in subcommand position is an error, and so
+# is one in the groups `component`, `override`, `self`, `set`, `show`, `target`, and `toolchain`.
+# The hidden command `dump-testament` is included. `+*` matches the toolchain override
+# (`rustup +nightly show`). `rustup run` stops option parsing at the toolchain, so the command it
+# runs is plain.
+name = "rustup"
+complete = true
+common-options = ["-h", "--help"]
+options = ["-v", "--verbose", "-q", "--quiet", "-V", "--version", "+*"]
+
+[subcommands.check]
+options = ["--no-self-update"]
+
+[subcommands.completions]
+
+[subcommands.component]
+complete = true
+
+[subcommands.component.subcommands.help]
+
+[subcommands.component.subcommands.add]
+options = ["--toolchain=", "--target="]
+
+[subcommands.component.subcommands.list]
+options = ["--toolchain=", "--installed", "-q", "--quiet"]
+
+[subcommands.component.subcommands.remove]
+aliases = ["uninstall", "rm", "delete", "del"]
+options = ["--toolchain=", "--target="]
+
+[subcommands.default]
+options = ["--force-non-host"]
+
+[subcommands.doc]
+aliases = ["docs"]
+options = [
+  "--path", "--serve", "--toolchain=", "--alloc", "--book", "--cargo", "--clippy", "--core",
+  "--edition-guide", "--embedded-book", "--error-codes", "--nomicon", "--proc_macro", "--reference",
+  "--releases", "--rust-by-example", "--rustc", "--rustc-docs", "--rustdoc", "--std",
+  "--style-guide", "--test", "--unstable-book",
+]
+
+[subcommands.dump-testament]
+
+[subcommands.help]
+
+[subcommands.install]
+aliases = ["add"]
+options = [
+  "--profile=", "-c=", "--component=", "-t=", "--target=", "--no-self-update", "--no-update",
+  "--force", "--allow-downgrade", "--force-non-host", "--override", "--default",
+]
+
+[subcommands.man]
+options = ["--toolchain="]
+
+[subcommands.override]
+complete = true
+
+[subcommands.override.subcommands.help]
+
+[subcommands.override.subcommands.list]
+
+[subcommands.override.subcommands.set]
+aliases = ["add"]
+options = ["--path="]
+
+[subcommands.override.subcommands.unset]
+aliases = ["remove", "rm", "delete", "del"]
+options = ["--path=", "--nonexistent"]
+
+[subcommands.run]
+options-first = true
+options = ["--install"]
+
+[subcommands.self]
+complete = true
+
+[subcommands.self.subcommands.help]
+
+[subcommands.self.subcommands.uninstall]
+options = ["-y", "--yes", "--no-modify-path"]
+
+[subcommands.self.subcommands.update]
+
+[subcommands.self.subcommands.upgrade-data]
+
+[subcommands.set]
+complete = true
+
+[subcommands.set.subcommands.help]
+
+[subcommands.set.subcommands.auto-install]
+
+[subcommands.set.subcommands.auto-self-update]
+
+[subcommands.set.subcommands.default-host]
+
+[subcommands.set.subcommands.profile]
+
+[subcommands.show]
+complete = true
+options = ["-v", "--verbose"]
+
+[subcommands.show.subcommands.help]
+
+[subcommands.show.subcommands.active-toolchain]
+options = ["-v", "--verbose"]
+
+[subcommands.show.subcommands.home]
+
+[subcommands.show.subcommands.profile]
+
+[subcommands.target]
+complete = true
+
+[subcommands.target.subcommands.help]
+
+[subcommands.target.subcommands.add]
+aliases = ["install"]
+options = ["--toolchain="]
+
+[subcommands.target.subcommands.list]
+options = ["--toolchain=", "--installed", "-q", "--quiet"]
+
+[subcommands.target.subcommands.remove]
+aliases = ["uninstall", "rm", "delete", "del"]
+options = ["--toolchain="]
+
+[subcommands.toolchain]
+complete = true
+
+[subcommands.toolchain.subcommands.help]
+
+[subcommands.toolchain.subcommands.install]
+aliases = ["add", "update"]
+options = [
+  "--profile=", "-c=", "--component=", "-t=", "--target=", "--no-self-update", "--no-update",
+  "--force", "--allow-downgrade", "--force-non-host", "--override", "--default",
+]
+
+[subcommands.toolchain.subcommands.link]
+
+[subcommands.toolchain.subcommands.list]
+options = ["-v", "--verbose", "-q", "--quiet"]
+
+[subcommands.toolchain.subcommands.uninstall]
+aliases = ["remove", "rm", "delete", "del"]
+
+[subcommands.uninstall]
+aliases = ["remove", "rm", "delete", "del"]
+
+[subcommands.update]
+aliases = ["upgrade"]
+options = ["--no-self-update", "--force", "--force-non-host"]
+
+[subcommands.which]
+options = ["--toolchain="]

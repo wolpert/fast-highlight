@@ -11,7 +11,7 @@ use fast_highlight::daemon::request_options;
 use fast_highlight::highlight::{HighlightRequest, Highlighter};
 use fast_highlight::paths::PathChecker;
 use fast_highlight::protocol::{StateUpdate, WireSpan};
-use fast_highlight::specs::SpecRegistry;
+use fast_highlight::specs::{ArgInput, SpecRegistry, Tail};
 use fast_highlight::state::ShellState;
 use fast_highlight::text::{RequestText, Unit};
 use fast_highlight::token::{TokenKind, check_spans};
@@ -30,12 +30,36 @@ const EXECUTABLES: &[&str] = &[
     "kubectl",
     "systemctl",
     "npm",
+    "pip",
+    "pip3",
+    "uv",
+    "go",
+    "rustup",
+    "ip",
+    "journalctl",
+    "ssh",
+    "tar",
+    "xargs",
+    "rm",
+    "mv",
+    "podman",
+    "gh",
+    "apt",
+    "dnf",
+    "brew",
+    "dnf5",
+    "doas",
+    "chrt",
+    "taskset",
+    "ionice",
     "env",
     "nice",
+    "timeout",
     "cat",
     "diff",
     "make",
     "gitk",
+    "date",
 ];
 
 const BUILTINS: &[&str] = &[
@@ -380,6 +404,41 @@ fn spec_git_cargo() {
 }
 
 #[test]
+fn spec_git_refresh() {
+    snap(
+        "spec_git_refresh",
+        &[
+            idle("git backfill --sparse"),
+            idle("git last-modified"),
+            idle("git repo info --all"),
+            idle("git refs verify --strict"),
+            idle("git stash export --print"),
+            idle("git stash import refs/stash"),
+            idle("git update-index --refresh"),
+            idle("git diff-tree -r HEAD"),
+            idle("git credential capability"),
+            idle("git commit-graph write --reachable"),
+            idle("git diff-pairs --raw -z"),
+            // A pre-verb option that takes a value: `d` is its value, `write` the subcommand.
+            idle("git multi-pack-index --object-dir d write"),
+            idle("git commit-graph --object-dir d write"),
+            // `--abbrev` takes an optional attached value only, so `-r` is still an option;
+            // `-O` takes the next word as its value even when that word looks like an option, so
+            // `-r` is not styled.
+            idle("git diff-tree --abbrev -r HEAD"),
+            idle("git diff-tree -O -r HEAD"),
+            // `stash` is the only level here with a complete subcommand list, so only
+            // `git stash frob` is an error. `repo` and `refs` are not complete, so an unknown word
+            // gets no span. `backfill` has no subcommands and its option list is not complete.
+            idle("git repo frob"),
+            idle("git refs frob"),
+            idle("git stash frob"),
+            idle("git backfill --bogus"),
+        ],
+    );
+}
+
+#[test]
 fn spec_docker_kubectl() {
     snap(
         "spec_docker_kubectl",
@@ -398,6 +457,26 @@ fn spec_docker_kubectl() {
 }
 
 #[test]
+fn spec_docker_swarm_service() {
+    snap(
+        "spec_docker_swarm_service",
+        &[
+            idle("docker service create --replicas 3 nginx"),
+            idle("docker service create --replicas 3 --name web nginx echo -n"),
+            idle("docker service create -t nginx sleep -t 5"),
+            idle("docker swarm init --advertise-addr x"),
+            idle("docker stack deploy -c f.yml s"),
+            idle("docker plugin ls --no-trunc"),
+            // None of `swarm`, `stack`, and `plugin` has a complete subcommand list, so an
+            // unknown word gets no span.
+            idle("docker swarm frob"),
+            idle("docker stack frob"),
+            idle("docker plugin frob"),
+        ],
+    );
+}
+
+#[test]
 fn spec_systemctl_npm() {
     snap(
         "spec_systemctl_npm",
@@ -411,6 +490,577 @@ fn spec_systemctl_npm() {
             idle("npm inst lodash"),
             idle("npm run build"),
             idle("npm frob"),
+        ],
+    );
+}
+
+#[test]
+fn spec_npm_systemctl_refresh() {
+    snap(
+        "spec_npm_systemctl_refresh",
+        &[
+            idle("npm trust list"),
+            idle("npm trust github --file release.yml --repo o/r --allow-publish"),
+            idle("npm trust gitlab --project g/p --env prod"),
+            idle("npm trust revoke --id abc123"),
+            // `trust` does not have a complete subcommand list, so no error is expected.
+            idle("npm trust frob"),
+            idle("npm undeprecate pkg"),
+            idle("npm undeprecate pkg@1.2.3 --otp 123456"),
+            idle("systemctl sleep"),
+            idle("systemctl sleep --no-block"),
+            // Not a verb in systemd 259, so with a complete verb list it is an error.
+            idle("systemctl enqueue-marked-jobs"),
+            idle("systemctl reload-or-restart --marked"),
+        ],
+    );
+}
+
+#[test]
+fn spec_pip_uv() {
+    snap(
+        "spec_pip_uv",
+        &[
+            idle("pip --timeout 30 install -r requirements.txt --no-deps"),
+            idle("pip3 --proxy http://proxy:3128 list --outdated"),
+            idle("pip frobnicate"),
+            idle("pip --python python3.12 -v show pytest"),
+            idle("uv --directory src run --with pytest pytest -x"),
+            idle("uv --color never add --dev pytest"),
+            idle("uv --project proj pip install -r requirements.txt"),
+            // A value option before the subcommand of a nested group.
+            idle("uv tool --directory src ls"),
+            idle("uv pip ls"),
+            idle("uv pip frobnicate"),
+            idle("uv tool run --from ruff ruff check -x"),
+            idle("uv frobnicate"),
+        ],
+    );
+}
+
+#[test]
+fn spec_go_rustup() {
+    snap(
+        "spec_go_rustup",
+        &[
+            idle("go -C src build -o out -tags netgo ./cmd"),
+            idle("go test -run TestFoo -count=1 ./..."),
+            idle("go run -race main.go -v"),
+            idle("go mod tidy -v"),
+            // `-C` may follow a command group, before its subcommand.
+            idle("go mod -C src tidy"),
+            idle("go mod frobnicate"),
+            idle("go frobnicate"),
+            idle("rustup +nightly toolchain list -v"),
+            // Option parsing stops at the toolchain, so `cargo build --release` is plain.
+            idle("rustup run --install nightly cargo build --release"),
+            idle("rustup toolchain help"),
+            idle("rustup target add --toolchain nightly wasm32-unknown-unknown"),
+            idle("rustup toolchain frobnicate"),
+            idle("rustup frobnicate"),
+        ],
+    );
+}
+
+#[test]
+fn spec_ip_journalctl() {
+    snap(
+        "spec_ip_journalctl",
+        &[
+            idle("ip a"),
+            idle("ip r"),
+            idle("ip -br -c a"),
+            idle("ip -n ns1 a"),
+            // Only proves that `sh` (a prefix of `show`) is not a false error.
+            idle("ip addr sh"),
+            idle("ip l"),
+            idle("ip li"),
+            idle("ip n"),
+            idle("ip -4 a"),
+            idle("ip -s -s a"),
+            idle("ip -color=always a"),
+            idle("ip -f inet6 route show"),
+            idle("ip frobnicate"),
+            idle("journalctl -u nginx -n 50 --no-pager"),
+            idle("journalctl -xeu nginx -p err --since today"),
+            // The value of `-u` looks like an option and is still the value, so `-n` stays an option.
+            idle("journalctl -u -n"),
+            idle("journalctl -n50 --since=today"),
+            idle("journalctl --bogus"),
+        ],
+    );
+}
+
+#[test]
+fn spec_make_ssh_tar() {
+    snap(
+        "spec_make_ssh_tar",
+        &[
+            idle("make -C src -j4 all"),
+            // `-j` takes an optional attached value, so `-k` is an option of its own.
+            idle("make -j4 -k"),
+            // `make` reads options between targets; `ssh` stops at the destination.
+            idle("make all -k"),
+            idle("ssh host -l"),
+            idle("make -f Makefile.alt --just-print install"),
+            idle("make --bogus all"),
+            idle("ssh -p 2222 -i key.pem -o StrictHostKeyChecking=no user@host uptime -l"),
+            idle("ssh -L 8080:localhost:80 -J jump host"),
+            idle("ssh -Z host"),
+            // The value of `-o` looks like an option and is still the value.
+            idle("ssh -o -v host"),
+            idle("ssh -p2222 host"),
+            idle("tar -C src -czf out.tgz --exclude=node_modules ."),
+            idle("tar -xvf out.tgz --strip-components 1"),
+            idle("tar --bogus -tf out.tgz"),
+            // The value of `-f` looks like an option and is still the value, so `-x` is not styled.
+            idle("tar -f -x"),
+        ],
+    );
+}
+
+#[test]
+fn spec_xargs_rm() {
+    snap(
+        "spec_xargs_rm",
+        &[
+            idle("xargs -0 -n1 rm -f"),
+            idle("xargs -I {} mv {} {}.bak"),
+            idle("xargs --max-args 1 rm"),
+            idle("xargs -r -P 4 -d '\\n' rm -rf"),
+            // `-i`, `--replace`, and `-I` differ in whether the value is attached or the next word.
+            idle("xargs -i rm"),
+            idle("xargs --replace rm"),
+            idle("xargs -I{} rm"),
+            idle("xargs -n1 -- rm"),
+            // The first word that is not an option is the command, so `-0` after it is rm's.
+            idle("xargs rm -0"),
+            idle("xargs rm"),
+            idle("xargs sudo rm -f"),
+            idle("rm -rf no-such-dir --bogus"),
+            idle("rm -v -- -notes.txt"),
+        ],
+    );
+}
+
+#[test]
+fn spec_precommands_scheduling() {
+    snap(
+        "spec_precommands_scheduling",
+        &[
+            idle("doas -u root ls"),
+            idle("chrt -f 10 ls"),
+            idle("taskset -c 0 ls"),
+            idle("ionice -c 3 ls"),
+        ],
+    );
+}
+
+#[test]
+fn spec_wrapped_and_modes() {
+    snap(
+        "spec_wrapped_and_modes",
+        &[
+            // `kubectl exec` wraps the command after `--`; the wrapped command keeps its spec.
+            // `ls` has none, so `-l` gets no span, as in `ls -la` at the top level; `rm` has one.
+            idle("kubectl exec mypod -- ls -l"),
+            idle("kubectl exec mypod -- rm -f notes.txt"),
+            idle("kubectl exec -it -n ns mypod -- ls"),
+            idle("kubectl --context prod exec mypod -- ls"),
+            // The value of `-c` is the first `--`.
+            idle("kubectl exec -c -- mypod -- ls"),
+            // No `--`: no wrapped command, so `ls` is a plain argument.
+            idle("kubectl exec mypod ls"),
+            idle("kubectl exec mypod --"),
+            idle("kubectl get pods -- ls"),
+            // The wrapped command is looked up locally, so a command only in the pod is an error.
+            idle("kubectl exec mypod -- nosuchcmd"),
+            idle("kubectl exec mypod -- sudo -e notes.txt"),
+            idle("kubectl exec pod -- sudo -e ~/.zshrc"),
+            // `sudo -e` takes files: operands are checked as paths, and a missing one is no error.
+            idle("sudo -e ~/.zshrc ~proj/Cargo.toml"),
+            idle("sudo -e notes.txt docs nosuch.txt"),
+            idle("sudo --edit notes.txt"),
+            idle("sudo -Eu root -e notes.txt"),
+            // In path mode an option value is a plain word and is path-checked too.
+            idle("sudo -e -u docs notes.txt"),
+            // Operands after the first file, and words after `--`, are not options.
+            idle("sudo -e notes.txt -n -- -notes.txt"),
+            idle("sudo -e"),
+            // `e` is the value of `-u`: `ls` is the command.
+            idle("sudo -ue ls"),
+            idle("sudo ls"),
+            idle("sudo -u root ls"),
+            idle("timeout 5 ls"),
+            // Typing.
+            at_end("sudo -e not"),
+            at_end("sudo -e "),
+            at_end("sudo -e zzz"),
+            at_end("sudo -e -u r"),
+            at_end("kubectl exec mypod -- l"),
+            at_end("kubectl exec mypod -- lsx"),
+            at_end("kubectl exec mypod --"),
+            at_end("kubectl exec mypod -- "),
+        ],
+    );
+}
+
+/// The literal acceptance case of `sudo -e`, against the host's `/etc/hosts`. Skipped where
+/// that file does not exist.
+#[test]
+fn sudo_edit_etc_hosts() {
+    if !Path::new("/etc/hosts").is_file() {
+        eprintln!("skipped: /etc/hosts is not a file");
+        return;
+    }
+    let mut f = Fixture::new("sudo_edit_etc_hosts");
+    let got: Vec<_> = f
+        .wire("", "sudo -e /etc/hosts", Some(0), "")
+        .iter()
+        .map(|s| (s.start, s.end, s.kind))
+        .collect();
+    assert_eq!(
+        got,
+        vec![
+            (0, 4, TokenKind::Precommand),
+            (5, 7, TokenKind::CmdOption),
+            (8, 18, TokenKind::Path),
+        ]
+    );
+}
+
+/// A function shadowing a built-in precommand takes its place: the next word is a plain
+/// argument, not a wrapped command.
+#[test]
+fn function_shadows_spec_precommand() {
+    let mut f = Fixture::new("function_shadows_spec_precommand");
+    f.h.state.apply_update(StateUpdate {
+        functions: strings(&["mkcd", "gco", "nice", "noglob"]),
+        ..Default::default()
+    });
+    let mut kinds = |buf: &str| -> Vec<(usize, usize, TokenKind)> {
+        f.wire("", buf, Some(0), "")
+            .iter()
+            .map(|s| (s.start, s.end, s.kind))
+            .collect()
+    };
+    assert_eq!(kinds("noglob ls"), vec![(0, 6, TokenKind::Function)]);
+    assert_eq!(
+        kinds("nice nosuchcmd arg"),
+        vec![(0, 4, TokenKind::Function)]
+    );
+    assert_eq!(
+        kinds("nice -n 5 ls"),
+        vec![(0, 4, TokenKind::Function), (5, 7, TokenKind::CmdOption)]
+    );
+}
+
+/// `builtin` accepts only builtins and `command` only external commands; `command -v` and `-V`
+/// look names up. `time` and `echo` exist on PATH here, and a function `nice` shadows the
+/// precommand except directly after `command`.
+#[test]
+fn wrapper_word_restrictions() {
+    let mut f = Fixture::new("wrapper_word_restrictions");
+    for exe in ["time", "echo"] {
+        write_file(&f.root.join("bin").join(exe), 0o755);
+    }
+    f.h.state.apply_update(StateUpdate {
+        functions: strings(&["mkcd", "gco", "nice"]),
+        rehash: true,
+        ..Default::default()
+    });
+    let cases = &[
+        idle("builtin echo x"),
+        idle("builtin ls"),
+        idle("builtin mkcd"),
+        idle("builtin time ls"),
+        idle("builtin --"),
+        idle("builtin git status notes.txt"),
+        idle("builtin command ls"),
+        idle("builtin builtin echo"),
+        idle("builtin - ls"),
+        idle("command ls"),
+        idle("command mkcd"),
+        idle("command ll"),
+        idle("command cd"),
+        idle("command typeset"),
+        idle("command noglob ls"),
+        idle("command builtin echo"),
+        idle("command echo hi"),
+        idle("command nice -n 5 ls"),
+        idle("nice -n 5 ls"),
+        idle("command time ls"),
+        idle("command -x ls"),
+        idle("command -- -v ls"),
+        idle("command -pv mkcd ll cd time ls nosuchcmd"),
+        idle("command -Vp git"),
+        idle("command -v -- ls"),
+        idle("command -v"),
+        idle("builtin command -v mkcd"),
+        idle("noglob command mkcd"),
+        idle("command kubectl exec mypod -- mkcd"),
+        idle("command $cmd notes.txt"),
+        Case {
+            opts: "a",
+            ..idle("command docs")
+        },
+        at_end("command gi"),
+        at_end("command mk"),
+        at_end("builtin ec"),
+        at_end("builtin gi"),
+        at_end("command -v mk"),
+        at_end("command ./bu"),
+    ];
+    insta::assert_snapshot!("wrapper_word_restrictions", f.cases(cases));
+}
+
+/// A user spec with a value-taking path-mode option:`--file x` consumes `x` as its value, and
+/// the remaining words are path operands rather than a wrapped command.
+#[test]
+fn user_spec_value_taking_path_mode_option() {
+    let spec =
+        "name = \"w\"\nprecommand = true\noptions = [\"-v\"]\npath-mode-options = [\"--file=\"]\n";
+    let mut f = Fixture::with_user_specs(
+        "user_spec_value_taking_path_mode_option",
+        &[("w.toml", spec)],
+    );
+    let w = f.h.specs.get("w").expect("user spec loaded");
+    let tail = |line: &str| {
+        let words: Vec<ArgInput<'_>> = line
+            .split_whitespace()
+            .map(|w| ArgInput {
+                literal: Some(w),
+                name_eq: false,
+            })
+            .collect();
+        w.tail(&words)
+    };
+    assert_eq!(tail("--file x f"), Tail::Paths);
+    assert_eq!(tail("-v --file=x f"), Tail::Paths);
+    assert_eq!(tail("--file x"), Tail::Paths);
+    assert_eq!(tail("-v ls"), Tail::Command(1));
+
+    let mut kinds = |buf: &str| -> Vec<(usize, usize, TokenKind)> {
+        f.wire("", buf, Some(0), "")
+            .iter()
+            .map(|s| (s.start, s.end, s.kind))
+            .collect()
+    };
+    // `x` is the value of `--file` (missing, so no span); `notes.txt` and `docs` are operands.
+    assert_eq!(
+        kinds("w --file x notes.txt docs"),
+        vec![
+            (0, 1, TokenKind::Precommand),
+            (2, 8, TokenKind::CmdOption),
+            (11, 20, TokenKind::Path),
+            (21, 25, TokenKind::PathDirectory),
+        ]
+    );
+    // The value is the next word even when it looks like an option: `-v` is not `-v` here.
+    assert_eq!(
+        kinds("w --file -v notes.txt"),
+        vec![
+            (0, 1, TokenKind::Precommand),
+            (2, 8, TokenKind::CmdOption),
+            (12, 21, TokenKind::Path),
+        ]
+    );
+    // `ls` is an operand here, not a wrapped command: a missing path, so no span.
+    assert_eq!(
+        kinds("w --file=x ls"),
+        vec![(0, 1, TokenKind::Precommand), (2, 10, TokenKind::CmdOption)]
+    );
+    // Without the path-mode option, `ls` is the wrapped command.
+    assert_eq!(
+        kinds("w -v ls"),
+        vec![
+            (0, 1, TokenKind::Precommand),
+            (2, 4, TokenKind::CmdOption),
+            (5, 7, TokenKind::Command),
+        ]
+    );
+}
+
+#[test]
+fn spec_option_abbreviations() {
+    snap(
+        "spec_option_abbreviations",
+        &[
+            // A unique prefix is the full option with its arity: `--dir` takes `src`.
+            idle("tar --dir src --exclude-b -czf out.tgz ."),
+            // The value of `--dir` looks like an option and is still the value.
+            idle("tar --dir -x"),
+            // `--fil` is `--file` or `--files-from`: ambiguous, so unknown (no span).
+            idle("tar --fil out.tgz -x"),
+            // An exact spelling wins over a longer option it is a prefix of.
+            idle("tar --exclude-caches --exclude x -c"),
+            idle("tar --strip=1 -xf out.tgz"),
+            idle("xargs --max-a 1 --nu rm --rec"),
+            // An ambiguous prefix is skipped as a flag; `rm` is still the command.
+            idle("xargs --ver rm"),
+            idle("timeout --sig KILL 5 ls"),
+            idle("timeout --ver 5 ls"),
+            idle("nice --adj 5 ls"),
+            idle("env --defa ls"),
+        ],
+    );
+}
+
+#[test]
+fn user_spec_option_abbreviations() {
+    let spec = "name = \"tar\"\nmerge = true\noptions-complete = true\n";
+    let mut f = Fixture::with_user_specs("user_spec_option_abbreviations", &[("tar.toml", spec)]);
+    let out = f.cases(&[
+        // Ambiguous and unmatched prefixes are errors where the option list is complete;
+        // `--verb` is ambiguous too (`--verbose`, `--verbatim-files-from`).
+        idle("tar --ver -x"),
+        idle("tar --verb -x"),
+        idle("tar --qqq -x"),
+        idle("tar --verbo -x"),
+        // At the cursor, an ambiguous prefix may still be typed into an option: no span.
+        at_end("tar -x --ver"),
+        at_end("tar -x --qqq"),
+        at_end("tar -x --verbo"),
+        Case {
+            cursor: Some(12),
+            ..at_end("tar -x --ver --qqq")
+        },
+    ]);
+    insta::assert_snapshot!("user_spec_option_abbreviations", out);
+}
+
+#[test]
+fn spec_assignments_with_expansions() {
+    snap(
+        "spec_assignments_with_expansions",
+        &[
+            // A value with an expansion is skipped like a literal one; the next word is the
+            // wrapped command.
+            idle("env FOO=$x ls"),
+            idle("env -i FOO=\"$(date)\" BAR=1 ls"),
+            idle("sudo -E env FOO=\"$(date)\" BAR=1 nice -n 5 make"),
+            idle("env FOO=$x nosuchcmd"),
+            idle("env $'FOO'=1 ls"),
+            idle("env FOO=<(date) ls"),
+            // Typing: the word after the assignment is the command word being typed (`l` is a
+            // prefix of `ls`, so no span yet; `lsx` is a prefix of nothing, so an error), and a
+            // trailing space leaves no wrapped command.
+            at_end("env FOO=$x l"),
+            at_end("env FOO=$x lsx"),
+            at_end("env FOO=$x "),
+            // Not `NAME=value`: an expansion in the name, a bare expansion, and a precommand
+            // without `skip-assignments`. The word is the wrapped command.
+            idle("env FOO$x=1 ls"),
+            idle("env $cmd"),
+            idle("nice FOO=$x ls"),
+        ],
+    );
+}
+
+/// `NAME=value` words with an expansion in the value are skipped like literal ones: `expanded`
+/// highlights exactly as the same buffer with the expansion `from` replaced by plain text `to` of
+/// the same length, apart from the spans inside the replaced region. Checked idle and with the
+/// cursor at the end (typing). `wrapped` is the kind of the last word, the wrapped command, or
+/// `None` when it has no span (a command prefix being typed, or no word yet).
+#[test]
+fn assignment_with_expansion_matches_literal_assignment() {
+    let mut f = Fixture::new("assignment_with_expansion_matches_literal_assignment");
+    let cmd = Some(TokenKind::Command);
+    let err = Some(TokenKind::Error);
+    for (expanded, from, to, cursor, wrapped) in [
+        ("env FOO=$x ls", "$x", "xy", Some(0), cmd),
+        ("env FOO=$x ls", "$x", "xy", None, cmd),
+        ("env FOO=$x nosuchcmd", "$x", "xy", Some(0), err),
+        ("env FOO=$x nosuchcmd", "$x", "xy", None, err),
+        ("env FOO=$x l", "$x", "xy", None, None),
+        ("env FOO=$x ", "$x", "xy", None, None),
+        ("env FOO=\"$x\" ls", "$x", "xy", Some(0), cmd),
+        ("env -u A FOO=${x}y BAR=1 ls", "${x}", "abcd", Some(0), cmd),
+        (
+            "sudo -E env FOO=\"$(date)\" BAR=1 nice -n 5 make",
+            "$(date)",
+            "abcdefg",
+            Some(0),
+            cmd,
+        ),
+    ] {
+        assert_eq!(from.len(), to.len());
+        let at = expanded.find(from).unwrap();
+        let replaced = at..at + from.len();
+        let literal = expanded.replacen(from, to, 1);
+        // Spans entirely inside the replaced region differ; any span reaching outside it (the
+        // quotes around a replaced value, for one) must match.
+        let outside = |spans: Vec<WireSpan>| -> Vec<(usize, usize, TokenKind)> {
+            spans
+                .into_iter()
+                .filter(|s| !(replaced.start <= s.start && s.end <= replaced.end))
+                .map(|s| (s.start, s.end, s.kind))
+                .collect()
+        };
+        let want = outside(f.wire("", &literal, cursor, ""));
+        assert_eq!(
+            outside(f.wire("", expanded, cursor, "")),
+            want,
+            "{expanded:?} cursor {cursor:?}"
+        );
+        let last = expanded.rsplit(' ').next().unwrap();
+        let at = expanded.len() - last.len();
+        match wrapped {
+            Some(kind) => assert!(
+                want.contains(&(at, expanded.len(), kind)),
+                "{literal:?} cursor {cursor:?}: {want:?}"
+            ),
+            None => assert!(
+                want.iter().all(|&(start, _, _)| start < at),
+                "{literal:?} cursor {cursor:?}: {want:?}"
+            ),
+        }
+    }
+}
+
+#[test]
+fn spec_podman_gh() {
+    snap(
+        "spec_podman_gh",
+        &[
+            idle("podman --connection remote ps -a"),
+            idle("podman --root /var/tmp/store run --rm -it -e A=1 fedora ls -l"),
+            idle("podman container frobnicate"),
+            idle("podman frobnicate"),
+            idle("gh pr -R owner/repo list --state open"),
+            // `-R` is inherited from the group, so it is declared on the group and each subcommand.
+            idle("gh issue -R owner/repo list"),
+            idle("gh issue list -R owner/repo"),
+            idle("gh run -R o/r view 12"),
+            idle("gh pr frobnicate"),
+            idle("gh issue view 12 --web"),
+            idle("gh frobnicate"),
+        ],
+    );
+}
+
+#[test]
+fn spec_apt_dnf_brew() {
+    snap(
+        "spec_apt_dnf_brew",
+        &[
+            idle("apt -o Dpkg::Options::=--force-confold install -y curl"),
+            idle("apt -t bookworm-backports install --no-install-recommends vim"),
+            idle("apt auto-remove -y"),
+            idle("apt frobnicate"),
+            idle("dnf --releasever 40 install -y nginx"),
+            idle("dnf5 in -y nginx"),
+            idle("dnf up"),
+            idle("dnf grp list"),
+            // The subcommands of a group declare no options (a documented limitation of the
+            // spec), so `--with-optional` gets no span.
+            idle("dnf group install --with-optional tools"),
+            idle("dnf group frobnicate"),
+            idle("dnf frobnicate"),
+            idle("brew install --cask --appdir /Applications firefox"),
+            idle("brew services restart --all"),
+            idle("brew services frobnicate"),
+            idle("brew frobnicate"),
         ],
     );
 }

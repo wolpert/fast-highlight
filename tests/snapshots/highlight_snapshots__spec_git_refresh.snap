@@ -1,0 +1,121 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "git backfill --sparse"
+cursor: 0
+  0..3 command "git"
+  4..12 subcommand "backfill"
+  13..21 option "--sparse"
+
+input: "git last-modified"
+cursor: 0
+  0..3 command "git"
+  4..17 subcommand "last-modified"
+
+input: "git repo info --all"
+cursor: 0
+  0..3 command "git"
+  4..8 subcommand "repo"
+  9..13 subcommand "info"
+  14..19 option "--all"
+
+input: "git refs verify --strict"
+cursor: 0
+  0..3 command "git"
+  4..8 subcommand "refs"
+  9..15 subcommand "verify"
+  16..24 option "--strict"
+
+input: "git stash export --print"
+cursor: 0
+  0..3 command "git"
+  4..9 subcommand "stash"
+  10..16 subcommand "export"
+  17..24 option "--print"
+
+input: "git stash import refs/stash"
+cursor: 0
+  0..3 command "git"
+  4..9 subcommand "stash"
+  10..16 subcommand "import"
+
+input: "git update-index --refresh"
+cursor: 0
+  0..3 command "git"
+  4..16 subcommand "update-index"
+  17..26 option "--refresh"
+
+input: "git diff-tree -r HEAD"
+cursor: 0
+  0..3 command "git"
+  4..13 subcommand "diff-tree"
+  14..16 option "-r"
+
+input: "git credential capability"
+cursor: 0
+  0..3 command "git"
+  4..14 subcommand "credential"
+  15..25 subcommand "capability"
+
+input: "git commit-graph write --reachable"
+cursor: 0
+  0..3 command "git"
+  4..16 subcommand "commit-graph"
+  17..22 subcommand "write"
+  23..34 option "--reachable"
+
+input: "git diff-pairs --raw -z"
+cursor: 0
+  0..3 command "git"
+  4..14 subcommand "diff-pairs"
+  15..20 option "--raw"
+  21..23 option "-z"
+
+input: "git multi-pack-index --object-dir d write"
+cursor: 0
+  0..3 command "git"
+  4..20 subcommand "multi-pack-index"
+  21..33 option "--object-dir"
+  36..41 subcommand "write"
+
+input: "git commit-graph --object-dir d write"
+cursor: 0
+  0..3 command "git"
+  4..16 subcommand "commit-graph"
+  17..29 option "--object-dir"
+  32..37 subcommand "write"
+
+input: "git diff-tree --abbrev -r HEAD"
+cursor: 0
+  0..3 command "git"
+  4..13 subcommand "diff-tree"
+  14..22 option "--abbrev"
+  23..25 option "-r"
+
+input: "git diff-tree -O -r HEAD"
+cursor: 0
+  0..3 command "git"
+  4..13 subcommand "diff-tree"
+  14..16 option "-O"
+
+input: "git repo frob"
+cursor: 0
+  0..3 command "git"
+  4..8 subcommand "repo"
+
+input: "git refs frob"
+cursor: 0
+  0..3 command "git"
+  4..8 subcommand "refs"
+
+input: "git stash frob"
+cursor: 0
+  0..3 command "git"
+  4..9 subcommand "stash"
+  10..14 error "frob"
+
+input: "git backfill --bogus"
+cursor: 0
+  0..3 command "git"
+  4..12 subcommand "backfill"

@@ -1,7 +1,10 @@
+# Verified against: npm 11.17.0 (only the commands `trust` and `undeprecate` were compared).
 # npm(1), versions 9 to 11. Complete: npm has no plugin mechanism, so an unknown command is an
 # error. Command aliases and the typo aliases npm accepts are listed, and `abbreviations = true`
 # matches npm's unique-prefix resolution (`npm publ`). Options are not complete: npm accepts any
-# configuration key as `--key=value`, and every boolean as `--no-key`.
+# configuration key as `--key=value`, and every boolean as `--no-key`. `trust` needs npm 11.15.0 or
+# later (npm-trust(1)); `--repo` and `--repository` are not declared for `trust gitlab`, since the
+# option definitions of 11.17.0 do not accept them although its usage line lists them.
 name = "npm"
 complete = true
 abbreviations = true
@@ -192,7 +195,26 @@ options = ["--ignore-scripts", "--script-shell="]
 [subcommands.token.subcommands.revoke]
 [subcommands.token.subcommands.create]
 [subcommands.trust]
+[subcommands.trust.subcommands.circleci]
+options = [
+  "--org-id=", "--project-id=", "--pipeline-definition-id=", "--vcs-origin=", "--context-id=",
+  "--allow-publish", "--allow-stage-publish", "--allow-staged-publish",
+]
+[subcommands.trust.subcommands.github]
+options = [
+  "--file=", "--repository=", "--repo=", "--environment=", "--env=", "--allow-publish",
+  "--allow-stage-publish", "--allow-staged-publish",
+]
+[subcommands.trust.subcommands.gitlab]
+options = [
+  "--file=", "--project=", "--environment=", "--env=", "--allow-publish", "--allow-stage-publish",
+  "--allow-staged-publish",
+]
+[subcommands.trust.subcommands.list]
+[subcommands.trust.subcommands.revoke]
+options = ["--id="]
 [subcommands.undeprecate]
+options = ["--otp="]
 [subcommands.uninstall]
 aliases = ["unlink", "remove", "rm", "r", "un"]
 options = ["-S", "--save", "--no-save", "-D", "--save-dev", "-O", "--save-optional"]

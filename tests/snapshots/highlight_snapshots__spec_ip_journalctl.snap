@@ -1,0 +1,105 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "ip a"
+cursor: 0
+  0..2 command "ip"
+  3..4 subcommand "a"
+
+input: "ip r"
+cursor: 0
+  0..2 command "ip"
+  3..4 subcommand "r"
+
+input: "ip -br -c a"
+cursor: 0
+  0..2 command "ip"
+  3..6 option "-br"
+  7..9 option "-c"
+  10..11 subcommand "a"
+
+input: "ip -n ns1 a"
+cursor: 0
+  0..2 command "ip"
+  3..5 option "-n"
+  10..11 subcommand "a"
+
+input: "ip addr sh"
+cursor: 0
+  0..2 command "ip"
+  3..7 subcommand "addr"
+
+input: "ip l"
+cursor: 0
+  0..2 command "ip"
+  3..4 subcommand "l"
+
+input: "ip li"
+cursor: 0
+  0..2 command "ip"
+  3..5 subcommand "li"
+
+input: "ip n"
+cursor: 0
+  0..2 command "ip"
+  3..4 subcommand "n"
+
+input: "ip -4 a"
+cursor: 0
+  0..2 command "ip"
+  3..5 option "-4"
+  6..7 subcommand "a"
+
+input: "ip -s -s a"
+cursor: 0
+  0..2 command "ip"
+  3..5 option "-s"
+  6..8 option "-s"
+  9..10 subcommand "a"
+
+input: "ip -color=always a"
+cursor: 0
+  0..2 command "ip"
+  3..16 option "-color=always"
+  17..18 subcommand "a"
+
+input: "ip -f inet6 route show"
+cursor: 0
+  0..2 command "ip"
+  3..5 option "-f"
+  12..17 subcommand "route"
+
+input: "ip frobnicate"
+cursor: 0
+  0..2 command "ip"
+  3..13 error "frobnicate"
+
+input: "journalctl -u nginx -n 50 --no-pager"
+cursor: 0
+  0..10 command "journalctl"
+  11..13 option "-u"
+  20..22 option "-n"
+  26..36 option "--no-pager"
+
+input: "journalctl -xeu nginx -p err --since today"
+cursor: 0
+  0..10 command "journalctl"
+  11..15 option "-xeu"
+  22..24 option "-p"
+  29..36 option "--since"
+
+input: "journalctl -u -n"
+cursor: 0
+  0..10 command "journalctl"
+  11..13 option "-u"
+
+input: "journalctl -n50 --since=today"
+cursor: 0
+  0..10 command "journalctl"
+  11..15 option "-n50"
+  16..29 option "--since=today"
+
+input: "journalctl --bogus"
+cursor: 0
+  0..10 command "journalctl"

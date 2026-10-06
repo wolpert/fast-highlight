@@ -46,6 +46,24 @@ pub struct Word {
     pub tilde: bool,
     /// The word contains unquoted glob characters.
     pub has_glob: bool,
+    /// The word's value after quote removal starts with `NAME=`, with `NAME` an ASCII shell
+    /// identifier (see [`is_name_eq`]), before any expansion: true for `FOO=1`, `FOO=$x`, and
+    /// `"FOO"=$x`, false for `FOO$x=1` and `$cmd`. This is the shape of an `env`-style
+    /// `NAME=value` argument, not a shell assignment: an assignment before the command is not a
+    /// word of a [`SimpleCommand`], but a declaration builtin's argument is.
+    pub name_eq: bool,
+}
+
+/// `NAME=` followed by anything, with `NAME` an ASCII shell identifier: `[A-Za-z_][A-Za-z0-9_]*`.
+/// ASCII-only: a name with other letters, although zsh may accept it in an assignment, is not
+/// recognised.
+pub fn is_name_eq(text: &str) -> bool {
+    let b = text.as_bytes();
+    let n = b
+        .iter()
+        .take_while(|&&c| c.is_ascii_alphanumeric() || c == b'_')
+        .count();
+    n > 0 && !b[0].is_ascii_digit() && b.get(n) == Some(&b'=')
 }
 
 /// A simple command: the command word followed by its arguments.

@@ -1,0 +1,23 @@
+# Verified against: GNU Make 4.4.1.
+# make(1), GNU Make 4.4.1 (checked against `make --help`). No subcommands: the words that are not
+# options are targets and `NAME=value` variable assignments. `-j`, `-l`, `-O`, `--debug`, and
+# `--shuffle` take an optional attached value (`-j4`, `--jobs=4`), so `make -j all` keeps `all` as a
+# target; `make -j 4` shows `4` as a plain word. `--jobserver-auth`, `--jobserver-fds`,
+# `--sync-mutex`, and `--temp-stdin` are not in `--help` (make passes them to sub-makes), but make
+# accepts them, so they are declared for `option-abbreviations`: `--jobserver` is ambiguous and
+# `--te` selects `--temp-stdin`, as in make.
+name = "make"
+option-abbreviations = true
+options = [
+  "-b", "-m", "-B", "--always-make", "-C=", "--directory=", "-d", "--debug=?", "-e",
+  "--environment-overrides", "-E=", "--eval=", "-f=", "--file=", "--makefile=", "-h", "--help",
+  "-i", "--ignore-errors", "-I=", "--include-dir=", "-j=?", "--jobs=?", "--jobserver-auth=",
+  "--jobserver-fds=", "--jobserver-style=", "-k", "--keep-going", "-l=?", "--load-average=?",
+  "--max-load=?", "-L", "--check-symlink-times", "-n", "--just-print", "--dry-run", "--recon",
+  "-o=", "--old-file=", "--assume-old=", "-O=?", "--output-sync=?", "-p", "--print-data-base", "-q",
+  "--question", "-r", "--no-builtin-rules", "-R", "--no-builtin-variables", "--shuffle=?", "-s",
+  "--silent", "--quiet", "--no-silent", "-S", "--no-keep-going", "--stop", "-t", "--touch",
+  "--trace", "-v", "--version", "-w", "--print-directory", "--no-print-directory", "-W=",
+  "--what-if=", "--new-file=", "--assume-new=", "--warn-undefined-variables", "--sync-mutex=",
+  "--temp-stdin=",
+]

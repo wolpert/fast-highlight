@@ -1,0 +1,92 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "apt -o Dpkg::Options::=--force-confold install -y curl"
+cursor: 0
+  0..3 command "apt"
+  4..6 option "-o"
+  39..46 subcommand "install"
+  47..49 option "-y"
+
+input: "apt -t bookworm-backports install --no-install-recommends vim"
+cursor: 0
+  0..3 command "apt"
+  4..6 option "-t"
+  26..33 subcommand "install"
+  34..57 option "--no-install-recommends"
+
+input: "apt auto-remove -y"
+cursor: 0
+  0..3 command "apt"
+  4..15 subcommand "auto-remove"
+  16..18 option "-y"
+
+input: "apt frobnicate"
+cursor: 0
+  0..3 command "apt"
+  4..14 error "frobnicate"
+
+input: "dnf --releasever 40 install -y nginx"
+cursor: 0
+  0..3 command "dnf"
+  4..16 option "--releasever"
+  20..27 subcommand "install"
+  28..30 option "-y"
+
+input: "dnf5 in -y nginx"
+cursor: 0
+  0..4 command "dnf5"
+  5..7 subcommand "in"
+  8..10 option "-y"
+
+input: "dnf up"
+cursor: 0
+  0..3 command "dnf"
+  4..6 subcommand "up"
+
+input: "dnf grp list"
+cursor: 0
+  0..3 command "dnf"
+  4..7 subcommand "grp"
+  8..12 subcommand "list"
+
+input: "dnf group install --with-optional tools"
+cursor: 0
+  0..3 command "dnf"
+  4..9 subcommand "group"
+  10..17 subcommand "install"
+
+input: "dnf group frobnicate"
+cursor: 0
+  0..3 command "dnf"
+  4..9 subcommand "group"
+  10..20 error "frobnicate"
+
+input: "dnf frobnicate"
+cursor: 0
+  0..3 command "dnf"
+
+input: "brew install --cask --appdir /Applications firefox"
+cursor: 0
+  0..4 command "brew"
+  5..12 subcommand "install"
+  13..19 option "--cask"
+  20..28 option "--appdir"
+
+input: "brew services restart --all"
+cursor: 0
+  0..4 command "brew"
+  5..13 subcommand "services"
+  14..21 subcommand "restart"
+  22..27 option "--all"
+
+input: "brew services frobnicate"
+cursor: 0
+  0..4 command "brew"
+  5..13 subcommand "services"
+  14..24 error "frobnicate"
+
+input: "brew frobnicate"
+cursor: 0
+  0..4 command "brew"

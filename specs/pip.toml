@@ -1,0 +1,110 @@
+# Verified against: pip 25.1.1.
+# pip 25.1.1 (checked against `pip --help` and the help of every command). Complete: pip has no
+# plugin mechanism for subcommands, so an unknown subcommand is an error. The general options are
+# common options, since pip accepts them before and after the subcommand, and their values are not
+# taken for the subcommand; `-V` and `--version` are accepted after a subcommand too. `pip3` is the
+# same program. Subcommand options are those listed in each command's own help, including its
+# package index options.
+name = "pip"
+aliases = ["pip3"]
+complete = true
+common-options = [
+  "-h", "--help", "--debug", "--isolated", "--require-virtualenv", "--python=", "-v", "--verbose",
+  "-q", "--quiet", "--log=", "--no-input", "--keyring-provider=", "--proxy=", "--retries=",
+  "--timeout=", "--exists-action=", "--trusted-host=", "--cert=", "--client-cert=", "--cache-dir=",
+  "--no-cache-dir", "--disable-pip-version-check", "--no-color", "--use-feature=",
+  "--use-deprecated=", "--resume-retries=", "-V", "--version",
+]
+
+[subcommands.cache]
+options = ["--format="]
+
+[subcommands.check]
+
+[subcommands.completion]
+options = ["-b", "--bash", "-z", "--zsh", "-f", "--fish", "-p", "--powershell"]
+
+[subcommands.config]
+options = ["--editor=", "--global", "--user", "--site"]
+
+[subcommands.debug]
+options = ["--platform=", "--python-version=", "--implementation=", "--abi="]
+
+[subcommands.download]
+options = [
+  "-c=", "--constraint=", "-r=", "--requirement=", "--no-deps", "--global-option=", "--no-binary=",
+  "--only-binary=", "--prefer-binary", "--src=", "--pre", "--require-hashes", "--progress-bar=",
+  "--no-build-isolation", "--use-pep517", "--check-build-dependencies", "--ignore-requires-python",
+  "-d=", "--dest=", "--platform=", "--python-version=", "--implementation=", "--abi=", "--group=",
+  "--no-clean", "-i=", "--index-url=", "--extra-index-url=", "--no-index", "-f=", "--find-links=",
+]
+
+[subcommands.freeze]
+options = [
+  "-r=", "--requirement=", "-l", "--local", "--user", "--path=", "--all", "--exclude-editable",
+  "--exclude=",
+]
+
+[subcommands.hash]
+options = ["-a=", "--algorithm="]
+
+[subcommands.help]
+
+[subcommands.index]
+options = [
+  "--platform=", "--python-version=", "--implementation=", "--abi=", "--ignore-requires-python",
+  "--pre", "--json", "--no-binary=", "--only-binary=", "-i=", "--index-url=", "--extra-index-url=",
+  "--no-index", "-f=", "--find-links=",
+]
+
+[subcommands.inspect]
+options = ["--local", "--user", "--path="]
+
+[subcommands.install]
+options = [
+  "-r=", "--requirement=", "-c=", "--constraint=", "--no-deps", "--pre", "-e=", "--editable=",
+  "--dry-run", "-t=", "--target=", "--platform=", "--python-version=", "--implementation=",
+  "--abi=", "--user", "--root=", "--prefix=", "--src=", "-U", "--upgrade", "--upgrade-strategy=",
+  "--force-reinstall", "-I", "--ignore-installed", "--ignore-requires-python",
+  "--no-build-isolation", "--use-pep517", "--check-build-dependencies", "--break-system-packages",
+  "-C=", "--config-settings=", "--global-option=", "--compile", "--no-compile",
+  "--no-warn-script-location", "--no-warn-conflicts", "--no-binary=", "--only-binary=",
+  "--prefer-binary", "--require-hashes", "--progress-bar=", "--root-user-action=", "--report=",
+  "--group=", "--no-clean", "-i=", "--index-url=", "--extra-index-url=", "--no-index", "-f=",
+  "--find-links=",
+]
+
+[subcommands.list]
+options = [
+  "-o", "--outdated", "-u", "--uptodate", "-e", "--editable", "-l", "--local", "--user", "--path=",
+  "--pre", "--format=", "--not-required", "--exclude-editable", "--include-editable", "--exclude=",
+  "-i=", "--index-url=", "--extra-index-url=", "--no-index", "-f=", "--find-links=",
+]
+
+[subcommands.lock]
+options = [
+  "-o=", "--output=", "-r=", "--requirement=", "-c=", "--constraint=", "--no-deps", "--pre", "-e=",
+  "--editable=", "--src=", "--ignore-requires-python", "--no-build-isolation", "--use-pep517",
+  "--check-build-dependencies", "-C=", "--config-settings=", "--no-binary=", "--only-binary=",
+  "--prefer-binary", "--require-hashes", "--progress-bar=", "--group=", "--no-clean", "-i=",
+  "--index-url=", "--extra-index-url=", "--no-index", "-f=", "--find-links=",
+]
+
+[subcommands.search]
+options = ["-i=", "--index="]
+
+[subcommands.show]
+options = ["-f", "--files"]
+
+[subcommands.uninstall]
+options = ["-r=", "--requirement=", "-y", "--yes", "--root-user-action=", "--break-system-packages"]
+
+[subcommands.wheel]
+options = [
+  "-w=", "--wheel-dir=", "--no-binary=", "--only-binary=", "--prefer-binary",
+  "--no-build-isolation", "--use-pep517", "--check-build-dependencies", "-c=", "--constraint=",
+  "-e=", "--editable=", "-r=", "--requirement=", "--src=", "--ignore-requires-python", "--no-deps",
+  "--progress-bar=", "--no-verify", "-C=", "--config-settings=", "--build-option=",
+  "--global-option=", "--pre", "--require-hashes", "--group=", "--no-clean", "-i=", "--index-url=",
+  "--extra-index-url=", "--no-index", "-f=", "--find-links=",
+]

@@ -1,3 +1,4 @@
+# Verified against: nothing (doas is not installed here).
 # doas(1) from OpenBSD and OpenDoas.
 name = "doas"
 precommand = true

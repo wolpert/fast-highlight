@@ -1,6 +1,8 @@
+# Verified against: util-linux 2.41.3.
 # taskset(1) from util-linux: `taskset [OPTION]... MASK COMMAND [ARG]...`. With `-c` the mask is a
 # CPU list, still given as one word.
 name = "taskset"
+option-abbreviations = true
 precommand = true
 positional = 1
 options = [

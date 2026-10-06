@@ -1,0 +1,47 @@
+---
+source: tests/highlight_snapshots.rs
+expression: out
+---
+input: "tar --ver -x"
+cursor: 0
+  0..3 command "tar"
+  4..9 error "--ver"
+  10..12 option "-x"
+
+input: "tar --verb -x"
+cursor: 0
+  0..3 command "tar"
+  4..10 error "--verb"
+  11..13 option "-x"
+
+input: "tar --qqq -x"
+cursor: 0
+  0..3 command "tar"
+  4..9 error "--qqq"
+  10..12 option "-x"
+
+input: "tar --verbo -x"
+cursor: 0
+  0..3 command "tar"
+  4..11 option "--verbo"
+  12..14 option "-x"
+
+input: "tar -x --ver"
+  0..3 command "tar"
+  4..6 option "-x"
+
+input: "tar -x --qqq"
+  0..3 command "tar"
+  4..6 option "-x"
+  7..12 error "--qqq"
+
+input: "tar -x --verbo"
+  0..3 command "tar"
+  4..6 option "-x"
+  7..14 option "--verbo"
+
+input: "tar -x --ver --qqq"
+cursor: 12
+  0..3 command "tar"
+  4..6 option "-x"
+  13..18 error "--qqq"

@@ -1,4 +1,8 @@
+# Verified against: zsh 5.9.
 # The zsh precommand modifier `command`.
+# Only `precommand` takes effect here. The grammar is built into the highlighter and ignores
+# overrides: options are -p, -v, -V, combined (-pv), and --; several option words only with a v or V; the next word must be an external
+# command; with -v or -V every remaining word is looked up. The options list is documentation.
 name = "command"
 precommand = true
 options = ["-p", "-v", "-V"]

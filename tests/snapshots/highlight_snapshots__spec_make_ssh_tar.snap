@@ -1,0 +1,87 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "make -C src -j4 all"
+cursor: 0
+  0..4 command "make"
+  5..7 option "-C"
+  8..11 path-directory "src"
+  12..15 option "-j4"
+
+input: "make -j4 -k"
+cursor: 0
+  0..4 command "make"
+  5..8 option "-j4"
+  9..11 option "-k"
+
+input: "make all -k"
+cursor: 0
+  0..4 command "make"
+  9..11 option "-k"
+
+input: "ssh host -l"
+cursor: 0
+  0..3 command "ssh"
+
+input: "make -f Makefile.alt --just-print install"
+cursor: 0
+  0..4 command "make"
+  5..7 option "-f"
+  21..33 option "--just-print"
+
+input: "make --bogus all"
+cursor: 0
+  0..4 command "make"
+
+input: "ssh -p 2222 -i key.pem -o StrictHostKeyChecking=no user@host uptime -l"
+cursor: 0
+  0..3 command "ssh"
+  4..6 option "-p"
+  12..14 option "-i"
+  23..25 option "-o"
+
+input: "ssh -L 8080:localhost:80 -J jump host"
+cursor: 0
+  0..3 command "ssh"
+  4..6 option "-L"
+  25..27 option "-J"
+
+input: "ssh -Z host"
+cursor: 0
+  0..3 command "ssh"
+
+input: "ssh -o -v host"
+cursor: 0
+  0..3 command "ssh"
+  4..6 option "-o"
+
+input: "ssh -p2222 host"
+cursor: 0
+  0..3 command "ssh"
+  4..10 option "-p2222"
+
+input: "tar -C src -czf out.tgz --exclude=node_modules ."
+cursor: 0
+  0..3 command "tar"
+  4..6 option "-C"
+  7..10 path-directory "src"
+  11..15 option "-czf"
+  24..46 option "--exclude=node_modules"
+  47..48 path-directory "."
+
+input: "tar -xvf out.tgz --strip-components 1"
+cursor: 0
+  0..3 command "tar"
+  4..8 option "-xvf"
+  17..35 option "--strip-components"
+
+input: "tar --bogus -tf out.tgz"
+cursor: 0
+  0..3 command "tar"
+  12..15 option "-tf"
+
+input: "tar -f -x"
+cursor: 0
+  0..3 command "tar"
+  4..6 option "-f"

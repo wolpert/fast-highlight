@@ -1,0 +1,27 @@
+# Verified against: systemd 259.
+# journalctl(1) from systemd 259 (checked against `journalctl --help` and journalctl(1)). It takes
+# no subcommands: the words that are not options are journal matches (`_SYSTEMD_UNIT=x`) or file
+# paths. Every long option in `--help` is declared, as are `--full`, `--new-id128`, and
+# `--this-boot`, which journalctl accepts but does not show in `--help`; with all of them
+# declared, `option-abbreviations` resolves a unique prefix as journalctl does (`--t` is
+# ambiguous). The list is not marked complete, so an unknown option is not an error. `-n` and `-b`
+# take an optional value (`-n5`, `--lines=5`, `-b-1`), as `--help` shows, so the next word is not
+# taken as their value. `-l` is also accepted but not shown in `--help`.
+name = "journalctl"
+option-abbreviations = true
+options = [
+  "--system", "--user", "-M=", "--machine=", "-m", "--merge", "-D=", "--directory=", "-i=",
+  "--file=", "--root=", "--image=", "--image-policy=", "--namespace=", "-S=", "--since=", "-U=",
+  "--until=", "-c=", "--cursor=", "--after-cursor=", "--cursor-file=", "-b=?", "--boot=?", "-u=",
+  "--unit=", "--user-unit=", "--invocation=", "-I", "-t=", "--identifier=", "-T=",
+  "--exclude-identifier=", "-p=", "--priority=", "--facility=", "-g=", "--grep=",
+  "--case-sensitive=?", "-k", "--dmesg", "-o=", "--output=", "--output-fields=", "-n=?",
+  "--lines=?", "-r", "--reverse", "--show-cursor", "--utc", "-x", "--catalog", "-W",
+  "--no-hostname", "--no-full", "-l", "--full", "-a", "--all", "-f", "--follow", "--no-tail",
+  "--truncate-newline", "-q", "--quiet", "--synchronize-on-exit=", "--no-pager", "-e",
+  "--pager-end", "--interval=", "--verify-key=", "--force", "-h", "--help", "--version", "-N",
+  "--fields", "-F=", "--field=", "--list-boots", "--list-invocations", "--list-namespaces",
+  "--disk-usage", "--vacuum-size=", "--vacuum-files=", "--vacuum-time=", "--verify", "--sync",
+  "--relinquish-var", "--smart-relinquish-var", "--flush", "--rotate", "--header", "--list-catalog",
+  "--dump-catalog", "--update-catalog", "--setup-keys", "--new-id128", "--this-boot",
+]

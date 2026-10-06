@@ -1,6 +1,9 @@
+# Verified against: GNU time 1.9.
 # The external time(1), GNU and BSD. In zsh, `time` in command position is a reserved word with
-# no options; this spec covers invocations such as `command time -v cmd`.
+# no options; this spec covers invocations such as `command time -v cmd`. The BSD option `-l` is not
+# in GNU time and was not compared. GNU time accepts unique prefixes of its long options (`--verb`).
 name = "time"
+option-abbreviations = true
 precommand = true
 options = [
   "-a", "--append",

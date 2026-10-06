@@ -1,0 +1,61 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "docker service create --replicas 3 nginx"
+cursor: 0
+  0..6 command "docker"
+  7..14 subcommand "service"
+  15..21 subcommand "create"
+  22..32 option "--replicas"
+
+input: "docker service create --replicas 3 --name web nginx echo -n"
+cursor: 0
+  0..6 command "docker"
+  7..14 subcommand "service"
+  15..21 subcommand "create"
+  22..32 option "--replicas"
+  35..41 option "--name"
+
+input: "docker service create -t nginx sleep -t 5"
+cursor: 0
+  0..6 command "docker"
+  7..14 subcommand "service"
+  15..21 subcommand "create"
+  22..24 option "-t"
+
+input: "docker swarm init --advertise-addr x"
+cursor: 0
+  0..6 command "docker"
+  7..12 subcommand "swarm"
+  13..17 subcommand "init"
+  18..34 option "--advertise-addr"
+
+input: "docker stack deploy -c f.yml s"
+cursor: 0
+  0..6 command "docker"
+  7..12 subcommand "stack"
+  13..19 subcommand "deploy"
+  20..22 option "-c"
+
+input: "docker plugin ls --no-trunc"
+cursor: 0
+  0..6 command "docker"
+  7..13 subcommand "plugin"
+  14..16 subcommand "ls"
+  17..27 option "--no-trunc"
+
+input: "docker swarm frob"
+cursor: 0
+  0..6 command "docker"
+  7..12 subcommand "swarm"
+
+input: "docker stack frob"
+cursor: 0
+  0..6 command "docker"
+  7..12 subcommand "stack"
+
+input: "docker plugin frob"
+cursor: 0
+  0..6 command "docker"
+  7..13 subcommand "plugin"

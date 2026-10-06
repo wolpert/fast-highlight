@@ -1,6 +1,10 @@
+# Verified against: nothing (kubectl is not installed here, so nothing was verified).
 # kubectl(1). Not complete: any `kubectl-NAME` executable on PATH is a plugin subcommand.
 # Fixed command groups (`config`, `rollout`, `auth`, `set`, `top`, ...) are complete. Global
 # flags are valid at every level, before or after the subcommand.
+# `exec` runs the command after `--` in the pod (`wrapped-after`). That follows from the usage
+# `kubectl exec POD -- COMMAND`, not from a check against kubectl, and the option lists were not
+# extended with it.
 name = "kubectl"
 common-options = [
   "-h", "--help", "--kubeconfig=", "--context=", "--cluster=", "--user=", "-n=", "--namespace=",
@@ -380,6 +384,7 @@ options = [
 ]
 
 [subcommands.exec]
+wrapped-after = "--"
 options = [
   "-c=", "--container=", "-i", "--stdin=?", "-t", "--tty=?", "-q", "--quiet=?",
   "--pod-running-timeout=", "-f=", "--filename=", "-k=", "--kustomize=", "-R", "--recursive",

@@ -1,0 +1,87 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "xargs -0 -n1 rm -f"
+cursor: 0
+  0..5 precommand "xargs"
+  6..8 option "-0"
+  9..12 option "-n1"
+  13..15 command "rm"
+  16..18 option "-f"
+
+input: "xargs -I {} mv {} {}.bak"
+cursor: 0
+  0..5 precommand "xargs"
+  6..8 option "-I"
+  12..14 command "mv"
+
+input: "xargs --max-args 1 rm"
+cursor: 0
+  0..5 precommand "xargs"
+  6..16 option "--max-args"
+  19..21 command "rm"
+
+input: "xargs -r -P 4 -d '\\n' rm -rf"
+cursor: 0
+  0..5 precommand "xargs"
+  6..8 option "-r"
+  9..11 option "-P"
+  14..16 option "-d"
+  17..21 single-quoted "'\\n'"
+  22..24 command "rm"
+  25..28 option "-rf"
+
+input: "xargs -i rm"
+cursor: 0
+  0..5 precommand "xargs"
+  6..8 option "-i"
+  9..11 command "rm"
+
+input: "xargs --replace rm"
+cursor: 0
+  0..5 precommand "xargs"
+  6..15 option "--replace"
+  16..18 command "rm"
+
+input: "xargs -I{} rm"
+cursor: 0
+  0..5 precommand "xargs"
+  6..10 option "-I{}"
+  11..13 command "rm"
+
+input: "xargs -n1 -- rm"
+cursor: 0
+  0..5 precommand "xargs"
+  6..9 option "-n1"
+  10..12 option "--"
+  13..15 command "rm"
+
+input: "xargs rm -0"
+cursor: 0
+  0..5 precommand "xargs"
+  6..8 command "rm"
+
+input: "xargs rm"
+cursor: 0
+  0..5 precommand "xargs"
+  6..8 command "rm"
+
+input: "xargs sudo rm -f"
+cursor: 0
+  0..5 precommand "xargs"
+  6..10 precommand "sudo"
+  11..13 command "rm"
+  14..16 option "-f"
+
+input: "rm -rf no-such-dir --bogus"
+cursor: 0
+  0..2 command "rm"
+  3..6 option "-rf"
+
+input: "rm -v -- -notes.txt"
+cursor: 0
+  0..2 command "rm"
+  3..5 option "-v"
+  6..8 option "--"
+  9..19 path "-notes.txt"

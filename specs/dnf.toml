@@ -1,0 +1,385 @@
+# Verified against: dnf5 5.4.6.
+# dnf5(8) 5.4.6 (checked against the DNF5 manual pages and compatibility alias files of tag 5.4.6.0;
+# dnf is not installed here). `dnf` is dnf5 on current Fedora, so `dnf5` is an alias; DNF 4 (`yum`)
+# is not covered. The top level is not complete: `dnf NAME` also runs plugins from other packages
+# and aliases defined in `/etc/dnf/dnf5-aliases.d`, so an unknown subcommand there is not an error.
+# The commands with a fixed set of subcommands (`group`, `environment`, `history`, `module`,
+# `repo`, ...) are complete. The `dnf5-plugins` commands are listed. Each command declares the
+# options of its manual page, and the subcommands of a command group declare none. The global
+# options, with their DNF 4 spellings such as `--enablerepo`, are common options, so a value after
+# one of them is not taken for the subcommand. A manual page that describes an option value only in
+# prose is read as a flag, except for `--hub`, `--input`, `--manifest`, `--arch`, and
+# `--urlprotocol`.
+name = "dnf"
+aliases = ["dnf5"]
+common-options = [
+  "--assumeno", "--allow-vendor-change", "--best", "-C", "--cacheonly", "--comment=", "--config=",
+  "--debugsolver", "--disable-plugin=", "--disable-repo=", "--dump-main-config",
+  "--dump-repo-config=", "--dump-variables", "--enable-plugin=", "--enable-repo=", "--forcearch=",
+  "-h", "--help", "--installroot=", "--no-allow-vendor-change", "--no-best", "--no-docs",
+  "--no-gpgchecks", "--no-plugins", "-q", "--quiet", "--refresh", "--color=", "--repo=",
+  "--repofrompath=", "--releasever=", "--releasever-major=", "--releasever-minor=", "--setopt=",
+  "--setvar=", "--skip-file-locks", "--show-new-leaves", "--use-host-config", "--version", "-y",
+  "--assumeyes", "-x=", "--exclude=", "-c=", "--nobest", "--nodocs", "--enablerepo=",
+  "--disablerepo=", "--repoid=", "--nogpgcheck", "--noplugins", "--enableplugin=",
+  "--disableplugin=",
+]
+
+[subcommands.advisory]
+aliases = ["updateinfo"]
+complete = true
+
+[subcommands.advisory.subcommands.info]
+
+[subcommands.advisory.subcommands.list]
+
+[subcommands.advisory.subcommands.summary]
+
+[subcommands.automatic]
+options = [
+  "--timer", "--downloadupdates", "--no-downloadupdates", "--installupdates", "--no-installupdates",
+]
+
+[subcommands.autoremove]
+options = ["--offline", "--transient", "--store="]
+
+[subcommands.builddep]
+aliases = ["build-dep"]
+options = [
+  "-D=", "--define=", "--with=", "--without=", "--allowerasing", "--skip-unavailable",
+  "--allow-downgrade", "--no-allow-downgrade", "--from-repo=", "--from-vendor=", "--spec", "--srpm",
+  "--offline", "--transient", "--store=",
+]
+
+[subcommands.changelog]
+options = ["--since=", "--count=", "--upgrades"]
+
+[subcommands.check]
+options = ["--dependencies", "--duplicates", "--obsoleted"]
+
+[subcommands.check-upgrade]
+aliases = ["check-update"]
+options = [
+  "--changelogs", "--advisories=", "--advisory-severities=", "--bzs=", "--cves=", "--security",
+  "--bugfix", "--enhancement", "--newpackage", "--minimal", "--json",
+]
+
+[subcommands.clean]
+
+[subcommands.config-manager]
+complete = true
+
+[subcommands.config-manager.subcommands.addrepo]
+
+[subcommands.config-manager.subcommands.disable]
+
+[subcommands.config-manager.subcommands.enable]
+
+[subcommands.config-manager.subcommands.setopt]
+
+[subcommands.config-manager.subcommands.setvar]
+
+[subcommands.config-manager.subcommands.unsetopt]
+
+[subcommands.config-manager.subcommands.unsetvar]
+
+[subcommands.copr]
+complete = true
+options = ["--hub="]
+
+[subcommands.copr.subcommands.debug]
+options = ["--hub="]
+
+[subcommands.copr.subcommands.disable]
+options = ["--hub="]
+
+[subcommands.copr.subcommands.enable]
+options = ["--hub="]
+
+[subcommands.copr.subcommands.list]
+options = ["--hub="]
+
+[subcommands.copr.subcommands.remove]
+options = ["--hub="]
+
+[subcommands.debuginfo-install]
+options = [
+  "--allowerasing", "--skip-broken", "--skip-unavailable", "--offline", "--transient", "--store=",
+]
+
+[subcommands.distro-sync]
+aliases = ["dsync"]
+options = [
+  "--allowerasing", "--skip-broken", "--skip-unavailable", "--installed-from-repo=", "--from-repo=",
+  "--from-vendor=", "--downloadonly", "--offline", "--transient", "--store=",
+]
+
+[subcommands.do]
+options = [
+  "--action", "--type", "--allowerasing", "--skip-broken", "--skip-unavailable",
+  "--allow-downgrade", "--no-allow-downgrade", "--installed-from-repo=", "--from-repo=",
+  "--from-vendor=", "--downloadonly", "--offline", "--transient", "--advisories=",
+  "--advisory-severities=", "--bzs=", "--cves=", "--security", "--bugfix", "--enhancement",
+  "--newpackage",
+]
+
+[subcommands.downgrade]
+aliases = ["dg"]
+options = [
+  "--allowerasing", "--skip-broken", "--skip-unavailable", "--allow-downgrade",
+  "--no-allow-downgrade", "--installed-from-repo=", "--from-repo=", "--from-vendor=",
+  "--downloadonly", "--offline", "--transient", "--store=",
+]
+
+[subcommands.download]
+options = [
+  "--arch=", "--resolve", "--alldeps", "--from-repo=", "--from-vendor=", "--destdir=",
+  "--skip-unavailable", "--srpm", "--debuginfo", "--debugsource", "--url", "--urlprotocol=",
+  "--allmirrors",
+]
+
+[subcommands.environment]
+complete = true
+
+[subcommands.environment.subcommands.info]
+
+[subcommands.environment.subcommands.install]
+
+[subcommands.environment.subcommands.list]
+
+[subcommands.environment.subcommands.remove]
+
+[subcommands.environment.subcommands.upgrade]
+
+[subcommands.group]
+aliases = ["grp"]
+complete = true
+
+[subcommands.group.subcommands.info]
+
+[subcommands.group.subcommands.install]
+
+[subcommands.group.subcommands.list]
+
+[subcommands.group.subcommands.remove]
+
+[subcommands.group.subcommands.upgrade]
+
+[subcommands.history]
+complete = true
+
+[subcommands.history.subcommands.info]
+
+[subcommands.history.subcommands.list]
+
+[subcommands.history.subcommands.redo]
+
+[subcommands.history.subcommands.rollback]
+
+[subcommands.history.subcommands.store]
+
+[subcommands.history.subcommands.undo]
+
+[subcommands.info]
+aliases = ["if"]
+options = [
+  "--showduplicates", "--installed-from-repo=", "--installed", "--available", "--extras",
+  "--obsoletes", "--recent", "--upgrades", "--autoremove",
+]
+
+[subcommands.install]
+aliases = ["in"]
+options = [
+  "--allowerasing", "--skip-broken", "--skip-unavailable", "--allow-downgrade",
+  "--no-allow-downgrade", "--from-repo=", "--from-vendor=", "--downloadonly", "--offline",
+  "--transient", "--store=", "--advisories=", "--advisory-severities=", "--bzs=", "--cves=",
+  "--security", "--bugfix", "--enhancement", "--newpackage",
+]
+
+[subcommands.leaves]
+
+[subcommands.list]
+aliases = ["ls"]
+options = [
+  "--showduplicates", "--installed-from-repo=", "--installed", "--available", "--extras",
+  "--obsoletes", "--recent", "--upgrades", "--autoremove", "--json",
+]
+
+[subcommands.makecache]
+aliases = ["mc"]
+
+[subcommands.manifest]
+complete = true
+
+[subcommands.manifest.subcommands.download]
+
+[subcommands.manifest.subcommands.install]
+
+[subcommands.manifest.subcommands.new]
+
+[subcommands.manifest.subcommands.resolve]
+
+[subcommands.mark]
+complete = true
+
+[subcommands.mark.subcommands.dependency]
+
+[subcommands.mark.subcommands.group]
+
+[subcommands.mark.subcommands.user]
+
+[subcommands.mark.subcommands.weak]
+
+[subcommands.module]
+complete = true
+
+[subcommands.module.subcommands.disable]
+
+[subcommands.module.subcommands.enable]
+
+[subcommands.module.subcommands.info]
+
+[subcommands.module.subcommands.install]
+
+[subcommands.module.subcommands.list]
+
+[subcommands.module.subcommands.provides]
+
+[subcommands.module.subcommands.remove]
+
+[subcommands.module.subcommands.repoquery]
+
+[subcommands.module.subcommands.reset]
+
+[subcommands.module.subcommands.switch-to]
+
+[subcommands.needs-restarting]
+options = [
+  "-p", "--processes", "-e", "--exclude-services", "-s", "--services", "-r", "--reboothint",
+  "--json",
+]
+
+[subcommands.offline]
+complete = true
+
+[subcommands.offline.subcommands.clean]
+
+[subcommands.offline.subcommands.log]
+
+[subcommands.offline.subcommands.reboot]
+
+[subcommands.offline.subcommands.status]
+
+[subcommands.provides]
+
+[subcommands.reinstall]
+aliases = ["rei"]
+options = [
+  "--allowerasing", "--skip-broken", "--skip-unavailable", "--allow-downgrade",
+  "--no-allow-downgrade", "--installed-from-repo=", "--from-repo=", "--from-vendor=",
+  "--downloadonly", "--offline", "--transient", "--store=",
+]
+
+[subcommands.remove]
+aliases = ["rm"]
+options = [
+  "--installed-from-repo=", "--no-autoremove", "--oldinstallonly", "--limit=", "--duplicates",
+  "--offline", "--transient", "--store=",
+]
+
+[subcommands.replay]
+options = ["--ignore-extras", "--ignore-installed", "--skip-broken", "--skip-unavailable"]
+
+[subcommands.repo]
+complete = true
+
+[subcommands.repo.subcommands.info]
+
+[subcommands.repo.subcommands.list]
+
+[subcommands.repoclosure]
+options = ["--arch=", "--check=", "--json", "--newest"]
+
+[subcommands.repomanage]
+options = ["--new", "--old"]
+
+[subcommands.repoquery]
+aliases = ["rq"]
+options = [
+  "--advisories=", "--advisory-severities=", "--arch=", "--available", "--bugfix", "--bzs=",
+  "--cves=", "--disable-modular-filtering", "--duplicates", "--enhancement", "--exactdeps",
+  "--extras", "-f=", "--file=", "--installed", "--installed-from-repo=", "--installonly",
+  "--latest-limit=", "--leaves", "--newpackage", "--providers-of=", "--recent", "--recursive",
+  "--security", "--srpm", "--unneeded", "--upgrades", "--userinstalled", "--whatconflicts=",
+  "--whatdepends=", "--whatenhances=", "--whatobsoletes=", "--whatprovides=", "--whatrecommends=",
+  "--whatrequires=", "--whatsuggests=", "--whatsupplements=", "--conflicts", "--depends",
+  "--enhances", "--files", "--obsoletes", "--provides", "--recommends", "--requires",
+  "--requires-pre", "--sourcerpm", "--suggests", "--supplements", "--location", "-i", "--info",
+  "--changelogs", "--querytags", "--queryformat=",
+]
+
+[subcommands.reposync]
+options = [
+  "--arch=", "-a=", "--delete", "--destdir=", "--download-metadata", "--gpgcheck", "-g",
+  "--metadata-path=", "--min-buildtime=", "--newest-only", "-n", "--norepopath", "--remote-time",
+  "--safe-write-path=", "--srpm", "--urls", "-u",
+]
+
+[subcommands.search]
+aliases = ["se"]
+options = ["--all", "--name", "--summary", "--showduplicates"]
+
+[subcommands.status]
+
+[subcommands.swap]
+options = [
+  "--allowerasing", "--installed-from-repo=", "--from-repo=", "--from-vendor=", "--offline",
+  "--transient", "--store=",
+]
+
+[subcommands.system-upgrade]
+complete = true
+
+[subcommands.system-upgrade.subcommands.clean]
+
+[subcommands.system-upgrade.subcommands.download]
+
+[subcommands.system-upgrade.subcommands.log]
+
+[subcommands.system-upgrade.subcommands.reboot]
+
+[subcommands.upgrade]
+aliases = ["up", "update"]
+options = [
+  "--minimal", "--allowerasing", "--skip-unavailable", "--allow-downgrade", "--no-allow-downgrade",
+  "--destdir=", "--installed-from-repo=", "--from-repo=", "--from-vendor=", "--downloadonly",
+  "--offline", "--transient", "--store=", "--advisories=", "--advisory-severities=", "--bzs=",
+  "--cves=", "--security", "--bugfix", "--enhancement", "--newpackage",
+]
+
+[subcommands.versionlock]
+complete = true
+
+[subcommands.versionlock.subcommands.add]
+
+[subcommands.versionlock.subcommands.clear]
+
+[subcommands.versionlock.subcommands.delete]
+
+[subcommands.versionlock.subcommands.exclude]
+
+[subcommands.versionlock.subcommands.list]
+
+[subcommands.repoinfo]
+options = ["--all", "--enabled", "--disabled", "--json"]
+
+[subcommands.repolist]
+options = ["--all", "--enabled", "--disabled", "--json"]
+
+[subcommands.upgrade-minimal]
+options = [
+  "--minimal", "--allowerasing", "--skip-unavailable", "--allow-downgrade", "--no-allow-downgrade",
+  "--destdir=", "--installed-from-repo=", "--from-repo=", "--from-vendor=", "--downloadonly",
+  "--offline", "--transient", "--store=", "--advisories=", "--advisory-severities=", "--bzs=",
+  "--cves=", "--security", "--bugfix", "--enhancement", "--newpackage",
+]

@@ -1,3 +1,4 @@
+# Verified against: nothing (not compared in this refresh).
 # cargo(1). Not complete: any `cargo-NAME` executable on PATH is a subcommand, and
 # `[alias]` entries in `.cargo/config.toml` add more. Common third-party subcommands are listed
 # so they are highlighted. `+*` matches the rustup toolchain override (`cargo +nightly build`).

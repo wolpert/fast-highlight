@@ -5,35 +5,93 @@ all groups and are stable identifiers; a completed task keeps its number.
 
 ## Command specs
 
-### 1. Additional built-in specs
+### 1. Additional built-in specs (done)
 
-The built-in set in `specs/` holds 23 command specs. Common commands with subcommands or wrapped
-commands have no spec: `podman`, `gh`, `apt`, `dnf`, `brew`, `pip`, `uv`, `go`, `rustup`, `make`,
-`ssh`, `tar`, `xargs` (a precommand whose options precede the wrapped command), `journalctl`, and
-`ip`.
+Status: done.
+
+The built-in set in `specs/` held 23 command specs. Common commands with subcommands or wrapped
+commands had no spec: `podman`, `gh`, `apt`, `dnf`, `brew`, `pip`, `uv`, `go`, `rustup`, `make`,
+`ssh`, `tar`, `xargs` (a precommand whose options precede the wrapped command), `journalctl`, `ip`,
+and `rm` (added so that the command wrapped by `xargs` has options). The set now holds 39.
 
 Acceptance criteria:
 
-- Each listed command has a file under `specs/` and an entry in the built-in table.
+- Each listed command has a file under `specs/`. (The original criterion also asked for an entry in
+  the built-in table; task 7 superseded that, since the table is generated from `specs/`.)
 - `fast-highlight check-config` reports no errors with the new specs loaded.
 - A snapshot test per new spec shows a valid subcommand, an unknown subcommand styled as an error,
   and a known option.
 - For `xargs`, `xargs -0 -n1 rm -f` styles `rm` as a command and `-f` as an option of `rm`.
 
-### 2. Upstream subcommand and option refresh
+Notes on the snapshots:
 
-Several existing specs predate recent upstream releases. Missing subcommands include
-`git backfill`, `last-modified`, `repo`, and `refs`, `git stash export` and `import`, `npm trust`
-and `undeprecate`, and `systemctl sleep` and `enqueue-marked-jobs`. Option coverage is thin for git
+- `ssh`, `tar`, `make`, `journalctl`, `xargs`, and `rm` have no subcommands, so their snapshots show
+  only the parts that apply: a known option and an option that takes a value. For `xargs` the
+  wrapped command stands in for the subcommand. An unknown option gets no span, because no built-in
+  spec is options-complete.
+- The top levels of `gh`, `dnf`, and `brew` are not complete, because of extensions, plugins,
+  aliases, and external commands, so an unknown subcommand there is not an error. Their
+  unknown-subcommand cases come from complete groups: `gh pr`, `dnf group`, and `brew services`.
+
+### 2. Upstream subcommand and option refresh (done)
+
+Status: done.
+
+Several specs predated recent upstream releases. The subcommands named in the task were `git
+backfill`, `last-modified`, `repo`, and `refs`, `git stash export` and `import`, `npm trust` and
+`undeprecate`, and `systemctl sleep` and `enqueue-marked-jobs`. Option coverage was thin for git
 plumbing commands and for `docker swarm`, `stack`, `service`, and `plugin`.
+
+The lists were compared against git 2.53.0 and Docker 27.2.1. The Docker lists are old by design:
+options and subcommands added after 27.2.1 are not declared and highlight as unknown. The refresh
+covers the git plumbing commands, and `docker swarm`, `stack`, `service`, and `plugin`; the options
+declared are those in the help of the checked version. `npm`, `systemctl`, `cargo`, and `kubectl`
+were not swept: only the subcommands named above were checked, `npm` against 11.17.0 and
+`systemctl` against systemd 259, and `cargo` and `kubectl` were not compared.
+
+The bulk option tables (git plumbing, `docker swarm`, `stack`, `service`, and `plugin`) were
+generated against the help and manual-page output of the checked versions. The snapshots sample
+those tables; they do not cover them exhaustively, so an option missing from a table is not ruled
+out by the tests.
+
+Known drift left for follow-up, not fixed in this task:
+
+- `docker stop` and `docker restart` declare `--timeout=`, while Docker 27.2.1 spells it
+  `-t`/`--time`.
+- `docker run` lacks options such as `--blkio-weight-device`.
+- `docker node update` and several `ls` commands declare no options.
+- The git porcelain commands were not compared and have gaps; only the plumbing commands and the
+  commands named above were.
+
+Findings on the named subcommands:
+
+- `git backfill`, `last-modified`, `repo`, `refs`, and `git stash export` and `import` are present
+  with their options.
+- `npm trust` gained its subcommands `github`, `gitlab`, `circleci`, `list`, and `revoke` with their
+  options, and `npm undeprecate` gained `--otp`. npm-trust(1) states that `trust` needs npm 11.15.0
+  or later.
+- `systemctl sleep` was already present and needs no verb-specific option; systemctl(1) says it was
+  added in systemd 256. `enqueue-marked-jobs` is not a verb: systemd 259 rejects it as an unknown
+  verb and its manual page does not list it (it is an internal function, and the user-facing form is
+  `reload-or-restart --marked`). It was removed from the spec, so it now highlights as an unknown
+  verb, as the snapshot shows.
 
 Acceptance criteria:
 
-- Each named subcommand highlights as a valid subcommand, checked by a snapshot test.
-- Each spec file records the upstream version its lists were checked against.
-- `docker service create --replicas 3 nginx` highlights `--replicas` as a known option.
+- Each named subcommand that exists highlights as a valid subcommand, checked by a snapshot test
+  (`spec_git_refresh`, `spec_npm_systemctl_refresh`).
+- Each spec file records the upstream version its lists were checked against, in a first line of the
+  form `# Verified against: <tool> <version>.`, or `# Verified against: nothing (<reason>).` for a
+  spec that was not compared (`cargo`, `kubectl`, `doas`). `sudo` records 1.9.17p2. A version is
+  recorded only where the comparison was made; `npm` and `systemctl` say which parts were compared.
+  The test `every_spec_records_a_checked_version` in `src/specs/tests.rs` requires one of the two
+  forms in every built-in spec.
+- `docker service create --replicas 3 nginx` highlights `--replicas` as a known option
+  (`spec_docker_swarm_service`).
 
-### 3. Assignments with expansions after `env`
+### 3. Assignments with expansions after `env` (done)
+
+Status: done.
 
 In `env FOO=$x cmd`, a word containing an expansion has no literal text, so the spec engine takes
 the assignment for the wrapped command. The argument input needs a flag for a word that starts with
@@ -45,7 +103,15 @@ Acceptance criteria:
 - `env FOO="$(date)" BAR=1 ls` does the same for both assignments.
 - A word without a literal `NAME=` prefix, such as `env $cmd`, keeps its current styling.
 
-### 4. Long-option abbreviations
+"Styles as an assignment" means "skipped as an assignment": `env FOO=$x ls` highlights exactly as
+`env FOO=1 ls` does. The `NAME=value` word gets no span of its own (only its expansions keep their
+syntactic spans), and the next word is the wrapped command. The fix applies to every spec with
+`skip-assignments` (`env`, `sudo`). One visible change follows: `env FOO=$x nosuchcmd` now shows an
+error on `nosuchcmd`, as `env FOO=1 nosuchcmd` already did.
+
+### 4. Long-option abbreviations (done)
+
+Status: done.
 
 GNU-style programs accept any unambiguous prefix of a long option (`--verb` for `--verbose`). The
 spec engine recognises only exact names.
@@ -57,9 +123,25 @@ Acceptance criteria:
   arity.
 - An ambiguous prefix and a prefix of no option highlight as unknown options.
 
-### 5. Positional arguments and option-selected modes
+The field is `option-abbreviations` (the existing `abbreviations` stays for subcommands). A level
+that leaves it unset inherits its parent's value. Only long options abbreviate, only declared
+spellings count, an exact spelling beats a prefix, and the rule is strict: two candidate spellings
+are ambiguous even when they are aliases of one option. Unknown options are errors only with
+`options-complete`, as before (`user_spec_option_abbreviations`).
 
-Specs model options before a wrapped command and nothing more. There is no model of positional
+It is enabled in `tar`, `make`, `xargs`, `rm`, `journalctl`, `env`, `timeout`, `nice`, `nohup`,
+`stdbuf`, `time`, `ionice`, `taskset`, and `chrt`. For each, every proper prefix of a declared long
+option, and every `--x` and `--xy` stem, was run against the installed program and gave the same
+verdict (unique, ambiguous, or unknown) as the spec. That check found options missing from `--help`,
+now declared: `make` `--jobserver-auth`, `--jobserver-fds`, `--sync-mutex`, and `--temp-stdin`, and
+`journalctl` `--new-id128` and `--this-boot`. Two differences remain: chrt 2.41.3 lacks the
+declared `--ext`, and uutils `env` has an undeclared `--file`.
+
+### 5. Positional arguments and option-selected modes (done)
+
+Status: done.
+
+Specs modelled options before a wrapped command and nothing more. There was no model of positional
 arguments, no wrapped command inside a subcommand (`kubectl exec pod -- cmd`), and no option that
 changes how the remaining words are read (`sudo -e` takes files, not a command).
 
@@ -69,18 +151,71 @@ Acceptance criteria:
 - `kubectl exec mypod -- ls -l` styles `ls` as a command.
 - `sudo -e /etc/hosts` styles `/etc/hosts` as a path, not as an unknown command.
 
-### 6. Word restrictions after `builtin` and `command`
+The model has three level keys, valid at the top level and in every subcommand table, and
+documented in the section "Wrapped commands and path mode" of the manual page, the README, and the
+module documentation of `src/specs/mod.rs`:
 
-A word after `builtin` is accepted when it names any command, and so is a word after `command`. zsh
-accepts only builtins after `builtin`, and `command` skips functions and aliases.
+- `positional = N` (moved from the top-level keys) wraps the command after the level's options and
+  `N` plain words. The top level of a `precommand = true` spec wraps with `positional = 0`. A
+  top-level `positional` without `precommand`, which was ignored, now wraps.
+- `wrapped-after = "--"` wraps the command after the first `--`. `kubectl exec` sets it, so
+  `kubectl exec mypod ls`, without `--`, has no wrapped command.
+- `path-mode-options` declares options that make the remaining words operands, checked as paths.
+  `sudo` lists `-e` and `--edit`, and now sets `options-first`, as the `+` at the start of the
+  getopt string of sudo 1.9.17p2 requires.
+
+The descent through subcommands is the one classification makes, and only the level it ends at
+counts. A level that sets both start keys, a `wrapped-after` other than `"--"`, and a pattern in
+`path-mode-options` are load errors. The wrapped command is checked against the local command
+table, so a command that exists only in the pod shows as an error (`spec_wrapped_and_modes`). The
+literal `sudo -e /etc/hosts` case is the test `sudo_edit_etc_hosts`, skipped on a host without
+`/etc/hosts`; the snapshot uses fixture paths.
+
+Follow-ups, not done in this task:
+
+- `rustup run TOOLCHAIN cmd` and `uv run cmd` fit `positional`; their specs do not set it.
+- `docker exec CONTAINER cmd` and `podman exec CONTAINER cmd` fit `positional = 1` at the `exec`
+  level; their specs do not set it.
+- `ssh host cmd` runs `cmd` on the remote host; the spec does not wrap it.
+- `sudoedit` takes files only, as `sudo -e` does; it has no spec.
+- `kubectl run NAME -- cmd` and `kubectl debug POD -- cmd` take a command after `--` too; only
+  `exec` is marked. kubectl is not installed here, so neither was checked.
+- `go run PACKAGE ARGS...` passes the words after the package to the program; the spec does not
+  model them.
+- A "no wrapped command" mode: `sudo -l`, `chrt -p PID`, and `taskset -p MASK PID` still take the
+  next word as the wrapped command.
+
+### 6. Word restrictions after `builtin` and `command` (done)
+
+Status: done.
+
+A word after `builtin` was accepted when it named any command, and so was a word after `command`.
+zsh accepts only builtins after `builtin`. `command` skips builtins and reserved words as well as
+functions and aliases, and runs external commands only; with `-v` or `-V` it looks names up
+instead of running one.
 
 Acceptance criteria:
 
 - `builtin ls` styles `ls` as an error when `ls` is not a builtin.
 - `command myfunc` styles `myfunc` as an error when it exists only as a function.
 - `builtin echo` and `command ls` keep their current styling.
+- `command cd` and `command while` style the builtin and the reserved word as errors; `command
+  builtin echo` styles `builtin` as an error, and `builtin command ls` is a precommand chain.
+- An external precommand after `command` (`command nice ls`, `command time ls`) stays a
+  precommand, even when a function of the same name exists.
+- `command -v` and `-V`, alone or combined with `-p`, make every remaining word a lookup styled by
+  what it names; `command -v myfunc` is not an error.
+- A word rejected after either wrapper wraps nothing, and its arguments are only checked as paths.
 
-### 7. Generated built-in spec table
+The rules are built in and keyed by name; the specs of `builtin` and `command` decide only whether
+they are precommands. They are documented in the README, in the section "Wrapped commands and path
+mode" of the manual page, and in the module documentation of `src/specs/mod.rs`, and covered by
+unit tests in `src/highlight.rs` and the snapshot `wrapper_word_restrictions`. Global aliases after
+the wrappers, the default `PATH` search of `command -p`, and `POSIX_BUILTINS` are out of scope.
+
+### 7. Generated built-in spec table (done)
+
+Status: done.
 
 `BUILTIN_FILES` in `src/specs/mod.rs` is a hand-maintained table of `include_str!` entries, so a new
 file in `specs/` is silently ignored until someone adds a line.

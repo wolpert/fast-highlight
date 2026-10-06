@@ -1,5 +1,9 @@
+# Verified against: GNU coreutils 9.7 and uutils coreutils 0.10.0.
 # timeout(1): `timeout [OPTION]... DURATION COMMAND [ARG]...`.
+# `timeout` on PATH may be uutils rather than GNU; both accept the same unique prefixes of the long
+# options declared here (`--vers`) and reject an ambiguous one (`--ver`).
 name = "timeout"
+option-abbreviations = true
 precommand = true
 positional = 1
 options = [

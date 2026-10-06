@@ -1,8 +1,19 @@
-# sudo(8). Options are parsed up to the first non-option word; `NAME=value` words that follow
-# are environment assignments for the command.
+# Verified against: sudo 1.9.17p2 (the option lists, `-e`, and the option order).
+# sudo(8), compared with sudo.ws(8), `sudo.ws --help`, and the getopt string in sudo.ws
+# (`+Aa:BbC:c:D:Eeg:Hh::iKklNnPp:R:r:SsT:t:U:u:Vv`). Its leading `+` stops option parsing at the
+# first non-option word, hence `options-first`. `NAME=value` words that follow are environment
+# assignments for the command, also when the value contains an expansion (`FOO=$x`).
+# `-e` (`--edit`) edits files instead of running a command (`sudo -e [-u user] file ...`), so it
+# is a path-mode option: the words after the options are paths, not a command. sudo-rs 0.2.13
+# documents the same usage in `sudo --help`.
+# `-h` is both `--help` and `-h HOST` (the host option). Here `-h` is a flag, so the `HOST` word of
+# `-h HOST` is not consumed and would be taken as the command. `option-abbreviations` is off: the
+# sudo installed here is sudo-rs, which rejects prefixes such as `--vers`.
 name = "sudo"
 precommand = true
 skip-assignments = true
+options-first = true
+path-mode-options = ["-e", "--edit"]
 options = [
   "-A", "--askpass",
   "-B", "--bell",
@@ -10,7 +21,6 @@ options = [
   "-C=", "--close-from=",
   "-D=", "--chdir=",
   "-E", "--preserve-env=?",
-  "-e", "--edit",
   "-g=", "--group=",
   "-H", "--set-home",
   "-h", "--help", "--host=",

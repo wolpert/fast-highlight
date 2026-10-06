@@ -1,0 +1,1009 @@
+# Verified against: gh 2.102.0.
+# gh(1), GitHub CLI 2.102.0, from the output of `gh help reference` of that release (the gh
+# installed here is 2.46.0, which predates several commands). The top level is not complete:
+# `gh NAME` also runs extensions installed with `gh extension install` and aliases from
+# `gh alias set`, so an unknown subcommand there is not an error. The command groups (`gh pr`,
+# `gh issue`, `gh repo`, ...) have a fixed set of subcommands, and extensions and aliases apply
+# only at the top level, so an unknown subcommand in a group is an error. The flags that a group
+# declares for its subcommands, such as `-R/--repo` of `gh pr`, are declared on the group and on
+# each of its subcommands, since a level inherits no options. The `-R/--repo` override is not in
+# `gh help reference` for the commands that inherit it; the commands that have it were found in the
+# cli/cli sources of v2.102.0 (`EnableRepoOverride`).
+name = "gh"
+common-options = ["--help"]
+options = ["--version"]
+
+[subcommands.agent-task]
+aliases = ["agent-tasks", "agent", "agents"]
+complete = true
+
+[subcommands.agent-task.subcommands.create]
+options = [
+  "-b=", "--base=", "-a=", "--custom-agent=", "--follow", "-F=", "--from-file=", "-R=", "--repo=",
+]
+
+[subcommands.agent-task.subcommands.list]
+options = ["-q=", "--jq=", "--json=", "-L=", "--limit=", "-t=", "--template=", "-w", "--web"]
+
+[subcommands.agent-task.subcommands.view]
+options = [
+  "--follow", "-q=", "--jq=", "--json=", "--log", "-t=", "--template=", "-w", "--web", "-R=",
+  "--repo=",
+]
+
+[subcommands.alias]
+complete = true
+
+[subcommands.alias.subcommands.delete]
+options = ["--all"]
+
+[subcommands.alias.subcommands.import]
+options = ["--clobber"]
+
+[subcommands.alias.subcommands.list]
+aliases = ["ls"]
+
+[subcommands.alias.subcommands.set]
+options = ["--clobber", "-s", "--shell"]
+
+[subcommands.api]
+options = [
+  "--allow-escape-sequences", "--cache=", "-F=", "--field=", "-H=", "--header=", "--hostname=",
+  "-i", "--include", "--input=", "-q=", "--jq=", "-X=", "--method=", "--paginate", "-p=",
+  "--preview=", "-f=", "--raw-field=", "--silent", "--slurp", "-t=", "--template=", "--verbose",
+]
+
+[subcommands.attestation]
+aliases = ["at"]
+complete = true
+
+[subcommands.attestation.subcommands.download]
+options = [
+  "-d=", "--digest-alg=", "--hostname=", "-L=", "--limit=", "-o=", "--owner=", "--predicate-type=",
+  "-R=", "--repo=",
+]
+
+[subcommands.attestation.subcommands.trusted-root]
+options = ["--hostname=", "--tuf-root=", "--tuf-url=", "--verify-only"]
+
+[subcommands.attestation.subcommands.verify]
+options = [
+  "-b=", "--bundle=", "--bundle-from-oci", "--cert-identity=", "-i=", "--cert-identity-regex=",
+  "--cert-oidc-issuer=", "--custom-trusted-root=", "--deny-self-hosted-runners", "-d=",
+  "--digest-alg=", "--format=", "--hostname=", "-q=", "--jq=", "-L=", "--limit=",
+  "--no-public-good", "-o=", "--owner=", "--predicate-type=", "-R=", "--repo=", "--signer-digest=",
+  "--signer-repo=", "--signer-workflow=", "--source-digest=", "--source-ref=", "-t=", "--template=",
+]
+
+[subcommands.auth]
+complete = true
+
+[subcommands.auth.subcommands.login]
+options = [
+  "-c", "--clipboard", "-p=", "--git-protocol=", "-h=", "--hostname=", "--insecure-storage", "-s=",
+  "--scopes=", "--skip-ssh-key", "-w", "--web", "--with-token",
+]
+
+[subcommands.auth.subcommands.logout]
+options = ["-h=", "--hostname=", "-u=", "--user="]
+
+[subcommands.auth.subcommands.refresh]
+options = [
+  "-c", "--clipboard", "-h=", "--hostname=", "--insecure-storage", "-r=", "--remove-scopes=",
+  "--reset-scopes", "-s=", "--scopes=",
+]
+
+[subcommands.auth.subcommands.setup-git]
+options = ["-f=", "--force=", "-h=", "--hostname="]
+
+[subcommands.auth.subcommands.status]
+options = [
+  "-a", "--active", "-h=", "--hostname=", "--jq=", "--json=", "-t", "--show-token", "--template=",
+]
+
+[subcommands.auth.subcommands.switch]
+options = ["-h=", "--hostname=", "-u=", "--user="]
+
+[subcommands.auth.subcommands.token]
+options = ["-h=", "--hostname=", "-u=", "--user="]
+
+[subcommands.browse]
+options = [
+  "-a", "--actions", "--blame", "-b=", "--branch=", "-c=", "--commit=", "-n", "--no-browser", "-p",
+  "--projects", "-r", "--releases", "-s", "--settings", "-w", "--wiki", "-R=", "--repo=",
+]
+
+[subcommands.cache]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.cache.subcommands.delete]
+options = ["-a", "--all", "-r=", "--ref=", "--succeed-on-no-caches=", "-R=", "--repo="]
+
+[subcommands.cache.subcommands.list]
+aliases = ["ls"]
+options = [
+  "-q=", "--jq=", "--json=", "-k=", "--key=", "-L=", "--limit=", "-O=", "--order=", "-r=", "--ref=",
+  "-S=", "--sort=", "-t=", "--template=", "-R=", "--repo=",
+]
+
+[subcommands.codespace]
+aliases = ["cs"]
+complete = true
+
+[subcommands.codespace.subcommands.code]
+options = ["-c=", "--codespace=", "--insiders", "-R=", "--repo=", "--repo-owner=", "-w", "--web"]
+
+[subcommands.codespace.subcommands.cp]
+options = [
+  "-c=", "--codespace=", "-e", "--expand", "-p=", "--profile=", "-r", "--recursive", "-R=",
+  "--repo=", "--repo-owner=",
+]
+
+[subcommands.codespace.subcommands.create]
+options = [
+  "-b=", "--branch=", "--default-permissions", "--devcontainer-path=", "-d=", "--display-name=",
+  "--idle-timeout=", "-l=", "--location=", "-m=", "--machine=", "-R=", "--repo=",
+  "--retention-period=", "-s", "--status", "-w", "--web",
+]
+
+[subcommands.codespace.subcommands.delete]
+options = [
+  "--all", "-c=", "--codespace=", "--days=", "-f", "--force", "-o=", "--org=", "-R=", "--repo=",
+  "--repo-owner=", "-u=", "--user=",
+]
+
+[subcommands.codespace.subcommands.edit]
+options = [
+  "-c=", "--codespace=", "-d=", "--display-name=", "-m=", "--machine=", "-R=", "--repo=",
+  "--repo-owner=",
+]
+
+[subcommands.codespace.subcommands.jupyter]
+options = ["-c=", "--codespace=", "-R=", "--repo=", "--repo-owner="]
+
+[subcommands.codespace.subcommands.list]
+aliases = ["ls"]
+options = [
+  "-q=", "--jq=", "--json=", "-L=", "--limit=", "-o=", "--org=", "-R=", "--repo=", "-t=",
+  "--template=", "-u=", "--user=", "-w", "--web",
+]
+
+[subcommands.codespace.subcommands.logs]
+options = ["-c=", "--codespace=", "-f", "--follow", "-R=", "--repo=", "--repo-owner="]
+
+[subcommands.codespace.subcommands.ports]
+complete = true
+options = [
+  "-c=", "--codespace=", "-q=", "--jq=", "--json=", "-R=", "--repo=", "--repo-owner=", "-t=",
+  "--template=",
+]
+
+[subcommands.codespace.subcommands.ports.subcommands.forward]
+options = [
+  "--all-interfaces", "-c=", "--codespace=", "-q=", "--jq=", "--json=", "-R=", "--repo=",
+  "--repo-owner=", "-t=", "--template=",
+]
+
+[subcommands.codespace.subcommands.ports.subcommands.visibility]
+options = [
+  "-c=", "--codespace=", "-q=", "--jq=", "--json=", "-R=", "--repo=", "--repo-owner=", "-t=",
+  "--template=",
+]
+
+[subcommands.codespace.subcommands.rebuild]
+options = ["-c=", "--codespace=", "--full", "-R=", "--repo=", "--repo-owner="]
+
+[subcommands.codespace.subcommands.ssh]
+options = [
+  "-c=", "--codespace=", "--config", "-d", "--debug", "--debug-file=", "--profile=", "-R=",
+  "--repo=", "--repo-owner=", "--server-port=",
+]
+
+[subcommands.codespace.subcommands.stop]
+options = [
+  "-c=", "--codespace=", "-o=", "--org=", "-R=", "--repo=", "--repo-owner=", "-u=", "--user=",
+]
+
+[subcommands.codespace.subcommands.view]
+options = [
+  "-c=", "--codespace=", "-q=", "--jq=", "--json=", "-R=", "--repo=", "--repo-owner=", "-t=",
+  "--template=",
+]
+
+[subcommands.completion]
+options = ["-s=", "--shell="]
+
+[subcommands.config]
+complete = true
+
+[subcommands.config.subcommands.clear-cache]
+
+[subcommands.config.subcommands.get]
+options = ["-h=", "--host="]
+
+[subcommands.config.subcommands.list]
+aliases = ["ls"]
+options = ["-h=", "--host="]
+
+[subcommands.config.subcommands.set]
+options = ["-h=", "--host="]
+
+[subcommands.copilot]
+options = ["--remove"]
+
+[subcommands.discussion]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.discussion.subcommands.comment]
+options = ["-b=", "--body=", "-F=", "--body-file=", "--delete", "--edit", "--yes", "-R=", "--repo="]
+
+[subcommands.discussion.subcommands.create]
+options = [
+  "-b=", "--body=", "-F=", "--body-file=", "-c=", "--category=", "-l=", "--label=", "-t=",
+  "--title=", "-R=", "--repo=",
+]
+
+[subcommands.discussion.subcommands.edit]
+options = [
+  "--add-label=", "-b=", "--body=", "-F=", "--body-file=", "-c=", "--category=", "--remove-label=",
+  "-t=", "--title=", "-R=", "--repo=",
+]
+
+[subcommands.discussion.subcommands.list]
+aliases = ["ls"]
+options = [
+  "--after=", "--answered", "-A=", "--author=", "-c=", "--category=", "-q=", "--jq=", "--json=",
+  "-l=", "--label=", "-L=", "--limit=", "--order=", "-S=", "--search=", "--sort=", "-s=",
+  "--state=", "-t=", "--template=", "-w", "--web", "-R=", "--repo=",
+]
+
+[subcommands.discussion.subcommands.view]
+options = [
+  "--after=", "-c", "--comments", "-q=", "--jq=", "--json=", "-L=", "--limit=", "--order=", "-t=",
+  "--template=", "-w", "--web", "-R=", "--repo=",
+]
+
+[subcommands.extension]
+aliases = ["extensions", "ext"]
+complete = true
+
+[subcommands.extension.subcommands.browse]
+options = ["--debug", "-s", "--single-column"]
+
+[subcommands.extension.subcommands.create]
+options = ["--precompiled="]
+
+[subcommands.extension.subcommands.exec]
+
+[subcommands.extension.subcommands.install]
+options = ["--force", "--pin="]
+
+[subcommands.extension.subcommands.list]
+aliases = ["ls"]
+
+[subcommands.extension.subcommands.remove]
+aliases = ["uninstall"]
+
+[subcommands.extension.subcommands.search]
+options = [
+  "-q=", "--jq=", "--json=", "--license=", "-L=", "--limit=", "--order=", "--owner=", "--sort=",
+  "-t=", "--template=", "-w", "--web",
+]
+
+[subcommands.extension.subcommands.upgrade]
+options = ["--all", "--dry-run", "--force"]
+
+[subcommands.gist]
+complete = true
+
+[subcommands.gist.subcommands.clone]
+
+[subcommands.gist.subcommands.create]
+aliases = ["new"]
+options = ["-d=", "--desc=", "-f=", "--filename=", "-p", "--public", "-w", "--web"]
+
+[subcommands.gist.subcommands.delete]
+options = ["--yes"]
+
+[subcommands.gist.subcommands.edit]
+options = ["-a=", "--add=", "-d=", "--desc=", "-f=", "--filename=", "-r=", "--remove="]
+
+[subcommands.gist.subcommands.list]
+aliases = ["ls"]
+options = ["--filter=", "--include-content", "-L=", "--limit=", "--public", "--secret"]
+
+[subcommands.gist.subcommands.rename]
+
+[subcommands.gist.subcommands.view]
+options = [
+  "--allow-escape-sequences", "-f=", "--filename=", "--files", "-r", "--raw", "-w", "--web",
+]
+
+[subcommands.gpg-key]
+complete = true
+
+[subcommands.gpg-key.subcommands.add]
+options = ["-t=", "--title="]
+
+[subcommands.gpg-key.subcommands.delete]
+options = ["-y", "--yes"]
+
+[subcommands.gpg-key.subcommands.list]
+aliases = ["ls"]
+
+[subcommands.issue]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.issue.subcommands.close]
+options = ["-c=", "--comment=", "--duplicate-of=", "-r=", "--reason=", "-R=", "--repo="]
+
+[subcommands.issue.subcommands.comment]
+options = [
+  "--attach=", "-b=", "--body=", "-F=", "--body-file=", "--create-if-none", "--delete-last",
+  "--edit-last", "-e", "--editor", "-w", "--web", "--yes", "-R=", "--repo=",
+]
+
+[subcommands.issue.subcommands.create]
+aliases = ["new"]
+options = [
+  "-a=", "--assignee=", "--attach=", "--blocked-by=", "--blocking=", "-b=", "--body=", "-F=",
+  "--body-file=", "-e", "--editor", "-l=", "--label=", "-m=", "--milestone=", "--parent=", "-p=",
+  "--project=", "--recover=", "-T=", "--template=", "-t=", "--title=", "--type=", "-w", "--web",
+  "-R=", "--repo=",
+]
+
+[subcommands.issue.subcommands.delete]
+options = ["--yes", "-R=", "--repo="]
+
+[subcommands.issue.subcommands.develop]
+options = [
+  "-b=", "--base=", "--branch-repo=", "-c", "--checkout", "-l", "--list", "-n=", "--name=",
+  "--worktree=", "-R=", "--repo=",
+]
+
+[subcommands.issue.subcommands.edit]
+options = [
+  "--add-assignee=", "--add-blocked-by=", "--add-blocking=", "--add-label=", "--add-project=",
+  "--add-sub-issue=", "--attach=", "-b=", "--body=", "-F=", "--body-file=", "-m=", "--milestone=",
+  "--parent=", "--remove-assignee=", "--remove-blocked-by=", "--remove-blocking=",
+  "--remove-label=", "--remove-milestone", "--remove-parent", "--remove-project=",
+  "--remove-sub-issue=", "--remove-type", "-t=", "--title=", "--type=", "-R=", "--repo=",
+]
+
+[subcommands.issue.subcommands.list]
+aliases = ["ls"]
+options = [
+  "--app=", "-a=", "--assignee=", "-A=", "--author=", "-q=", "--jq=", "--json=", "-l=", "--label=",
+  "-L=", "--limit=", "--mention=", "-m=", "--milestone=", "-S=", "--search=", "-s=", "--state=",
+  "-t=", "--template=", "--type=", "-w", "--web", "-R=", "--repo=",
+]
+
+[subcommands.issue.subcommands.lock]
+options = ["-r=", "--reason=", "-R=", "--repo="]
+
+[subcommands.issue.subcommands.pin]
+options = ["-R=", "--repo="]
+
+[subcommands.issue.subcommands.reopen]
+options = ["-c=", "--comment=", "-R=", "--repo="]
+
+[subcommands.issue.subcommands.status]
+options = ["-q=", "--jq=", "--json=", "-t=", "--template=", "-R=", "--repo="]
+
+[subcommands.issue.subcommands.transfer]
+options = ["-R=", "--repo="]
+
+[subcommands.issue.subcommands.unlock]
+options = ["-R=", "--repo="]
+
+[subcommands.issue.subcommands.unpin]
+options = ["-R=", "--repo="]
+
+[subcommands.issue.subcommands.view]
+options = [
+  "-c", "--comments", "-q=", "--jq=", "--json=", "-t=", "--template=", "-w", "--web", "-R=",
+  "--repo=",
+]
+
+[subcommands.label]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.label.subcommands.clone]
+options = ["-f", "--force", "-R=", "--repo="]
+
+[subcommands.label.subcommands.create]
+options = ["-c=", "--color=", "-d=", "--description=", "-f", "--force", "-R=", "--repo="]
+
+[subcommands.label.subcommands.delete]
+options = ["--yes", "-R=", "--repo="]
+
+[subcommands.label.subcommands.edit]
+options = ["-c=", "--color=", "-d=", "--description=", "-n=", "--name=", "-R=", "--repo="]
+
+[subcommands.label.subcommands.list]
+aliases = ["ls"]
+options = [
+  "-q=", "--jq=", "--json=", "-L=", "--limit=", "--order=", "-S=", "--search=", "--sort=", "-t=",
+  "--template=", "-w", "--web", "-R=", "--repo=",
+]
+
+[subcommands.licenses]
+
+[subcommands.org]
+complete = true
+
+[subcommands.org.subcommands.list]
+aliases = ["ls"]
+options = ["-L=", "--limit="]
+
+[subcommands.pr]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.pr.subcommands.checkout]
+aliases = ["co"]
+options = [
+  "-b=", "--branch=", "--detach", "-f", "--force", "--recurse-submodules", "--worktree=", "-R=",
+  "--repo=",
+]
+
+[subcommands.pr.subcommands.checks]
+options = [
+  "--fail-fast", "-i=", "--interval=", "-q=", "--jq=", "--json=", "--required", "-t=",
+  "--template=", "--watch", "-w", "--web", "-R=", "--repo=",
+]
+
+[subcommands.pr.subcommands.close]
+options = ["-c=", "--comment=", "-d", "--delete-branch", "-R=", "--repo="]
+
+[subcommands.pr.subcommands.comment]
+options = [
+  "--attach=", "-b=", "--body=", "-F=", "--body-file=", "--create-if-none", "--delete-last",
+  "--edit-last", "-e", "--editor", "-w", "--web", "--yes", "-R=", "--repo=",
+]
+
+[subcommands.pr.subcommands.create]
+aliases = ["new"]
+options = [
+  "-a=", "--assignee=", "--attach=", "-B=", "--base=", "-b=", "--body=", "-F=", "--body-file=",
+  "-d", "--draft", "--dry-run", "-e", "--editor", "-f", "--fill", "--fill-first", "--fill-verbose",
+  "-H=", "--head=", "-l=", "--label=", "-m=", "--milestone=", "--no-maintainer-edit", "-p=",
+  "--project=", "--recover=", "-r=", "--reviewer=", "-T=", "--template=", "-t=", "--title=", "-w",
+  "--web", "-R=", "--repo=",
+]
+
+[subcommands.pr.subcommands.diff]
+options = [
+  "--allow-escape-sequences", "--color=", "-e=", "--exclude=", "--name-only", "--patch", "-w",
+  "--web", "-R=", "--repo=",
+]
+
+[subcommands.pr.subcommands.edit]
+options = [
+  "--add-assignee=", "--add-label=", "--add-project=", "--add-reviewer=", "--attach=", "-B=",
+  "--base=", "-b=", "--body=", "-F=", "--body-file=", "-m=", "--milestone=", "--remove-assignee=",
+  "--remove-label=", "--remove-milestone", "--remove-project=", "--remove-reviewer=", "-t=",
+  "--title=", "-R=", "--repo=",
+]
+
+[subcommands.pr.subcommands.list]
+aliases = ["ls"]
+options = [
+  "--app=", "-a=", "--assignee=", "-A=", "--author=", "-B=", "--base=", "-d", "--draft", "-H=",
+  "--head=", "-q=", "--jq=", "--json=", "-l=", "--label=", "-L=", "--limit=", "-S=", "--search=",
+  "-s=", "--state=", "-t=", "--template=", "-w", "--web", "-R=", "--repo=",
+]
+
+[subcommands.pr.subcommands.lock]
+options = ["-r=", "--reason=", "-R=", "--repo="]
+
+[subcommands.pr.subcommands.merge]
+options = [
+  "--admin", "-A=", "--author-email=", "--auto", "-b=", "--body=", "-F=", "--body-file=", "-d",
+  "--delete-branch", "--disable-auto", "--match-head-commit=", "-m", "--merge", "-r", "--rebase",
+  "-s", "--squash", "-t=", "--subject=", "-R=", "--repo=",
+]
+
+[subcommands.pr.subcommands.ready]
+options = ["--undo", "-R=", "--repo="]
+
+[subcommands.pr.subcommands.reopen]
+options = ["-c=", "--comment=", "-R=", "--repo="]
+
+[subcommands.pr.subcommands.revert]
+options = [
+  "-b=", "--body=", "-F=", "--body-file=", "-d", "--draft", "-t=", "--title=", "-R=", "--repo=",
+]
+
+[subcommands.pr.subcommands.review]
+options = [
+  "-a", "--approve", "-b=", "--body=", "-F=", "--body-file=", "-c", "--comment", "-r",
+  "--request-changes", "-R=", "--repo=",
+]
+
+[subcommands.pr.subcommands.status]
+options = [
+  "-c", "--conflict-status", "-q=", "--jq=", "--json=", "-t=", "--template=", "-R=", "--repo=",
+]
+
+[subcommands.pr.subcommands.unlock]
+options = ["-R=", "--repo="]
+
+[subcommands.pr.subcommands.update-branch]
+options = ["--rebase", "-R=", "--repo="]
+
+[subcommands.pr.subcommands.view]
+options = [
+  "-c", "--comments", "-q=", "--jq=", "--json=", "-t=", "--template=", "-w", "--web", "-R=",
+  "--repo=",
+]
+
+[subcommands.preview]
+complete = true
+
+[subcommands.preview.subcommands.prompter]
+
+[subcommands.project]
+complete = true
+
+[subcommands.project.subcommands.close]
+options = ["--format=", "-q=", "--jq=", "--owner=", "-t=", "--template=", "--undo"]
+
+[subcommands.project.subcommands.copy]
+options = [
+  "--drafts", "--format=", "-q=", "--jq=", "--source-owner=", "--target-owner=", "-t=",
+  "--template=", "--title=",
+]
+
+[subcommands.project.subcommands.create]
+options = ["--format=", "-q=", "--jq=", "--owner=", "-t=", "--template=", "--title="]
+
+[subcommands.project.subcommands.delete]
+options = ["--format=", "-q=", "--jq=", "--owner=", "-t=", "--template="]
+
+[subcommands.project.subcommands.edit]
+options = [
+  "-d=", "--description=", "--format=", "-q=", "--jq=", "--owner=", "--readme=", "-t=",
+  "--template=", "--title=", "--visibility=",
+]
+
+[subcommands.project.subcommands.field-create]
+options = [
+  "--data-type=", "--format=", "-q=", "--jq=", "--name=", "--owner=", "--single-select-options=",
+  "-t=", "--template=",
+]
+
+[subcommands.project.subcommands.field-delete]
+options = ["--format=", "--id=", "-q=", "--jq=", "-t=", "--template="]
+
+[subcommands.project.subcommands.field-list]
+options = ["--format=", "-q=", "--jq=", "-L=", "--limit=", "--owner=", "-t=", "--template="]
+
+[subcommands.project.subcommands.item-add]
+options = ["--format=", "-q=", "--jq=", "--owner=", "-t=", "--template=", "--url="]
+
+[subcommands.project.subcommands.item-archive]
+options = ["--format=", "--id=", "-q=", "--jq=", "--owner=", "-t=", "--template=", "--undo"]
+
+[subcommands.project.subcommands.item-create]
+options = ["--body=", "--format=", "-q=", "--jq=", "--owner=", "-t=", "--template=", "--title="]
+
+[subcommands.project.subcommands.item-delete]
+options = ["--format=", "--id=", "-q=", "--jq=", "--owner=", "-t=", "--template="]
+
+[subcommands.project.subcommands.item-edit]
+options = [
+  "--body=", "--clear", "--date=", "--field=", "--field-id=", "--format=", "--id=",
+  "--iteration-id=", "-q=", "--jq=", "--number=", "--owner=", "--project-id=",
+  "--single-select-option-id=", "-t=", "--template=", "--text=", "--title=", "--url=", "--value=",
+]
+
+[subcommands.project.subcommands.item-list]
+options = [
+  "--field=", "--field-id=", "--format=", "-q=", "--jq=", "-L=", "--limit=", "--owner=", "--query=",
+  "-t=", "--template=",
+]
+
+[subcommands.project.subcommands.link]
+options = ["--owner=", "-R=", "--repo=", "-T=", "--team="]
+
+[subcommands.project.subcommands.list]
+aliases = ["ls"]
+options = [
+  "--closed", "--format=", "-q=", "--jq=", "-L=", "--limit=", "--owner=", "-t=", "--template=",
+  "-w", "--web",
+]
+
+[subcommands.project.subcommands.mark-template]
+options = ["--format=", "-q=", "--jq=", "--owner=", "-t=", "--template=", "--undo"]
+
+[subcommands.project.subcommands.unlink]
+options = ["--owner=", "-R=", "--repo=", "-T=", "--team="]
+
+[subcommands.project.subcommands.view]
+options = ["--format=", "-q=", "--jq=", "--owner=", "-t=", "--template=", "-w", "--web"]
+
+[subcommands.release]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.release.subcommands.create]
+aliases = ["new"]
+options = [
+  "--discussion-category=", "-d", "--draft", "--fail-on-no-commits", "--generate-notes", "--latest",
+  "-n=", "--notes=", "-F=", "--notes-file=", "--notes-from-tag", "--notes-start-tag=", "-p",
+  "--prerelease", "--target=", "-t=", "--title=", "--verify-tag", "-R=", "--repo=",
+]
+
+[subcommands.release.subcommands.delete]
+options = ["--cleanup-tag", "-y", "--yes", "-R=", "--repo="]
+
+[subcommands.release.subcommands.delete-asset]
+options = ["-y", "--yes", "-R=", "--repo="]
+
+[subcommands.release.subcommands.download]
+options = [
+  "--allow-escape-sequences", "-A=", "--archive=", "--clobber", "-D=", "--dir=", "-O=", "--output=",
+  "-p=", "--pattern=", "--skip-existing", "-R=", "--repo=",
+]
+
+[subcommands.release.subcommands.edit]
+options = [
+  "--discussion-category=", "--draft", "--latest", "-n=", "--notes=", "-F=", "--notes-file=",
+  "--prerelease", "--tag=", "--target=", "-t=", "--title=", "--verify-tag", "-R=", "--repo=",
+]
+
+[subcommands.release.subcommands.list]
+aliases = ["ls"]
+options = [
+  "--exclude-drafts", "--exclude-pre-releases", "-q=", "--jq=", "--json=", "-L=", "--limit=", "-O=",
+  "--order=", "-t=", "--template=", "-R=", "--repo=",
+]
+
+[subcommands.release.subcommands.upload]
+options = ["--clobber", "-R=", "--repo="]
+
+[subcommands.release.subcommands.verify]
+options = ["--format=", "-q=", "--jq=", "-t=", "--template=", "-R=", "--repo="]
+
+[subcommands.release.subcommands.verify-asset]
+options = ["--format=", "-q=", "--jq=", "-t=", "--template=", "-R=", "--repo="]
+
+[subcommands.release.subcommands.view]
+options = ["-q=", "--jq=", "--json=", "-t=", "--template=", "-w", "--web", "-R=", "--repo="]
+
+[subcommands.repo]
+complete = true
+
+[subcommands.repo.subcommands.archive]
+options = ["-y", "--yes"]
+
+[subcommands.repo.subcommands.autolink]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.repo.subcommands.autolink.subcommands.create]
+aliases = ["new"]
+options = ["-n", "--numeric", "-R=", "--repo="]
+
+[subcommands.repo.subcommands.autolink.subcommands.delete]
+options = ["--yes", "-R=", "--repo="]
+
+[subcommands.repo.subcommands.autolink.subcommands.list]
+aliases = ["ls"]
+options = ["-q=", "--jq=", "--json=", "-t=", "--template=", "-w", "--web", "-R=", "--repo="]
+
+[subcommands.repo.subcommands.autolink.subcommands.view]
+options = ["-q=", "--jq=", "--json=", "-t=", "--template=", "-R=", "--repo="]
+
+[subcommands.repo.subcommands.clone]
+options = ["--no-upstream", "-u=", "--upstream-remote-name="]
+
+[subcommands.repo.subcommands.create]
+aliases = ["new"]
+options = [
+  "--add-readme", "-c", "--clone", "-d=", "--description=", "--disable-issues", "--disable-wiki",
+  "-g=", "--gitignore=", "-h=", "--homepage=", "--include-all-branches", "--internal", "-l=",
+  "--license=", "--private", "--public", "--push", "-r=", "--remote=", "-s=", "--source=", "-t=",
+  "--team=", "-p=", "--template=",
+]
+
+[subcommands.repo.subcommands.delete]
+options = ["--yes"]
+
+[subcommands.repo.subcommands.deploy-key]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.repo.subcommands.deploy-key.subcommands.add]
+options = ["-w", "--allow-write", "-t=", "--title=", "-R=", "--repo="]
+
+[subcommands.repo.subcommands.deploy-key.subcommands.delete]
+options = ["-R=", "--repo="]
+
+[subcommands.repo.subcommands.deploy-key.subcommands.list]
+aliases = ["ls"]
+options = ["-q=", "--jq=", "--json=", "-t=", "--template=", "-R=", "--repo="]
+
+[subcommands.repo.subcommands.edit]
+options = [
+  "--accept-visibility-change-consequences", "--add-topic=", "--allow-forking",
+  "--allow-update-branch", "--default-branch=", "--delete-branch-on-merge", "-d=", "--description=",
+  "--enable-advanced-security", "--enable-auto-merge", "--enable-discussions", "--enable-issues",
+  "--enable-merge-commit", "--enable-projects", "--enable-rebase-merge", "--enable-secret-scanning",
+  "--enable-secret-scanning-push-protection", "--enable-squash-merge", "--enable-wiki", "-h=",
+  "--homepage=", "--remove-topic=", "--squash-merge-commit-message=", "--template", "--visibility=",
+]
+
+[subcommands.repo.subcommands.fork]
+options = [
+  "--clone", "--default-branch-only", "--fork-name=", "--org=", "--remote", "--remote-name=",
+]
+
+[subcommands.repo.subcommands.gitignore]
+complete = true
+
+[subcommands.repo.subcommands.gitignore.subcommands.list]
+aliases = ["ls"]
+
+[subcommands.repo.subcommands.gitignore.subcommands.view]
+
+[subcommands.repo.subcommands.license]
+complete = true
+
+[subcommands.repo.subcommands.license.subcommands.list]
+aliases = ["ls"]
+
+[subcommands.repo.subcommands.license.subcommands.view]
+options = ["-w", "--web"]
+
+[subcommands.repo.subcommands.list]
+aliases = ["ls"]
+options = [
+  "--archived", "--fork", "-q=", "--jq=", "--json=", "-l=", "--language=", "-L=", "--limit=",
+  "--no-archived", "--source", "-t=", "--template=", "--topic=", "--visibility=",
+]
+
+[subcommands.repo.subcommands.read-dir]
+options = ["-q=", "--jq=", "--json=", "--ref=", "-t=", "--template=", "-R=", "--repo="]
+
+[subcommands.repo.subcommands.read-file]
+options = [
+  "--allow-escape-sequences", "--clobber", "-q=", "--jq=", "--json=", "-o=", "--output=", "--ref=",
+  "-t=", "--template=", "-R=", "--repo=",
+]
+
+[subcommands.repo.subcommands.rename]
+options = ["-y", "--yes", "-R=", "--repo="]
+
+[subcommands.repo.subcommands.set-default]
+options = ["-u", "--unset", "-v", "--view"]
+
+[subcommands.repo.subcommands.sync]
+options = ["-b=", "--branch=", "--force", "-s=", "--source="]
+
+[subcommands.repo.subcommands.unarchive]
+options = ["-y", "--yes"]
+
+[subcommands.repo.subcommands.view]
+options = ["-b=", "--branch=", "-q=", "--jq=", "--json=", "-t=", "--template=", "-w", "--web"]
+
+[subcommands.ruleset]
+aliases = ["rs"]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.ruleset.subcommands.check]
+options = ["--default", "-w", "--web", "-R=", "--repo="]
+
+[subcommands.ruleset.subcommands.list]
+aliases = ["ls"]
+options = ["-L=", "--limit=", "-o=", "--org=", "-p", "--parents", "-w", "--web", "-R=", "--repo="]
+
+[subcommands.ruleset.subcommands.view]
+options = ["-o=", "--org=", "-p", "--parents", "-w", "--web", "-R=", "--repo="]
+
+[subcommands.run]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.run.subcommands.cancel]
+options = ["--force", "-R=", "--repo="]
+
+[subcommands.run.subcommands.delete]
+options = ["-R=", "--repo="]
+
+[subcommands.run.subcommands.download]
+options = ["-D=", "--dir=", "-n=", "--name=", "-p=", "--pattern=", "-R=", "--repo="]
+
+[subcommands.run.subcommands.list]
+aliases = ["ls"]
+options = [
+  "-a", "--all", "-b=", "--branch=", "-c=", "--commit=", "--created=", "-e=", "--event=", "-q=",
+  "--jq=", "--json=", "-L=", "--limit=", "-s=", "--status=", "-t=", "--template=", "-u=", "--user=",
+  "-w=", "--workflow=", "-R=", "--repo=",
+]
+
+[subcommands.run.subcommands.rerun]
+options = ["-d", "--debug", "--failed", "-j=", "--job=", "-R=", "--repo="]
+
+[subcommands.run.subcommands.view]
+options = [
+  "-a=", "--attempt=", "--exit-status", "-j=", "--job=", "-q=", "--jq=", "--json=", "--log",
+  "--log-failed", "-t=", "--template=", "-v", "--verbose", "-w", "--web", "-R=", "--repo=",
+]
+
+[subcommands.run.subcommands.watch]
+options = ["--compact", "--exit-status", "-i=", "--interval=", "-R=", "--repo="]
+
+[subcommands.search]
+complete = true
+
+[subcommands.search.subcommands.code]
+options = [
+  "--extension=", "--filename=", "-q=", "--jq=", "--json=", "--language=", "-L=", "--limit=",
+  "--match=", "--owner=", "-R=", "--repo=", "--size=", "-t=", "--template=", "-w", "--web",
+]
+
+[subcommands.search.subcommands.commits]
+options = [
+  "--author=", "--author-date=", "--author-email=", "--author-name=", "--committer=",
+  "--committer-date=", "--committer-email=", "--committer-name=", "--hash=", "-q=", "--jq=",
+  "--json=", "-L=", "--limit=", "--merge", "--order=", "--owner=", "--parent=", "-R=", "--repo=",
+  "--sort=", "-t=", "--template=", "--tree=", "--visibility=", "-w", "--web",
+]
+
+[subcommands.search.subcommands.issues]
+options = [
+  "--app=", "--archived", "--assignee=", "--author=", "--closed=", "--commenter=", "--comments=",
+  "--created=", "--include-prs", "--interactions=", "--involves=", "-q=", "--jq=", "--json=",
+  "--label=", "--language=", "-L=", "--limit=", "--locked", "--match=", "--mentions=",
+  "--milestone=", "--no-assignee", "--no-label", "--no-milestone", "--no-project", "--order=",
+  "--owner=", "--project=", "--reactions=", "-R=", "--repo=", "--search-type=", "--sort=",
+  "--state=", "--team-mentions=", "-t=", "--template=", "--updated=", "--visibility=", "-w",
+  "--web",
+]
+
+[subcommands.search.subcommands.prs]
+options = [
+  "--app=", "--archived", "--assignee=", "--author=", "-B=", "--base=", "--checks=", "--closed=",
+  "--commenter=", "--comments=", "--created=", "--draft", "-H=", "--head=", "--interactions=",
+  "--involves=", "-q=", "--jq=", "--json=", "--label=", "--language=", "-L=", "--limit=",
+  "--locked", "--match=", "--mentions=", "--merged", "--merged-at=", "--milestone=",
+  "--no-assignee", "--no-label", "--no-milestone", "--no-project", "--order=", "--owner=",
+  "--project=", "--reactions=", "-R=", "--repo=", "--review=", "--review-requested=",
+  "--reviewed-by=", "--sort=", "--state=", "--team-mentions=", "-t=", "--template=", "--updated=",
+  "--visibility=", "-w", "--web",
+]
+
+[subcommands.search.subcommands.repos]
+options = [
+  "--archived", "--created=", "--followers=", "--forks=", "--good-first-issues=",
+  "--help-wanted-issues=", "--include-forks=", "-q=", "--jq=", "--json=", "--language=",
+  "--license=", "-L=", "--limit=", "--match=", "--number-topics=", "--order=", "--owner=",
+  "--size=", "--sort=", "--stars=", "-t=", "--template=", "--topic=", "--updated=", "--visibility=",
+  "-w", "--web",
+]
+
+[subcommands.secret]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.secret.subcommands.delete]
+aliases = ["remove"]
+options = ["-a=", "--app=", "-e=", "--env=", "-o=", "--org=", "-u", "--user", "-R=", "--repo="]
+
+[subcommands.secret.subcommands.list]
+aliases = ["ls"]
+options = [
+  "-a=", "--app=", "-e=", "--env=", "-q=", "--jq=", "--json=", "-o=", "--org=", "-t=",
+  "--template=", "-u", "--user", "-R=", "--repo=",
+]
+
+[subcommands.secret.subcommands.set]
+options = [
+  "-a=", "--app=", "-b=", "--body=", "-e=", "--env=", "-f=", "--env-file=", "--no-repos-selected",
+  "--no-store", "-o=", "--org=", "-r=", "--repos=", "-u", "--user", "-v=", "--visibility=", "-R=",
+  "--repo=",
+]
+
+[subcommands.skill]
+aliases = ["skills"]
+complete = true
+
+[subcommands.skill.subcommands.install]
+aliases = ["add"]
+options = [
+  "--agent=", "--all", "--allow-hidden-dirs", "--dir=", "-f", "--force", "--from-local", "--pin=",
+  "--scope=", "--upstream",
+]
+
+[subcommands.skill.subcommands.list]
+aliases = ["ls"]
+options = ["--agent=", "--dir=", "-q=", "--jq=", "--json=", "--scope=", "-t=", "--template="]
+
+[subcommands.skill.subcommands.preview]
+aliases = ["show"]
+options = ["--allow-hidden-dirs"]
+
+[subcommands.skill.subcommands.publish]
+options = ["--dry-run", "--fix", "--tag="]
+
+[subcommands.skill.subcommands.search]
+options = [
+  "-q=", "--jq=", "--json=", "-L=", "--limit=", "--owner=", "--page=", "-t=", "--template=",
+]
+
+[subcommands.skill.subcommands.update]
+options = ["--all", "--dir=", "--dry-run", "--force", "--unpin"]
+
+[subcommands.ssh-key]
+complete = true
+
+[subcommands.ssh-key.subcommands.add]
+options = ["-t=", "--title=", "--type="]
+
+[subcommands.ssh-key.subcommands.delete]
+options = ["-y", "--yes"]
+
+[subcommands.ssh-key.subcommands.list]
+aliases = ["ls"]
+
+[subcommands.status]
+options = ["-e=", "--exclude=", "-o=", "--org="]
+
+[subcommands.variable]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.variable.subcommands.delete]
+aliases = ["remove"]
+options = ["-e=", "--env=", "-o=", "--org=", "-R=", "--repo="]
+
+[subcommands.variable.subcommands.get]
+options = [
+  "-e=", "--env=", "-q=", "--jq=", "--json=", "-o=", "--org=", "-t=", "--template=", "-R=",
+  "--repo=",
+]
+
+[subcommands.variable.subcommands.list]
+aliases = ["ls"]
+options = [
+  "-e=", "--env=", "-q=", "--jq=", "--json=", "-o=", "--org=", "-t=", "--template=", "-R=",
+  "--repo=",
+]
+
+[subcommands.variable.subcommands.set]
+options = [
+  "-b=", "--body=", "-e=", "--env=", "-f=", "--env-file=", "-o=", "--org=", "-r=", "--repos=",
+  "-v=", "--visibility=", "-R=", "--repo=",
+]
+
+[subcommands.workflow]
+complete = true
+options = ["-R=", "--repo="]
+
+[subcommands.workflow.subcommands.disable]
+options = ["-R=", "--repo="]
+
+[subcommands.workflow.subcommands.enable]
+options = ["-R=", "--repo="]
+
+[subcommands.workflow.subcommands.list]
+aliases = ["ls"]
+options = [
+  "-a", "--all", "-q=", "--jq=", "--json=", "-L=", "--limit=", "-t=", "--template=", "-R=",
+  "--repo=",
+]
+
+[subcommands.workflow.subcommands.run]
+options = ["-F=", "--field=", "--json", "-f=", "--raw-field=", "-r=", "--ref=", "-R=", "--repo="]
+
+[subcommands.workflow.subcommands.view]
+options = ["-r=", "--ref=", "-w", "--web", "-y", "--yaml", "-R=", "--repo="]
+
+[subcommands.help]

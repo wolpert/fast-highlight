@@ -1,0 +1,12 @@
+# Verified against: OpenSSH_10.2p1.
+# ssh(1), OpenSSH_10.2p1 (checked against the `ssh` usage text and ssh(1)). Options are recognised
+# only before the destination, so the remote command and its arguments are plain; an option after
+# the destination is plain too, although OpenSSH reads some of them. The remote command is not
+# modelled as a wrapped command.
+name = "ssh"
+options-first = true
+options = [
+  "-4", "-6", "-A", "-a", "-C", "-f", "-G", "-g", "-K", "-k", "-M", "-N", "-n", "-q", "-s", "-T",
+  "-t", "-V", "-v", "-X", "-x", "-Y", "-y", "-B=", "-b=", "-c=", "-D=", "-E=", "-e=", "-F=", "-I=",
+  "-i=", "-J=", "-L=", "-l=", "-m=", "-O=", "-o=", "-P=", "-p=", "-Q=", "-R=", "-S=", "-W=", "-w=",
+]

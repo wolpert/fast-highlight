@@ -1,0 +1,71 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "npm trust list"
+cursor: 0
+  0..3 command "npm"
+  4..9 subcommand "trust"
+  10..14 subcommand "list"
+
+input: "npm trust github --file release.yml --repo o/r --allow-publish"
+cursor: 0
+  0..3 command "npm"
+  4..9 subcommand "trust"
+  10..16 subcommand "github"
+  17..23 option "--file"
+  36..42 option "--repo"
+  47..62 option "--allow-publish"
+
+input: "npm trust gitlab --project g/p --env prod"
+cursor: 0
+  0..3 command "npm"
+  4..9 subcommand "trust"
+  10..16 subcommand "gitlab"
+  17..26 option "--project"
+  31..36 option "--env"
+
+input: "npm trust revoke --id abc123"
+cursor: 0
+  0..3 command "npm"
+  4..9 subcommand "trust"
+  10..16 subcommand "revoke"
+  17..21 option "--id"
+
+input: "npm trust frob"
+cursor: 0
+  0..3 command "npm"
+  4..9 subcommand "trust"
+
+input: "npm undeprecate pkg"
+cursor: 0
+  0..3 command "npm"
+  4..15 subcommand "undeprecate"
+
+input: "npm undeprecate pkg@1.2.3 --otp 123456"
+cursor: 0
+  0..3 command "npm"
+  4..15 subcommand "undeprecate"
+  26..31 option "--otp"
+
+input: "systemctl sleep"
+cursor: 0
+  0..9 command "systemctl"
+  10..15 subcommand "sleep"
+
+input: "systemctl sleep --no-block"
+cursor: 0
+  0..9 command "systemctl"
+  10..15 subcommand "sleep"
+  16..26 option "--no-block"
+
+input: "systemctl enqueue-marked-jobs"
+cursor: 0
+  0..9 command "systemctl"
+  10..29 error "enqueue-marked-jobs"
+
+input: "systemctl reload-or-restart --marked"
+cursor: 0
+  0..9 command "systemctl"
+  10..27 subcommand "reload-or-restart"
+  28..36 option "--marked"

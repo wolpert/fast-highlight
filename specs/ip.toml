@@ -1,0 +1,109 @@
+# Verified against: iproute2 6.19.0.
+# ip(8) from iproute2 6.19.0 (checked against `ip help`, ip(8), and the installed binary). Complete:
+# ip has no external subcommands, so an unknown object is an error. iproute2 resolves any prefix of
+# an object name in table order (`ip a` is address, `ip r` is route, `ip li` is link), which the
+# `abbreviations` key cannot express because it needs a unique prefix. So every prefix is declared
+# once as an alias of the object that owns it, and the objects `tunl`, `tap`, `tcp_metrics`,
+# `neighbour`, and `ntbl` are aliases of the objects they share a handler with. The object levels
+# are not complete: the verbs and arguments of each object are not listed. The options before the
+# object are declared in their short and long spellings. `-n`, `-f`, `-b`, `-l`, and `-rc` take a
+# value, and `-c` an optional attached one, so a value is not taken for the object.
+name = "ip"
+complete = true
+options = [
+  "-V", "-Version", "-h", "-human", "-human-readable", "-b=", "-batch=", "-force", "-s", "-stats",
+  "-statistics", "-d", "-details", "-l=", "-loops=", "-f=", "-family=", "-4", "-6", "-B", "-M",
+  "-0", "-o", "-oneline", "-r", "-resolve", "-n=", "-netns=", "-N", "-Numeric", "-a", "-all",
+  "-c=?", "-color=?", "-t", "-timestamp", "-ts", "-tshort", "-rc=", "-rcvbuf=", "-iec", "-br",
+  "-brief", "-j", "-json", "-p", "-pretty", "-echo",
+]
+
+[subcommands.address]
+aliases = ["a", "ad", "add", "addr", "addre", "addres"]
+
+[subcommands.addrlabel]
+aliases = ["addrl", "addrla", "addrlab", "addrlabe"]
+
+[subcommands.maddress]
+aliases = ["m", "ma", "mad", "madd", "maddr", "maddre", "maddres"]
+
+[subcommands.route]
+aliases = ["r", "ro", "rou", "rout"]
+
+[subcommands.rule]
+aliases = ["ru", "rul"]
+
+[subcommands.neighbor]
+aliases = ["n", "ne", "nei", "neig", "neigh", "neighb", "neighbo", "neighbou", "neighbour"]
+
+[subcommands.ntable]
+aliases = ["nt", "nta", "ntab", "ntabl", "ntb", "ntbl"]
+
+[subcommands.link]
+aliases = ["l", "li", "lin"]
+
+[subcommands.l2tp]
+aliases = ["l2", "l2t"]
+
+[subcommands.fou]
+aliases = ["f", "fo"]
+
+[subcommands.ila]
+aliases = ["i", "il"]
+
+[subcommands.macsec]
+aliases = ["mac", "macs", "macse"]
+
+[subcommands.tunnel]
+aliases = ["t", "tu", "tun", "tunn", "tunne", "tunl"]
+
+[subcommands.tuntap]
+aliases = ["tunt", "tunta", "ta", "tap"]
+
+[subcommands.token]
+aliases = ["to", "tok", "toke"]
+
+[subcommands.tcpmetrics]
+aliases = [
+  "tc", "tcp", "tcpm", "tcpme", "tcpmet", "tcpmetr", "tcpmetri", "tcpmetric", "tcp_", "tcp_m",
+  "tcp_me", "tcp_met", "tcp_metr", "tcp_metri", "tcp_metric", "tcp_metrics",
+]
+
+[subcommands.monitor]
+aliases = ["mo", "mon", "moni", "monit", "monito"]
+
+[subcommands.xfrm]
+aliases = ["x", "xf", "xfr"]
+
+[subcommands.mroute]
+aliases = ["mr", "mro", "mrou", "mrout"]
+
+[subcommands.mrule]
+aliases = ["mru", "mrul"]
+
+[subcommands.netns]
+aliases = ["net", "netn"]
+
+[subcommands.netconf]
+aliases = ["netc", "netco", "netcon"]
+
+[subcommands.vrf]
+aliases = ["v", "vr"]
+
+[subcommands.sr]
+aliases = ["s"]
+
+[subcommands.nexthop]
+aliases = ["nex", "next", "nexth", "nextho"]
+
+[subcommands.mptcp]
+aliases = ["mp", "mpt", "mptc"]
+
+[subcommands.ioam]
+aliases = ["io", "ioa"]
+
+[subcommands.stats]
+aliases = ["st", "sta", "stat"]
+
+[subcommands.help]
+aliases = ["h", "he", "hel"]

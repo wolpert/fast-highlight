@@ -298,6 +298,34 @@ A precommand modifier or wrapper:
 .BR env ,
 .BR time ,
 and similar commands.
+A function or global alias with the same name as a precommand shadows it
+and gets its own type,
+unless a regular alias or a reserved word of the same name also exists;
+a regular alias keeps the word a precommand, so
+.B "alias sudo=\(aqsudo \(aq"
+keeps
+.B sudo
+a precommand, and the reserved words
+.B time
+and
+.B nocorrect
+outrank a function in the same way.
+A quoted word skips alias lookup, so
+.B \e\&sudo
+is the function
+.B sudo
+when one is defined.
+This shadowing applies to every command word except the one directly after
+.B builtin
+or
+.BR command ,
+which skip functions and aliases: the word after
+.B builtin
+must be a builtin, and the word after
+.B command
+an external command
+(see
+.BR "Wrapped commands and path mode" ).
 .TP
 .B separator
 A command separator or pipeline operator:
@@ -469,14 +497,31 @@ The file name is irrelevant; the
 key identifies the command.
 .PP
 The built-in specs are compiled into the binary.
-They cover
+They cover the commands with subcommands
 .BR git ,
 .BR cargo ,
 .BR docker ,
 .BR kubectl ,
 .BR systemctl ,
-and
 .BR npm ,
+.BR podman ,
+.BR gh ,
+.BR apt ,
+.BR dnf ,
+.BR brew ,
+.BR pip ,
+.BR uv ,
+.BR go ,
+.BR rustup ,
+and
+.BR ip ;
+the commands with options only
+.BR make ,
+.BR ssh ,
+.BR tar ,
+.BR journalctl ,
+and
+.BR rm ;
 and the precommands
 .BR sudo ,
 .BR doas ,
@@ -489,6 +534,7 @@ and the precommands
 .BR ionice ,
 .BR chrt ,
 .BR taskset ,
+.BR xargs ,
 .BR noglob ,
 .BR nocorrect ,
 .BR exec ,
@@ -522,17 +568,19 @@ The command runs another command, as
 and
 .B nice
 do.
+The top level wraps with
+.B positional = 0
+unless it sets
+.B positional
+or
+.BR wrapped-after .
 .TP
 .BR skip-assignments " (boolean, default false)"
-Precommands only:
+When the top level wraps:
 .IB NAME = value
 words before the wrapped command are skipped, as for
-.BR env .
-.TP
-.BR positional " (integer, default 0)"
-Precommands only: the number of plain arguments between the options and the wrapped command, as
-in
-.BI timeout " duration command" .
+.BR env ,
+also when the value contains an expansion.
 .PP
 The top level also accepts every level key.
 .SS Level keys
@@ -569,9 +617,58 @@ A unique prefix of a subcommand name or alias selects that subcommand, as
 .B inst
 does in
 .BR "npm inst" .
+For options, see
+.BR option-abbreviations .
+.TP
+.BR option-abbreviations " (boolean, default false)"
+A unique prefix of a declared long option selects that option, as
+.B \-\-verb
+selects
+.BR \-\-verbose ,
+in the way GNU
+.BR getopt_long (3)
+accepts abbreviations.
+See
+.B Long-option abbreviations
+below.
+For subcommands, see
+.BR abbreviations .
+.TP
+.BR positional " (integer, unset by default)"
+The level wraps a command: the number of plain arguments between the options and the wrapped
+command, as in
+.BI timeout " duration command" .
+.TP
+.BR wrapped-after " (string, unset by default)"
+The level wraps the command after the first
+.BR \-\- ,
+as in
+.BI "kubectl exec " pod " \-\- " command\fR.
+.B \(dq\-\-\(dq
+is the only accepted value.
+.TP
+.BR path-mode-options " (array of strings, default [])"
+Options of this level that make the remaining words files rather than a command, as
+.B \-e
+does in
+.BI "sudo \-e " file\fR.
+.PP
+A level sets at most one of
+.B positional
+and
+.BR wrapped-after .
+See
+.B Wrapped commands and path mode
+below.
 .PP
 A level inherits nothing from its parent except
-.BR common-options .
+.B common-options
+and
+.BR option-abbreviations .
+A level that leaves
+.B option-abbreviations
+unset uses its parent's setting, and an explicit value applies to that level and to its
+descendants that leave it unset.
 Options declared in a level's
 .B options
 apply only at that level, so the built-in
@@ -583,9 +680,10 @@ before a subcommand and treats it as unknown after
 whose level does not declare it.
 .SS Option syntax
 Each entry in
-.B options
+.BR options ,
+.BR common-options ,
 and
-.B common-options
+.B path-mode-options
 is one spelling of one option.
 .TP
 .BR \-v ", " \-\-verbose ", " \-name
@@ -620,6 +718,8 @@ is an option, as
 .B +nightly
 is in
 .BR "cargo +nightly build" .
+.B path-mode-options
+takes no patterns.
 .PP
 Every other entry starts with
 .BR \- ;
@@ -632,6 +732,79 @@ when every letter is a declared single-letter option.
 A letter that takes a value ends the bundle, and the rest of the word, or else the next word, is
 its value, as in
 .BR "\-xzf archive.tar" .
+.SS Long-option abbreviations
+With
+.BR "option-abbreviations = true" ,
+a word that starts with
+.B \-\-
+and is not a declared spelling is matched by its stem, the text before the first
+.BR = .
+The stem selects an option when it is a proper prefix of exactly one declared spelling that
+starts with
+.BR \-\- ,
+and the word then takes that option's arity: for
+.BR \-\-output= ,
+.B \-\-out file
+consumes
+.B file
+and
+.B \-\-out=file
+is complete; for the flag
+.BR \-\-verbose ,
+.B \-\-verb=1
+is unknown.
+.IP \(bu 2
+Only long options abbreviate.
+A word with a single
+.B \-
+never does.
+.IP \(bu 2
+Only declared spellings count, and patterns are never candidates.
+A spec that enables the key should declare every long option of its command; otherwise a prefix
+that the command finds ambiguous selects the one option that is declared.
+.IP \(bu 2
+An exact spelling takes precedence over a prefix:
+.B \-\-exclude
+is
+.B \-\-exclude
+even when
+.B \-\-exclude\-caches
+is declared, and
+.B \-\-flag=x
+for a declared flag
+.B \-\-flag
+is unknown.
+.IP \(bu 2
+The rule is strict: a stem that matches more than one spelling is ambiguous, even when the
+spellings are aliases of one option with the same arity, as
+.B \-\-colo
+is for
+.B \-\-color
+and
+.BR \-\-colour ;
+.BR getopt_long (3)
+would accept it.
+.IP \(bu 2
+An ambiguous stem and a stem that matches nothing are unknown options, which are errors only
+where the level has
+.BR "options-complete = true" .
+.PP
+The built-in specs that enable it are
+.BR tar ,
+.BR make ,
+.BR xargs ,
+.BR rm ,
+.BR journalctl ,
+.BR env ,
+.BR timeout ,
+.BR nice ,
+.BR nohup ,
+.BR stdbuf ,
+.BR time ,
+.BR ionice ,
+.BR taskset ,
+and
+.BR chrt .
 .SS Classification
 The daemon walks a command's arguments in order, starting at the top level of its spec.
 .IP \(bu 2
@@ -657,6 +830,10 @@ An unknown option is an error only at a level with
 A word of the form
 .BI \- digits
 is never an error.
+With
+.BR option-abbreviations ,
+a unique prefix of a long option is that option, and an ambiguous or unmatched prefix is an
+unknown option.
 .IP \(bu 2
 The first plain word at a level is in subcommand position.
 A known subcommand name or alias there is reported as
@@ -667,23 +844,332 @@ An unknown word there is an error only at a level that has subcommands and
 A word that contains an expansion is never an error.
 .IP \(bu 2
 After the first plain word at a level, no further subcommand matching happens at that level.
-.SS Precommands
-For a spec with
-.BR "precommand = true" ,
-the daemon finds the wrapped command by skipping the precommand's options and their values, with
-unknown options assumed to be flags; then
+.SS Wrapped commands and path mode
+A level wraps a command when it sets
+.B positional
+or
+.BR wrapped-after .
+The top level of a spec with
+.B precommand = true
+wraps with
+.B positional = 0
+unless it sets one of them.
+A top level that wraps without
+.B precommand
+gets no
+.B precommand
+span.
+Before
+.B positional
+became a level key, a top-level
+.B positional
+without
+.B precommand
+was ignored; it now wraps.
+.PP
+The daemon descends through subcommands as in classification, and only the level it ends at
+counts; when that level does not wrap, there is no wrapped command.
+.IP \(bu 2
+With
+.BI "positional = " n\fR,
+the daemon skips the level's options and their values, with unknown options, ambiguous
+abbreviations included, assumed to be flags; then
 .IB NAME = value
 words when
-.BR "skip-assignments = true" ;
-then
-.B positional
+.B skip-assignments = true
+and the level is the top level; then
+.I n
 plain words.
-The next word is the wrapped command, which is classified as a command in its own right.
+The next word is the wrapped command.
 Option parsing stops at
 .B \-\-
 or at the first word that is not an option, as POSIX
 .BR getopt (3)
 does.
+.IP \(bu 2
+With
+.BR "wrapped-after = \(dq\-\-\(dq" ,
+options are parsed as in classification, and the word after the first
+.B \-\-
+is the wrapped command, after
+.IB NAME = value
+words when
+.B skip-assignments = true
+and the level is the top level.
+With no
+.BR \-\- ,
+or nothing after it, there is no wrapped command.
+At an
+.B options-first
+level,
+.B \-\-
+is found only in option position; after a plain word it is plain.
+.IP \(bu 2
+The wrapped command is classified as a command word in its own right, against the local command
+table, so a command that exists only in a container or pod is reported as
+.BR error .
+The arguments of a precommand before it are classified by its spec and not checked as paths; the
+arguments of another command before it are highlighted as usual.
+.PP
+The word after
+.B builtin
+or
+.B command
+is looked up as zsh does:
+.IP \(bu 2
+After
+.BR builtin ,
+only a builtin is accepted.
+A builtin that is a precommand
+.RB ( builtin ,
+.BR command ,
+.BR exec ,
+.BR noglob ,
+.BR \- )
+is a
+.B precommand
+and its chain continues.
+Any other word is an
+.BR error :
+an external command, a function, an alias, a reserved word such as
+.BR time ,
+a path, an unknown name, and
+.B \-\-
+.RB ( builtin
+takes no options).
+.IP \(bu 2
+After
+.BR command ,
+only an external command is accepted: a command found in
+.BR PATH ,
+or a path to an executable file.
+Functions, aliases, builtins, reserved words, and precommand builtins
+.RB ( "command builtin echo" ,
+.BR "command noglob ls" )
+are errors.
+An external precommand is a
+.B precommand
+and its chain continues, even when a function of the same name exists:
+.B command time ls
+and
+.B command nice ls
+run the programs.
+A
+.B PATH
+binary named
+.B command
+or
+.B builtin
+makes
+.B command command
+a precommand in the same way.
+.IP \(bu 2
+.B command
+takes the options
+.BR \-p ,
+.BR \-v ,
+and
+.BR \-V ,
+combined in one word in any order
+.RB ( \-pv ,
+.BR \-Vp ),
+and
+.B \-\-
+ends them.
+Several option words
+.RB ( "\-p \-v ls" )
+are accepted only when one of them has a
+.B v
+or
+.BR V ;
+otherwise one option word is the most, and in
+.B command \-p \-p ls
+the first
+.B \-p
+is the command word, an error.
+Any other word, an unknown option
+.RB ( "command \-x ls" )
+or a lone
+.B \-
+included, is the command word; in
+.BR "command \-\- \-v ls" ,
+.B \-v
+is the command word.
+.IP \(bu 2
+With
+.B \-v
+or
+.BR \-V ,
+.B command
+runs nothing: every remaining word is a lookup.
+Each gets the type of what it names (alias, global or suffix alias, function, builtin, reserved
+word, or command), whether quoted or not, and is an
+.B error
+only when it names nothing, so
+.B command \-v myfunc
+is not an error.
+A lookup never continues a precommand chain.
+.IP \(bu 2
+A word that
+.B builtin
+or
+.B command
+rejects wraps nothing: its arguments are only checked as paths, so
+.B builtin git status
+does not classify
+.B status
+as a
+.B git
+subcommand.
+A word with an expansion or a glob is never an error.
+A quoted word is looked up by its value, and no alias is expanded.
+With
+.BR AUTO_CD ,
+a directory after either word is not a command.
+While the word is being typed, a prefix of a name the lookup accepts (a builtin after
+.BR builtin ,
+a
+.B PATH
+command after
+.BR command ,
+any name after
+.BR "command \-v" )
+is not highlighted.
+.PP
+The specs of
+.B builtin
+and
+.B command
+decide only whether they are precommands; the lookups and options above are built in and ignore
+spec overrides.
+Global aliases after these words, the default
+.B PATH
+search of
+.BR "command \-p" ,
+and the
+.B POSIX_BUILTINS
+option are not modelled.
+.PP
+A word is
+.IB NAME = value
+when, after quote removal, it starts with an ASCII shell identifier and
+.B =
+before any expansion:
+.BR FOO=1 ,
+.BR FOO=$x ,
+and
+.B \(dqFOO\(dq=$(date)
+are skipped;
+.B FOO$x=1
+and
+.B $cmd
+are not.
+.PP
+The built-in
+.B kubectl
+spec sets
+.B wrapped-after = \(dq\-\-\(dq
+for
+.BR exec ,
+so
+.B kubectl exec mypod \-\- ls \-l
+reports
+.B ls
+as a command and classifies
+.B \-l
+by the spec of
+.BR ls ,
+if it has one, while
+.B kubectl exec mypod ls
+has no wrapped command:
+.PP
+.RS
+.EX
+[subcommands.exec]
+wrapped\-after = "\-\-"
+options = ["\-c=", "\-\-container=", "\-i", "\-t"]
+.EE
+.RE
+.PP
+.B path-mode-options
+lists options that make the remaining words operands, as
+.B \-e
+does for
+.BR sudo .
+Each entry declares the option at its level with the syntax of
+.BR options ;
+an entry also in
+.B options
+or
+.B common-options
+takes the arity given here.
+This lets a user file make an existing option select path mode by listing it again;
+the built-in specs do not repeat a spelling within a level.
+When such an option is given at the level the descent ends at, while options are still parsed,
+there is no wrapped command:
+.IP \(bu 2
+The option counts when the word resolves to it: an exact spelling, the name of
+.BI \-\- name = value\fR,
+an abbreviation, as
+.B \-\-ed
+is for
+.B \-\-edit
+with
+.BR option-abbreviations ,
+or a letter of a bundle up to and including the first letter that takes a value.
+.B \-Ee
+and
+.B \-eu root
+select the mode;
+.B \-ue
+does not, because
+.B e
+is the value of
+.BR \-u .
+Unknown and ambiguous options never select it.
+.IP \(bu 2
+The mode is sticky: later options are still parsed
+.RB ( "\-u root"
+consumes
+.BR root ),
+and they never cancel it.
+.IB NAME = value
+words are not skipped and no plain words are counted.
+.IP \(bu 2
+Every argument is classified and checked as a path as for a command that wraps nothing: an
+existing file is reported as a path, a missing one gets no span, and words after
+.B \-\-
+are operands.
+Option values are checked too:
+.B sudo \-e \-u root f
+checks
+.BR root .
+.IP \(bu 2
+On a level that does not wrap,
+.B path-mode-options
+declares its options and has no other effect.
+.PP
+The built-in
+.B sudo
+spec, in outline, with which
+.B sudo \-e /etc/hosts
+reports
+.B /etc/hosts
+as a path and
+.B sudo ls
+still reports
+.B ls
+as a command:
+.PP
+.RS
+.EX
+name = "sudo"
+precommand = true
+options\-first = true
+path\-mode\-options = ["\-e", "\-\-edit"]
+options = ["\-u=", "\-\-user=", "\-E"]
+.EE
+.RE
 .SS Loading and overriding
 A user file whose
 .B name
@@ -697,9 +1183,30 @@ Merging cannot remove anything; replacing the spec can.
 A file with
 .B merge = true
 and no existing spec of that name is loaded as a new spec.
+.B path-mode-options
+is appended like
+.BR options .
+.B positional
+and
+.B wrapped-after
+are one setting: a merged level that sets either replaces the level's start and clears the other.
 .PP
 A file that fails to parse, has an unknown key, or declares an invalid option is skipped with a
 warning, and the other files still load.
+So is a file with a level that sets both
+.B positional
+and
+.BR wrapped-after ,
+sets
+.B wrapped-after
+to anything but
+.BR \(dq\-\-\(dq ,
+or lists a pattern in
+.BR path-mode-options ;
+the warning names the command path of the level.
+A user file is checked on its own before it is merged, so a file with
+.B merge = true
+must pass these checks by itself.
 The daemon writes the warning to its log;
 .B fast-highlight check-config
 and

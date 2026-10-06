@@ -1205,6 +1205,103 @@ fn literal_is_none_for_any_expansion() {
     }
 }
 
+#[test]
+fn name_eq_is_decided_before_the_first_expansion() {
+    let check = |input: &str, o: ParseOptions, want: bool| {
+        let out = parse_with(input, o);
+        assert_eq!(out.commands[0].words[1].name_eq, want, "{input:?} {o:?}");
+    };
+    for input in [
+        "env FOO=$x",
+        "env FOO=\"$(date)\"",
+        "env \"FOO\"=$x",
+        "env FOO\\=$x",
+        "env $'FOO'=$x",
+        "env FOO=*.c",
+        "env FOO=~/x",
+        "env FOO=1",
+        "env _a9=",
+        "env FOO=${x}",
+        "env FOO=`a`",
+        "env FOO=$((1))",
+        "env FOO=!!",
+        "env FOO={a,b}",
+        "env $'FOO'=1",
+        "env FOO=<(a)",
+    ] {
+        check(input, ParseOptions::default(), true);
+    }
+    check("env FOO=~/x", opts(false, true, false), true);
+    for input in [
+        "env FOO$x=1",
+        "env FOO${x}=1",
+        "env FOO`a`=1",
+        "env FOO$(a)=1",
+        "env FOO$((1))=1",
+        "env FOO$[1]=1",
+        "env FOO!!=1",
+        "env FOO*=1",
+        "env {A,B}=1",
+        "env FOO+=$x",
+        "env FOO[1]=$x",
+        "env $cmd",
+        "env =$x",
+        "env 9A=$x",
+        "env FÖO=$x",
+        "env FÖO=1",
+        "env FOO",
+        "env 'FOO'",
+    ] {
+        check(input, ParseOptions::default(), false);
+    }
+    check("env FOO~=1", opts(false, true, false), false);
+    // A process substitution or glob operator in the name; the first expansion decides even
+    // when a later one follows the `=`.
+    for o in [
+        ParseOptions::default(),
+        opts(false, true, false),
+        opts(false, false, true),
+        opts(false, true, true),
+    ] {
+        for input in [
+            "env FOO<(a)=1",
+            "env FOO>(a)=1",
+            "env FOO?=1",
+            "env FOO$x=1$y",
+        ] {
+            check(input, o, false);
+            let words = &parse_with(input, o).commands[0].words;
+            assert_eq!(
+                (words.len(), words[1].end),
+                (2, input.len()),
+                "{input:?} {o:?}"
+            );
+        }
+    }
+    for o in [opts(false, false, true), opts(false, true, true)] {
+        check("env FOO@(a)=1", o, false);
+        let words = &parse_with("env FOO@(a)=1", o).commands[0].words;
+        assert_eq!((words.len(), words[1].end), (2, 13), "{o:?}");
+    }
+    // A real assignment is not a word; the flag is about arguments.
+    assert!(word("FOO=$x env BAR=$y", 1).name_eq);
+    // Arguments of a declaration builtin keep the flag.
+    assert!(word("export FOO=$x", 1).name_eq);
+    assert!(word("typeset FOO=(a b)", 1).name_eq);
+}
+
+#[test]
+fn is_name_eq_rules() {
+    for t in ["A=", "a=1", "_=", "_x9=v=w", "FOO==", "A=$x"] {
+        assert!(is_name_eq(t), "{t:?}");
+    }
+    for t in [
+        "", "=", "=1", "9A=1", "A", "A+=1", "A[1]=1", "A-B=1", "é=1", "Aé=1", " A=1",
+    ] {
+        assert!(!is_name_eq(t), "{t:?}");
+    }
+}
+
 // -------------------------------------------------------------------------------------------
 // Multi-line and multibyte input
 // -------------------------------------------------------------------------------------------

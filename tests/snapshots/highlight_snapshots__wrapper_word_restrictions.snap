@@ -1,0 +1,203 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "builtin echo x"
+cursor: 0
+  0..7 precommand "builtin"
+  8..12 builtin "echo"
+
+input: "builtin ls"
+cursor: 0
+  0..7 precommand "builtin"
+  8..10 error "ls"
+
+input: "builtin mkcd"
+cursor: 0
+  0..7 precommand "builtin"
+  8..12 error "mkcd"
+
+input: "builtin time ls"
+cursor: 0
+  0..7 precommand "builtin"
+  8..12 error "time"
+
+input: "builtin --"
+cursor: 0
+  0..7 precommand "builtin"
+  8..10 error "--"
+
+input: "builtin git status notes.txt"
+cursor: 0
+  0..7 precommand "builtin"
+  8..11 error "git"
+  19..28 path "notes.txt"
+
+input: "builtin command ls"
+cursor: 0
+  0..7 precommand "builtin"
+  8..15 precommand "command"
+  16..18 command "ls"
+
+input: "builtin builtin echo"
+cursor: 0
+  0..7 precommand "builtin"
+  8..15 precommand "builtin"
+  16..20 builtin "echo"
+
+input: "builtin - ls"
+cursor: 0
+  0..7 precommand "builtin"
+  8..9 precommand "-"
+  10..12 command "ls"
+
+input: "command ls"
+cursor: 0
+  0..7 precommand "command"
+  8..10 command "ls"
+
+input: "command mkcd"
+cursor: 0
+  0..7 precommand "command"
+  8..12 error "mkcd"
+
+input: "command ll"
+cursor: 0
+  0..7 precommand "command"
+  8..10 error "ll"
+
+input: "command cd"
+cursor: 0
+  0..7 precommand "command"
+  8..10 error "cd"
+
+input: "command typeset"
+cursor: 0
+  0..7 precommand "command"
+  8..15 error "typeset"
+
+input: "command noglob ls"
+cursor: 0
+  0..7 precommand "command"
+  8..14 error "noglob"
+
+input: "command builtin echo"
+cursor: 0
+  0..7 precommand "command"
+  8..15 error "builtin"
+
+input: "command echo hi"
+cursor: 0
+  0..7 precommand "command"
+  8..12 command "echo"
+
+input: "command nice -n 5 ls"
+cursor: 0
+  0..7 precommand "command"
+  8..12 precommand "nice"
+  13..15 option "-n"
+  18..20 command "ls"
+
+input: "nice -n 5 ls"
+cursor: 0
+  0..4 function "nice"
+  5..7 option "-n"
+
+input: "command time ls"
+cursor: 0
+  0..7 precommand "command"
+  8..12 precommand "time"
+  13..15 command "ls"
+
+input: "command -x ls"
+cursor: 0
+  0..7 precommand "command"
+  8..10 error "-x"
+
+input: "command -- -v ls"
+cursor: 0
+  0..7 precommand "command"
+  11..13 error "-v"
+
+input: "command -pv mkcd ll cd time ls nosuchcmd"
+cursor: 0
+  0..7 precommand "command"
+  8..11 option "-pv"
+  12..16 function "mkcd"
+  17..19 alias "ll"
+  20..22 builtin "cd"
+  23..27 reserved-word "time"
+  28..30 command "ls"
+  31..40 error "nosuchcmd"
+
+input: "command -Vp git"
+cursor: 0
+  0..7 precommand "command"
+  8..11 option "-Vp"
+  12..15 command "git"
+
+input: "command -v -- ls"
+cursor: 0
+  0..7 precommand "command"
+  8..10 option "-v"
+  14..16 command "ls"
+
+input: "command -v"
+cursor: 0
+  0..7 precommand "command"
+  8..10 option "-v"
+
+input: "builtin command -v mkcd"
+cursor: 0
+  0..7 precommand "builtin"
+  8..15 precommand "command"
+  16..18 option "-v"
+  19..23 function "mkcd"
+
+input: "noglob command mkcd"
+cursor: 0
+  0..6 precommand "noglob"
+  7..14 precommand "command"
+  15..19 error "mkcd"
+
+input: "command kubectl exec mypod -- mkcd"
+cursor: 0
+  0..7 precommand "command"
+  8..15 command "kubectl"
+  16..20 subcommand "exec"
+  27..29 option "--"
+  30..34 function "mkcd"
+
+input: "command $cmd notes.txt"
+cursor: 0
+  0..7 precommand "command"
+  8..12 parameter "$cmd"
+  13..22 path "notes.txt"
+
+input: "command docs"
+cursor: 0
+opts: "a"
+  0..7 precommand "command"
+  8..12 error "docs"
+
+input: "command gi"
+  0..7 precommand "command"
+
+input: "command mk"
+  0..7 precommand "command"
+  8..10 error "mk"
+
+input: "builtin ec"
+  0..7 precommand "builtin"
+
+input: "builtin gi"
+  0..7 precommand "builtin"
+  8..10 error "gi"
+
+input: "command -v mk"
+  0..7 precommand "command"
+  8..10 option "-v"
+
+input: "command ./bu"
+  0..7 precommand "command"
+  8..12 path-prefix "./bu"

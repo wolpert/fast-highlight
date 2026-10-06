@@ -1,0 +1,80 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "env FOO=$x ls"
+cursor: 0
+  0..3 precommand "env"
+  8..10 parameter "$x"
+  11..13 command "ls"
+
+input: "env -i FOO=\"$(date)\" BAR=1 ls"
+cursor: 0
+  0..3 precommand "env"
+  4..6 option "-i"
+  11..20 double-quoted "\"$(date)\""
+  12..14 substitution "$("
+  14..18 command "date"
+  18..19 substitution ")"
+  27..29 command "ls"
+
+input: "sudo -E env FOO=\"$(date)\" BAR=1 nice -n 5 make"
+cursor: 0
+  0..4 precommand "sudo"
+  5..7 option "-E"
+  8..11 precommand "env"
+  16..25 double-quoted "\"$(date)\""
+  17..19 substitution "$("
+  19..23 command "date"
+  23..24 substitution ")"
+  32..36 precommand "nice"
+  37..39 option "-n"
+  42..46 command "make"
+
+input: "env FOO=$x nosuchcmd"
+cursor: 0
+  0..3 precommand "env"
+  8..10 parameter "$x"
+  11..20 error "nosuchcmd"
+
+input: "env $'FOO'=1 ls"
+cursor: 0
+  0..3 precommand "env"
+  4..10 dollar-quoted "$'FOO'"
+  13..15 command "ls"
+
+input: "env FOO=<(date) ls"
+cursor: 0
+  0..3 precommand "env"
+  8..10 process-substitution "<("
+  10..14 command "date"
+  14..15 process-substitution ")"
+  16..18 command "ls"
+
+input: "env FOO=$x l"
+  0..3 precommand "env"
+  8..10 parameter "$x"
+
+input: "env FOO=$x lsx"
+  0..3 precommand "env"
+  8..10 parameter "$x"
+  11..14 error "lsx"
+
+input: "env FOO=$x "
+  0..3 precommand "env"
+  8..10 parameter "$x"
+
+input: "env FOO$x=1 ls"
+cursor: 0
+  0..3 precommand "env"
+  7..9 parameter "$x"
+
+input: "env $cmd"
+cursor: 0
+  0..3 precommand "env"
+  4..8 parameter "$cmd"
+
+input: "nice FOO=$x ls"
+cursor: 0
+  0..4 precommand "nice"
+  9..11 parameter "$x"

@@ -1,0 +1,16 @@
+# Verified against: GNU findutils 4.10.0.
+# xargs(1), GNU findutils 4.10.0 (checked against `xargs --help`), with the BSD options `-J`, `-R`,
+# and `-S`. The first word that is not an option or an option value is the command to run, which is
+# classified in its own right. `-e`, `-i`, `-l`, and their long forms take an optional attached
+# value, as in GNU xargs: `--max-lines` is optional although `--help` shows `--max-lines=MAX-LINES`.
+# Every long option is declared, so `option-abbreviations` resolves a unique prefix (`--max-a`).
+name = "xargs"
+option-abbreviations = true
+precommand = true
+options = [
+  "-0", "--null", "-a=", "--arg-file=", "-d=", "--delimiter=", "-E=", "-e=?", "--eof=?", "-I=",
+  "-i=?", "--replace=?", "-J=", "-L=", "-l=?", "--max-lines=?", "-n=", "--max-args=", "-o",
+  "--open-tty", "-P=", "--max-procs=", "-p", "--interactive", "--process-slot-var=", "-R=", "-r",
+  "--no-run-if-empty", "-S=", "-s=", "--max-chars=", "--show-limits", "-t", "--verbose", "-x",
+  "--exit", "--help", "--version",
+]

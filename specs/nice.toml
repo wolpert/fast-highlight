@@ -1,4 +1,8 @@
+# Verified against: GNU coreutils 9.7 and uutils coreutils 0.10.0.
 # nice(1). The obsolete `-N` form (`nice -5 cmd`) is an unknown option and is skipped as a flag.
+# `nice` on PATH may be uutils rather than GNU; both accept the same unique prefixes of the long
+# options declared here (`--vers`).
 name = "nice"
+option-abbreviations = true
 precommand = true
 options = ["-n=", "--adjustment=", "--help", "--version"]

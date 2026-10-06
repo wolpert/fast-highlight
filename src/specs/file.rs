@@ -1,6 +1,6 @@
 //! The on-disk spec format: serde structs, merging, and compilation into [`CommandSpec`].
 
-use super::{Arity, CommandSpec, OptionTable};
+use super::{Arity, CommandSpec, OptionTable, Wrap};
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap};
 
@@ -24,8 +24,12 @@ struct TopFile {
     options_complete: Option<bool>,
     options_first: Option<bool>,
     abbreviations: Option<bool>,
+    option_abbreviations: Option<bool>,
+    wrapped_after: Option<String>,
     #[serde(default)]
     options: Vec<String>,
+    #[serde(default)]
+    path_mode_options: Vec<String>,
     #[serde(default)]
     subcommands: BTreeMap<String, SubcommandFile>,
 }
@@ -40,8 +44,13 @@ struct SubcommandFile {
     options_complete: Option<bool>,
     options_first: Option<bool>,
     abbreviations: Option<bool>,
+    option_abbreviations: Option<bool>,
+    positional: Option<usize>,
+    wrapped_after: Option<String>,
     #[serde(default)]
     options: Vec<String>,
+    #[serde(default)]
+    path_mode_options: Vec<String>,
     #[serde(default)]
     subcommands: BTreeMap<String, SubcommandFile>,
 }
@@ -54,7 +63,6 @@ pub(super) struct SpecFile {
     aliases: Vec<String>,
     precommand: Option<bool>,
     skip_assignments: Option<bool>,
-    positional: Option<usize>,
     common_options: Vec<String>,
     level: Level,
 }
@@ -67,7 +75,12 @@ struct Level {
     options_complete: Option<bool>,
     options_first: Option<bool>,
     abbreviations: Option<bool>,
+    option_abbreviations: Option<bool>,
+    /// `positional` and `wrapped-after`: where the wrapped command starts. At most one is set.
+    positional: Option<usize>,
+    wrapped_after: Option<String>,
     options: Vec<String>,
+    path_mode_options: Vec<String>,
     subcommands: BTreeMap<String, Level>,
 }
 
@@ -79,7 +92,11 @@ impl From<SubcommandFile> for Level {
             options_complete: f.options_complete,
             options_first: f.options_first,
             abbreviations: f.abbreviations,
+            option_abbreviations: f.option_abbreviations,
+            positional: f.positional,
+            wrapped_after: f.wrapped_after,
             options: f.options,
+            path_mode_options: f.path_mode_options,
             subcommands: f
                 .subcommands
                 .into_iter()
@@ -99,7 +116,6 @@ impl SpecFile {
             aliases: f.aliases,
             precommand: f.precommand,
             skip_assignments: f.skip_assignments,
-            positional: f.positional,
             common_options: f.common_options,
             level: Level {
                 aliases: Vec::new(),
@@ -107,7 +123,11 @@ impl SpecFile {
                 options_complete: f.options_complete,
                 options_first: f.options_first,
                 abbreviations: f.abbreviations,
+                option_abbreviations: f.option_abbreviations,
+                positional: f.positional,
+                wrapped_after: f.wrapped_after,
                 options: f.options,
+                path_mode_options: f.path_mode_options,
                 subcommands: f
                     .subcommands
                     .into_iter()
@@ -128,7 +148,6 @@ impl SpecFile {
         self.aliases.extend(other.aliases);
         self.precommand = other.precommand.or(self.precommand);
         self.skip_assignments = other.skip_assignments.or(self.skip_assignments);
-        self.positional = other.positional.or(self.positional);
         self.common_options.extend(other.common_options);
         self.level.merge_from(other.level);
     }
@@ -142,10 +161,14 @@ impl SpecFile {
             return Err("an entry in `aliases` is empty".to_string());
         }
         let common = parse_options(&self.common_options, "common-options")?;
-        let mut spec = compile_level(&self.name, &self.name, &self.level, &common)?;
+        let mut spec = compile_level(&self.name, &self.name, &self.level, &common, false)?;
         spec.precommand = self.precommand.unwrap_or(false);
         spec.skip_assignments = self.skip_assignments.unwrap_or(false);
-        spec.positional = self.positional.unwrap_or(0);
+        // A precommand's top level wraps the word after its options unless it says otherwise.
+        if spec.precommand && spec.wrap.is_none() {
+            spec.wrap = Some(Wrap::Positional(0));
+            spec.any_wrap = true;
+        }
         Ok(spec)
     }
 }
@@ -157,7 +180,14 @@ impl Level {
         self.options_complete = other.options_complete.or(self.options_complete);
         self.options_first = other.options_first.or(self.options_first);
         self.abbreviations = other.abbreviations.or(self.abbreviations);
+        self.option_abbreviations = other.option_abbreviations.or(self.option_abbreviations);
+        // The two start keys are one setting: a level that sets either replaces both.
+        if other.positional.is_some() || other.wrapped_after.is_some() {
+            self.positional = other.positional;
+            self.wrapped_after = other.wrapped_after;
+        }
         self.options.extend(other.options);
+        self.path_mode_options.extend(other.path_mode_options);
         for (name, sub) in other.subcommands {
             match self.subcommands.get_mut(&name) {
                 Some(existing) => existing.merge_from(sub),
@@ -209,13 +239,19 @@ fn parse_options(decls: &[String], context: &str) -> Result<Vec<OptionDecl>, Str
         .collect()
 }
 
+/// The letter of a single-dash single-letter option (`-v`), which can be part of a bundle.
+fn short_letter(name: &str) -> Option<char> {
+    let mut chars = name.chars();
+    match (chars.next(), chars.next(), chars.next()) {
+        (Some('-'), Some(c), None) if c != '-' => Some(c),
+        _ => None,
+    }
+}
+
 fn add_option(table: &mut OptionTable, decl: &OptionDecl) {
     match decl {
         OptionDecl::Named(name, arity) => {
-            let mut chars = name.chars();
-            if let (Some('-'), Some(c), None) = (chars.next(), chars.next(), chars.next())
-                && c != '-'
-            {
+            if let Some(c) = short_letter(name) {
                 table.short.insert(c, *arity);
             }
             table.exact.insert(name.clone(), *arity);
@@ -229,19 +265,53 @@ fn add_option(table: &mut OptionTable, decl: &OptionDecl) {
 }
 
 /// Compiles one level. `path` is the command path (`git remote add`) used in error messages.
+/// `inherited` is the parent's `option-abbreviations` setting, used when the level leaves the key
+/// unset.
 fn compile_level(
     path: &str,
     name: &str,
     level: &Level,
     common: &[OptionDecl],
+    inherited: bool,
 ) -> Result<CommandSpec, String> {
-    let mut options = OptionTable::default();
+    let abbreviate = level.option_abbreviations.unwrap_or(inherited);
+    let mut options = OptionTable {
+        abbreviate,
+        ..OptionTable::default()
+    };
     for decl in common {
         add_option(&mut options, decl);
     }
     for decl in parse_options(&level.options, &format!("the options of `{path}`"))? {
         add_option(&mut options, &decl);
     }
+    // Declared after `options`, so a path-mode option's arity wins over a duplicate there.
+    let context = format!("the path-mode-options of `{path}`");
+    for decl in parse_options(&level.path_mode_options, &context)? {
+        let OptionDecl::Named(name, _) = &decl else {
+            return Err(format!("a pattern cannot select path mode in {context}"));
+        };
+        if let Some(c) = short_letter(name) {
+            options.mode_short.insert(c);
+        }
+        options.mode.insert(name.clone());
+        add_option(&mut options, &decl);
+    }
+    let wrap = match (level.positional, level.wrapped_after.as_deref()) {
+        (Some(_), Some(_)) => {
+            return Err(format!(
+                "`positional` and `wrapped-after` cannot both be set for `{path}`"
+            ));
+        }
+        (Some(n), None) => Some(Wrap::Positional(n)),
+        (None, Some("--")) => Some(Wrap::AfterDashDash),
+        (None, Some(other)) => {
+            return Err(format!(
+                "`wrapped-after` for `{path}` must be \"--\", found {other:?}"
+            ));
+        }
+        (None, None) => None,
+    };
 
     let mut subcommands = Vec::with_capacity(level.subcommands.len());
     let mut subcommand_names = HashMap::with_capacity(level.subcommands.len());
@@ -254,7 +324,7 @@ fn compile_level(
             return Err(format!("an entry in the aliases of `{sub_path}` is empty"));
         }
         subcommand_names.insert(sub_name.clone(), subcommands.len());
-        subcommands.push(compile_level(&sub_path, sub_name, sub, common)?);
+        subcommands.push(compile_level(&sub_path, sub_name, sub, common, abbreviate)?);
     }
     // Aliases never shadow a real subcommand name or an earlier alias.
     for (i, sub) in level.subcommands.values().enumerate() {
@@ -263,11 +333,13 @@ fn compile_level(
         }
     }
 
+    let any_wrap = wrap.is_some() || subcommands.iter().any(|s| s.any_wrap);
     Ok(CommandSpec {
         name: name.to_string(),
         precommand: false,
         skip_assignments: false,
-        positional: 0,
+        wrap,
+        any_wrap,
         complete: level.complete.unwrap_or(false),
         options_complete: level.options_complete.unwrap_or(false),
         options_first: level.options_first.unwrap_or(false),

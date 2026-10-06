@@ -1,0 +1,118 @@
+# Verified against: apt 3.2.0.
+# apt(8) 3.2.0 (checked against `apt --help`, apt(8), apt-get(8), and apt-cache(8), and by running
+# each command name against the installed apt). Complete: apt has no external subcommands, so an
+# unknown command is an error. apt reads one option table for every command, so the options of
+# apt-get(8) are common options: they are known before and after the command, and `-o`, `-c`, `-t`,
+# `-a`, `-P`, `-S`, `-e`, and `--cli-version` take a value that is not taken for the command. `-a`
+# and `-f` are flags in `list`, `show`, and `search`, as the level declarations override the common
+# ones. `apt-get` and `apt-cache` are separate programs and are not aliases.
+name = "apt"
+complete = true
+common-options = [
+  "-h", "--help", "-v", "--version", "--audit", "-c=", "--config-file=", "-o=", "--option=",
+  "--cli-version=", "--color", "--no-color", "-q", "--quiet", "-y", "--yes", "--assume-yes",
+  "--assume-no", "-s", "--simulate", "--just-print", "--dry-run", "--recon", "--no-act", "-d",
+  "--download-only", "-f", "--fix-broken", "-m", "--ignore-missing", "--fix-missing", "-u",
+  "--show-upgraded", "--no-show-upgraded", "-V", "--verbose-versions", "-a=",
+  "--host-architecture=", "-P=", "--build-profiles=", "-b", "--compile", "--build", "-t=",
+  "--target-release=", "--default-release=", "-S=", "--snapshot=", "-U", "--update", "-e=",
+  "--error-on=", "--with-source=", "--no-install-recommends", "--install-suggests", "--no-download",
+  "--no-list-columns", "--ignore-hold", "--with-new-pkgs", "--no-upgrade", "--only-upgrade",
+  "--allow-downgrades", "--allow-remove-essential", "--allow-change-held-packages", "--force-yes",
+  "--print-uris", "--purge", "--reinstall", "--list-cleanup", "--trivial-only", "--mark-auto",
+  "--no-remove", "--auto-remove", "--autoremove", "--only-source", "--diff-only", "--dsc-only",
+  "--tar-only", "--arch-only", "--indep-only", "--allow-unauthenticated",
+  "--allow-insecure-repositories", "--allow-releaseinfo-change", "--show-progress",
+]
+
+[subcommands.list]
+options = [
+  "--installed", "--upgradable", "--upgradeable", "--manual-installed", "-a", "--all-versions",
+]
+
+[subcommands.search]
+options = ["-n", "--names-only", "-f", "--full"]
+
+[subcommands.show]
+options = ["-a", "--all-versions"]
+
+[subcommands.update]
+
+[subcommands.install]
+
+[subcommands.reinstall]
+
+[subcommands.remove]
+
+[subcommands.purge]
+
+[subcommands.autoremove]
+aliases = ["auto-remove"]
+
+[subcommands.autopurge]
+
+[subcommands.upgrade]
+
+[subcommands.full-upgrade]
+
+[subcommands.dist-upgrade]
+
+[subcommands.edit-sources]
+
+[subcommands.modernize-sources]
+
+[subcommands.satisfy]
+
+[subcommands.source]
+
+[subcommands.build-dep]
+
+[subcommands.policy]
+
+[subcommands.depends]
+options = [
+  "-i", "--important", "--installed", "--recurse", "--implicit", "--no-pre-depends", "--no-depends",
+  "--no-recommends", "--no-suggests", "--no-conflicts", "--no-breaks", "--no-replaces",
+  "--no-enhances",
+]
+
+[subcommands.rdepends]
+options = [
+  "-i", "--important", "--installed", "--recurse", "--implicit", "--no-pre-depends", "--no-depends",
+  "--no-recommends", "--no-suggests", "--no-conflicts", "--no-breaks", "--no-replaces",
+  "--no-enhances",
+]
+
+[subcommands.download]
+
+[subcommands.changelog]
+
+[subcommands.clean]
+
+[subcommands.autoclean]
+
+[subcommands.auto-clean]
+
+[subcommands.distclean]
+
+[subcommands.dist-clean]
+
+[subcommands.showsrc]
+
+[subcommands.history-list]
+
+[subcommands.history-info]
+
+[subcommands.history-redo]
+
+[subcommands.history-undo]
+
+[subcommands.history-rollback]
+
+[subcommands.why]
+
+[subcommands.why-not]
+
+[subcommands.help]
+
+[subcommands.moo]

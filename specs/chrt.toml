@@ -1,5 +1,10 @@
-# chrt(1) from util-linux: `chrt [OPTION]... PRIORITY COMMAND [ARG]...`.
+# Verified against: util-linux 2.41.3.
+# chrt(1) from util-linux: `chrt [OPTION]... PRIORITY COMMAND [ARG]...`. `-e` and `--ext` are absent
+# from 2.41.3: they are not in its help or manual page, and chrt 2.41.3 rejects them. They are
+# declared but were not verified, so `--e` and `--ex` resolve to `--ext` here although chrt 2.41.3
+# rejects them.
 name = "chrt"
+option-abbreviations = true
 precommand = true
 positional = 1
 options = [

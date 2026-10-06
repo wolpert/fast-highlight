@@ -1,0 +1,76 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "podman --connection remote ps -a"
+cursor: 0
+  0..6 command "podman"
+  7..19 option "--connection"
+  27..29 subcommand "ps"
+  30..32 option "-a"
+
+input: "podman --root /var/tmp/store run --rm -it -e A=1 fedora ls -l"
+cursor: 0
+  0..6 command "podman"
+  7..13 option "--root"
+  29..32 subcommand "run"
+  33..37 option "--rm"
+  38..41 option "-it"
+  42..44 option "-e"
+
+input: "podman container frobnicate"
+cursor: 0
+  0..6 command "podman"
+  7..16 subcommand "container"
+  17..27 error "frobnicate"
+
+input: "podman frobnicate"
+cursor: 0
+  0..6 command "podman"
+  7..17 error "frobnicate"
+
+input: "gh pr -R owner/repo list --state open"
+cursor: 0
+  0..2 command "gh"
+  3..5 subcommand "pr"
+  6..8 option "-R"
+  20..24 subcommand "list"
+  25..32 option "--state"
+
+input: "gh issue -R owner/repo list"
+cursor: 0
+  0..2 command "gh"
+  3..8 subcommand "issue"
+  9..11 option "-R"
+  23..27 subcommand "list"
+
+input: "gh issue list -R owner/repo"
+cursor: 0
+  0..2 command "gh"
+  3..8 subcommand "issue"
+  9..13 subcommand "list"
+  14..16 option "-R"
+
+input: "gh run -R o/r view 12"
+cursor: 0
+  0..2 command "gh"
+  3..6 subcommand "run"
+  7..9 option "-R"
+  14..18 subcommand "view"
+
+input: "gh pr frobnicate"
+cursor: 0
+  0..2 command "gh"
+  3..5 subcommand "pr"
+  6..16 error "frobnicate"
+
+input: "gh issue view 12 --web"
+cursor: 0
+  0..2 command "gh"
+  3..8 subcommand "issue"
+  9..13 subcommand "view"
+  17..22 option "--web"
+
+input: "gh frobnicate"
+cursor: 0
+  0..2 command "gh"

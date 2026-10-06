@@ -1,5 +1,7 @@
+# Verified against: util-linux 2.41.3.
 # ionice(1) from util-linux.
 name = "ionice"
+option-abbreviations = true
 precommand = true
 options = [
   "-c=", "--class=",

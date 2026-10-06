@@ -956,6 +956,7 @@ impl<'a> Parser<'a> {
                         literal: plain.map(str::to_string),
                         tilde: false,
                         has_glob: false,
+                        name_eq: false,
                     });
                     f.last = Last::Cmd;
                     return;
@@ -1842,7 +1843,7 @@ impl<'a> Parser<'a> {
         if self.peek() == Some(b'(') {
             self.push(self.pos, self.pos + 1, TokenKind::Assignment);
             self.pos += 1;
-            acc.expanded = true;
+            acc.expand();
             self.element_list(false, true);
             if self.peek() == Some(b')') {
                 self.push(self.pos, self.pos + 1, TokenKind::Assignment);

@@ -1,0 +1,27 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "doas -u root ls"
+cursor: 0
+  0..4 precommand "doas"
+  5..7 option "-u"
+  13..15 command "ls"
+
+input: "chrt -f 10 ls"
+cursor: 0
+  0..4 precommand "chrt"
+  5..7 option "-f"
+  11..13 command "ls"
+
+input: "taskset -c 0 ls"
+cursor: 0
+  0..7 precommand "taskset"
+  8..10 option "-c"
+  13..15 command "ls"
+
+input: "ionice -c 3 ls"
+cursor: 0
+  0..6 precommand "ionice"
+  7..9 option "-c"
+  12..14 command "ls"

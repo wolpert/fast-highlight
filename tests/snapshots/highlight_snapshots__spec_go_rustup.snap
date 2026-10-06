@@ -1,0 +1,89 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "go -C src build -o out -tags netgo ./cmd"
+cursor: 0
+  0..2 command "go"
+  3..5 option "-C"
+  6..9 path-directory "src"
+  10..15 subcommand "build"
+  16..18 option "-o"
+  23..28 option "-tags"
+
+input: "go test -run TestFoo -count=1 ./..."
+cursor: 0
+  0..2 command "go"
+  3..7 subcommand "test"
+  8..12 option "-run"
+  21..29 option "-count=1"
+
+input: "go run -race main.go -v"
+cursor: 0
+  0..2 command "go"
+  3..6 subcommand "run"
+  7..12 option "-race"
+
+input: "go mod tidy -v"
+cursor: 0
+  0..2 command "go"
+  3..6 subcommand "mod"
+  7..11 subcommand "tidy"
+  12..14 option "-v"
+
+input: "go mod -C src tidy"
+cursor: 0
+  0..2 command "go"
+  3..6 subcommand "mod"
+  7..9 option "-C"
+  10..13 path-directory "src"
+  14..18 subcommand "tidy"
+
+input: "go mod frobnicate"
+cursor: 0
+  0..2 command "go"
+  3..6 subcommand "mod"
+  7..17 error "frobnicate"
+
+input: "go frobnicate"
+cursor: 0
+  0..2 command "go"
+  3..13 error "frobnicate"
+
+input: "rustup +nightly toolchain list -v"
+cursor: 0
+  0..6 command "rustup"
+  7..15 option "+nightly"
+  16..25 subcommand "toolchain"
+  26..30 subcommand "list"
+  31..33 option "-v"
+
+input: "rustup run --install nightly cargo build --release"
+cursor: 0
+  0..6 command "rustup"
+  7..10 subcommand "run"
+  11..20 option "--install"
+
+input: "rustup toolchain help"
+cursor: 0
+  0..6 command "rustup"
+  7..16 subcommand "toolchain"
+  17..21 subcommand "help"
+
+input: "rustup target add --toolchain nightly wasm32-unknown-unknown"
+cursor: 0
+  0..6 command "rustup"
+  7..13 subcommand "target"
+  14..17 subcommand "add"
+  18..29 option "--toolchain"
+
+input: "rustup toolchain frobnicate"
+cursor: 0
+  0..6 command "rustup"
+  7..16 subcommand "toolchain"
+  17..27 error "frobnicate"
+
+input: "rustup frobnicate"
+cursor: 0
+  0..6 command "rustup"
+  7..17 error "frobnicate"

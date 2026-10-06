@@ -1,3 +1,4 @@
+# Verified against: git 2.53.0 (only the plumbing commands and the commands named in task 2 were compared).
 # git(1). Not complete: git runs any `git-NAME` executable on PATH and user-defined aliases as
 # subcommands. Users who want unknown subcommands flagged can set `complete = true` in a user
 # file with `merge = true`.
@@ -353,7 +354,7 @@ options = [
 ]
 
 [subcommands.replay]
-options = ["--onto=", "--advance=", "--contained", "--ref-action="]
+options = ["--onto=", "--advance=", "--contained", "--ref-action=", "--no-advance", "--no-onto", "--no-contained", "--no-ref-action", "-0", "-1", "-2", "-3", "-4", "-5", "-6", "-7", "-8", "-9", "-n=", "--max-count=", "--skip=", "--since=", "--after=", "--since-as-filter=", "--until=", "--before=", "--author=", "--committer=", "--grep-reflog=", "--grep=", "--all-match", "--invert-grep", "-i", "--regexp-ignore-case", "--basic-regexp", "-E", "--extended-regexp", "-F", "--fixed-strings", "-P", "--perl-regexp", "--remove-empty", "--merges", "--no-merges", "--min-parents=", "--max-parents=", "--no-min-parents", "--no-max-parents", "--first-parent", "--exclude-first-parent-only", "--not", "--all", "--branches=?", "--tags=?", "--remotes=?", "--glob=", "--exclude=", "--exclude-hidden=", "--reflog", "--alternate-refs", "--single-worktree", "--ignore-missing", "--bisect", "--stdin", "--cherry-mark", "--cherry-pick", "--left-only", "--right-only", "--cherry", "-g", "--walk-reflogs", "--merge", "--boundary", "--simplify-by-decoration", "--show-pulls", "--full-history", "--dense", "--sparse", "--simplify-merges", "--ancestry-path=?", "--date-order", "--author-date-order", "--topo-order", "--reverse", "--no-walk=?", "--do-walk"]
 
 [subcommands.reset]
 options = [
@@ -441,7 +442,7 @@ options = ["-p", "--patch", "-S", "--staged", "-k", "--keep-index", "--no-keep-i
 [subcommands.stash.subcommands.store]
 options = ["-m=", "--message=", "-q", "--quiet"]
 [subcommands.stash.subcommands.export]
-options = ["--print", "--to-ref="]
+options = ["--print", "--to-ref=", "--no-to-ref"]
 [subcommands.stash.subcommands.import]
 
 [subcommands.status]
@@ -577,6 +578,7 @@ options = ["-a", "--all", "--verbose", "-c", "--config", "-g", "--guides", "-i",
 
 [subcommands.instaweb]
 [subcommands.last-modified]
+options = ["-r", "--recursive", "--no-recursive", "-t", "--show-trees", "--no-show-trees"]
 [subcommands.merge-tree]
 
 [subcommands.pack-refs]
@@ -599,11 +601,14 @@ options = ["--all", "--single-worktree"]
 
 [subcommands.refs]
 [subcommands.refs.subcommands.migrate]
-options = ["--ref-format=", "--dry-run", "--no-reflog"]
+options = ["--ref-format=", "--dry-run", "--no-reflog", "--no-dry-run", "--reflog"]
 [subcommands.refs.subcommands.verify]
-options = ["--strict", "--verbose"]
+options = ["--strict", "--verbose", "--no-verbose", "--no-strict"]
 [subcommands.refs.subcommands.list]
+options = ["-s", "--shell", "--no-shell", "-p", "--perl", "--no-perl", "--python", "--no-python", "--tcl", "--no-tcl", "--omit-empty", "--no-omit-empty", "--count=", "--no-count", "--format=", "--no-format", "--start-after=", "--no-start-after", "--color=?", "--no-color", "--exclude=", "--no-exclude", "--sort=", "--no-sort", "--points-at=", "--no-points-at", "--merged=", "--no-merged=", "--contains=", "--no-contains=", "--ignore-case", "--no-ignore-case", "--stdin", "--no-stdin", "--include-root-refs", "--no-include-root-refs"]
 [subcommands.refs.subcommands.exists]
+[subcommands.refs.subcommands.optimize]
+options = ["--all", "--no-all", "--prune", "--no-prune", "--auto", "--no-auto", "--include=", "--no-include", "--exclude=", "--no-exclude"]
 
 [subcommands.remote]
 complete = true
@@ -634,6 +639,10 @@ options = ["-a", "-A", "-d", "--cruft", "-l", "-f", "-F", "-q", "--quiet", "-n",
 
 [subcommands.replace]
 [subcommands.repo]
+[subcommands.repo.subcommands.info]
+options = ["--format=", "-z", "--all", "--no-all"]
+[subcommands.repo.subcommands.structure]
+options = ["--format=", "-z", "--progress", "--no-progress"]
 
 [subcommands.rerere]
 complete = true
@@ -667,120 +676,168 @@ options = ["--build-options"]
 # Plumbing commands.
 
 [subcommands.apply]
-options = ["--stat", "--numstat", "--summary", "--check", "--index", "--intent-to-add", "--cached", "-3", "--3way", "--ours", "--theirs", "--union", "--build-fake-ancestor=", "-R", "--reverse", "--reject", "-z", "-p=", "-C=", "--unidiff-zero", "--apply", "--no-add", "--allow-binary-replacement", "--binary", "--exclude=", "--include=", "--ignore-space-change", "--ignore-whitespace", "--whitespace=", "--inaccurate-eof", "-v", "--verbose", "-q", "--quiet", "--recount", "--directory=", "--unsafe-paths", "--allow-empty"]
+options = ["--stat", "--numstat", "--summary", "--check", "--index", "--intent-to-add", "--cached", "-3", "--3way", "--ours", "--theirs", "--union", "--build-fake-ancestor=", "-R", "--reverse", "--reject", "-z", "-p=", "-C=", "--unidiff-zero", "--apply", "--no-add", "--allow-binary-replacement", "--binary", "--exclude=", "--include=", "--ignore-space-change", "--ignore-whitespace", "--whitespace=", "--inaccurate-eof", "-v", "--verbose", "-q", "--quiet", "--recount", "--directory=", "--unsafe-paths", "--allow-empty", "--add", "--no-stat", "--no-numstat", "--no-summary", "--no-check", "--no-index", "-N", "--no-intent-to-add", "--no-cached", "--no-unsafe-paths", "--no-apply", "--no-3way", "--no-build-fake-ancestor", "--no-whitespace", "--no-ignore-space-change", "--no-ignore-whitespace", "--no-reverse", "--no-unidiff-zero", "--no-reject", "--allow-overlap", "--no-allow-overlap", "--no-verbose", "--no-quiet", "--no-inaccurate-eof", "--no-recount", "--no-directory", "--no-allow-empty"]
 
 [subcommands.cat-file]
-options = ["-t", "-s", "-e", "-p", "--mailmap", "--no-mailmap", "--use-mailmap", "--no-use-mailmap", "--textconv", "--filters", "--path=", "--batch=?", "--batch-check=?", "--batch-command=?", "--batch-all-objects", "--buffer", "--unordered", "--allow-unknown-type", "--follow-symlinks", "-Z", "-z", "--filter=", "--no-filter"]
+options = ["-t", "-s", "-e", "-p", "--mailmap", "--no-mailmap", "--use-mailmap", "--no-use-mailmap", "--textconv", "--filters", "--path=", "--batch=?", "--batch-check=?", "--batch-command=?", "--batch-all-objects", "--buffer", "--unordered", "--follow-symlinks", "-Z", "-z", "--filter=", "--no-filter", "--no-buffer", "--no-follow-symlinks", "--no-unordered", "--no-path"]
 
 [subcommands.check-attr]
+options = ["-a", "--all", "--no-all", "--cached", "--no-cached", "--stdin", "--no-stdin", "-z", "--source=", "--no-source"]
 [subcommands.check-ignore]
-options = ["-q", "--quiet", "-v", "--verbose", "--stdin", "-z", "-n", "--non-matching", "--no-index"]
+options = ["-q", "--quiet", "-v", "--verbose", "--stdin", "-z", "-n", "--non-matching", "--no-index", "--no-quiet", "--no-verbose", "--no-stdin", "--no-non-matching", "--index"]
 [subcommands.check-mailmap]
+options = ["--stdin", "--no-stdin", "--mailmap-file=", "--no-mailmap-file", "--mailmap-blob=", "--no-mailmap-blob"]
 [subcommands.check-ref-format]
+options = ["--normalize", "--branch=", "--allow-onelevel", "--no-allow-onelevel", "--refspec-pattern"]
 [subcommands.checkout-index]
+options = ["-a", "--all", "--no-all", "--ignore-skip-worktree-bits", "--no-ignore-skip-worktree-bits", "-f", "--force", "--no-force", "-q", "--quiet", "--no-quiet", "-n", "--no-create", "--create", "-u", "--index", "--no-index", "-z", "--stdin", "--no-stdin", "--temp", "--no-temp", "--prefix=", "--no-prefix", "--stage="]
 [subcommands.cherry]
-options = ["-v", "--abbrev=?"]
+options = ["-v", "--abbrev=?", "--no-abbrev", "--verbose", "--no-verbose"]
 [subcommands.column]
+options = ["--command=", "--no-command", "--mode=?", "--no-mode", "--raw-mode=", "--width=", "--no-width", "--indent=", "--no-indent", "--nl=", "--no-nl", "--padding=", "--no-padding"]
 [subcommands.commit-graph]
+options = ["--object-dir=", "--no-object-dir"]
+[subcommands.commit-graph.subcommands.verify]
+options = ["--object-dir=", "--no-object-dir", "--shallow", "--no-shallow", "--progress", "--no-progress"]
+[subcommands.commit-graph.subcommands.write]
+options = ["--object-dir=", "--no-object-dir", "--reachable", "--no-reachable", "--stdin-packs", "--no-stdin-packs", "--stdin-commits", "--no-stdin-commits", "--append", "--no-append", "--changed-paths", "--no-changed-paths", "--split=?", "--max-commits=", "--no-max-commits", "--size-multiple=", "--no-size-multiple", "--expire-time=", "--no-expire-time", "--max-new-filters=", "--no-max-new-filters", "--progress", "--no-progress"]
 [subcommands.commit-tree]
+options = ["-p=", "-m=", "-F=", "-S=?", "--gpg-sign=?", "--no-gpg-sign"]
 [subcommands.credential]
+[subcommands.credential.subcommands.approve]
+[subcommands.credential.subcommands.capability]
+[subcommands.credential.subcommands.fill]
+[subcommands.credential.subcommands.reject]
 [subcommands.credential-cache]
+options = ["--timeout=", "--no-timeout", "--socket=", "--no-socket"]
 [subcommands.credential-store]
+options = ["--file=", "--no-file"]
 [subcommands.daemon]
+options = ["--verbose", "--syslog", "--export-all", "--timeout=", "--init-timeout=", "--max-connections=", "--strict-paths", "--base-path=", "--base-path-relaxed", "--user-path=?", "--interpolated-path=", "--reuseaddr", "--pid-file=", "--enable=", "--disable=", "--allow-override=", "--forbid-override=", "--access-hook=", "--inetd", "--listen=", "--port=", "--detach", "--user=", "--group=", "--log-destination=", "--informative-errors", "--no-informative-errors"]
 [subcommands.diff-files]
+options = ["-z", "-p", "-u", "--patch-with-raw", "--stat=?", "--numstat", "--patch-with-stat", "--name-only", "--name-status", "--full-index", "--abbrev=?", "-R", "-B=?", "-M=?", "-C=?", "--find-copies-harder", "-l=", "-O=", "-S=", "--pickaxe-all", "-a", "--text", "-q", "-0", "-1", "-2", "-3", "-c", "--cc", "--patch", "-s", "--no-patch", "-U=?", "--unified=?", "--output=", "--output-indicator-new=", "--output-indicator-old=", "--output-indicator-context=", "--raw", "--indent-heuristic", "--no-indent-heuristic", "--minimal", "--patience", "--histogram", "--anchored=", "--diff-algorithm=", "--compact-summary", "--shortstat", "-X=?", "--dirstat=?", "--cumulative", "--dirstat-by-file=?", "--summary", "--submodule=?", "--color=?", "--no-color", "--color-moved=?", "--no-color-moved", "--color-moved-ws=", "--no-color-moved-ws", "--word-diff=?", "--word-diff-regex=", "--color-words=?", "--no-renames", "--rename-empty", "--no-rename-empty", "--check", "--ws-error-highlight=", "--binary", "--break-rewrites=?", "--find-renames=?", "--find-copies=?", "-D", "--irreversible-delete", "--diff-filter=", "-G=", "--find-object=", "--pickaxe-regex", "--skip-to=", "--rotate-to=", "--relative=?", "--no-relative", "--ignore-cr-at-eol", "--ignore-space-at-eol", "-b", "--ignore-space-change", "-w", "--ignore-all-space", "--ignore-blank-lines", "-I=", "--ignore-matching-lines=", "--inter-hunk-context=", "-W", "--function-context", "--exit-code", "--quiet", "--ext-diff", "--no-ext-diff", "--textconv", "--no-textconv", "--ignore-submodules=?", "--src-prefix=", "--dst-prefix=", "--no-prefix", "--default-prefix", "--line-prefix=", "--ita-invisible-in-index", "--max-depth=", "--base", "--ours", "--theirs", "--stat-width=", "--stat-name-width=", "--stat-count=", "--stat-graph-width=", "--ita-visible-in-index", "--combined-all-paths"]
 [subcommands.diff-index]
+options = ["-z", "-p", "-u", "--patch-with-raw", "--stat=?", "--numstat", "--patch-with-stat", "--name-only", "--name-status", "--full-index", "--abbrev=?", "-R", "-B=?", "-M=?", "-C=?", "--find-copies-harder", "-l=", "-O=", "-S=", "--pickaxe-all", "-a", "--text", "-m", "--cached", "--merge-base", "--patch", "-s", "--no-patch", "-U=?", "--unified=?", "--output=", "--output-indicator-new=", "--output-indicator-old=", "--output-indicator-context=", "--raw", "--indent-heuristic", "--no-indent-heuristic", "--minimal", "--patience", "--histogram", "--anchored=", "--diff-algorithm=", "--compact-summary", "--shortstat", "-X=?", "--dirstat=?", "--cumulative", "--dirstat-by-file=?", "--summary", "--submodule=?", "--color=?", "--no-color", "--color-moved=?", "--no-color-moved", "--color-moved-ws=", "--no-color-moved-ws", "--word-diff=?", "--word-diff-regex=", "--color-words=?", "--no-renames", "--rename-empty", "--no-rename-empty", "--check", "--ws-error-highlight=", "--binary", "--break-rewrites=?", "--find-renames=?", "--find-copies=?", "-D", "--irreversible-delete", "--diff-filter=", "-G=", "--find-object=", "--pickaxe-regex", "--skip-to=", "--rotate-to=", "--relative=?", "--no-relative", "--ignore-cr-at-eol", "--ignore-space-at-eol", "-b", "--ignore-space-change", "-w", "--ignore-all-space", "--ignore-blank-lines", "-I=", "--ignore-matching-lines=", "--inter-hunk-context=", "-W", "--function-context", "--exit-code", "--quiet", "--ext-diff", "--no-ext-diff", "--textconv", "--no-textconv", "--ignore-submodules=?", "--src-prefix=", "--dst-prefix=", "--no-prefix", "--default-prefix", "--line-prefix=", "--ita-invisible-in-index", "--max-depth=", "--stat-width=", "--stat-name-width=", "--stat-count=", "--stat-graph-width=", "--ita-visible-in-index"]
+[subcommands.diff-pairs]
+options = ["-p", "--patch", "-s", "--no-patch", "-u", "-U=?", "--unified=?", "-W", "--function-context", "--no-function-context", "--raw", "--patch-with-raw", "--patch-with-stat", "--numstat", "--shortstat", "-X=?", "--dirstat=?", "--cumulative", "--dirstat-by-file=?", "--check", "--summary", "--name-only", "--name-status", "--stat=?", "--stat-width=", "--stat-name-width=", "--stat-graph-width=", "--stat-count=", "--compact-summary", "--no-compact-summary", "--binary", "--full-index", "--no-full-index", "--color=?", "--no-color", "--ws-error-highlight=", "-z", "--abbrev=?", "--no-abbrev", "--src-prefix=", "--dst-prefix=", "--line-prefix=", "--no-prefix", "--default-prefix", "--inter-hunk-context=", "--output-indicator-new=", "--output-indicator-old=", "--output-indicator-context=", "-B=?", "--break-rewrites=?", "-M=?", "--find-renames=?", "-D", "--irreversible-delete", "-C=?", "--find-copies=?", "--find-copies-harder", "--no-find-copies-harder", "--no-renames", "--rename-empty", "--no-rename-empty", "--follow", "--no-follow", "-l=", "--minimal", "-w", "--ignore-all-space", "-b", "--ignore-space-change", "--ignore-space-at-eol", "--ignore-cr-at-eol", "--ignore-blank-lines", "-I=", "--ignore-matching-lines=", "--no-ignore-matching-lines", "--indent-heuristic", "--no-indent-heuristic", "--patience", "--histogram", "--diff-algorithm=", "--anchored=", "--word-diff=?", "--word-diff-regex=", "--color-words=?", "--color-moved=?", "--no-color-moved", "--color-moved-ws=", "--no-color-moved-ws", "--relative=?", "--no-relative", "-a", "--text", "--no-text", "-R", "--exit-code", "--no-exit-code", "--quiet", "--no-quiet", "--ext-diff", "--no-ext-diff", "--textconv", "--no-textconv", "--ignore-submodules=?", "--submodule=?", "--ita-invisible-in-index", "--ita-visible-in-index", "-S=", "-G=", "--pickaxe-all", "--pickaxe-regex", "-O=", "--rotate-to=", "--skip-to=", "--find-object=", "--diff-filter=", "--max-depth=", "--output="]
 [subcommands.diff-tree]
+options = ["-r", "-c", "--cc", "--combined-all-paths", "--root", "-z", "-p", "-u", "--patch-with-raw", "--stat=?", "--numstat", "--patch-with-stat", "--name-only", "--name-status", "--full-index", "--abbrev=?", "-R", "-B=?", "-M=?", "-C=?", "--find-copies-harder", "-l=", "-O=", "-S=", "--pickaxe-all", "-a", "--text", "--stdin", "-m", "-s", "-v", "--no-commit-id", "--pretty=?", "-t", "--merge-base", "--patch", "--no-patch", "-U=?", "--unified=?", "--output=", "--output-indicator-new=", "--output-indicator-old=", "--output-indicator-context=", "--raw", "--indent-heuristic", "--no-indent-heuristic", "--minimal", "--patience", "--histogram", "--anchored=", "--diff-algorithm=", "--compact-summary", "--shortstat", "-X=?", "--dirstat=?", "--cumulative", "--dirstat-by-file=?", "--summary", "--submodule=?", "--color=?", "--no-color", "--color-moved=?", "--no-color-moved", "--color-moved-ws=", "--no-color-moved-ws", "--word-diff=?", "--word-diff-regex=", "--color-words=?", "--no-renames", "--rename-empty", "--no-rename-empty", "--check", "--ws-error-highlight=", "--binary", "--break-rewrites=?", "--find-renames=?", "--find-copies=?", "-D", "--irreversible-delete", "--diff-filter=", "-G=", "--find-object=", "--pickaxe-regex", "--skip-to=", "--rotate-to=", "--relative=?", "--no-relative", "--ignore-cr-at-eol", "--ignore-space-at-eol", "-b", "--ignore-space-change", "-w", "--ignore-all-space", "--ignore-blank-lines", "-I=", "--ignore-matching-lines=", "--inter-hunk-context=", "-W", "--function-context", "--exit-code", "--quiet", "--ext-diff", "--no-ext-diff", "--textconv", "--no-textconv", "--ignore-submodules=?", "--src-prefix=", "--dst-prefix=", "--no-prefix", "--default-prefix", "--line-prefix=", "--ita-invisible-in-index", "--max-depth=", "--format=", "--abbrev-commit", "--no-abbrev-commit", "--oneline", "--encoding=", "--expand-tabs=?", "--no-expand-tabs", "--notes=?", "--no-notes", "--show-notes-by-default", "--show-notes=?", "--standard-notes", "--no-standard-notes", "--show-signature", "--always", "--stat-width=", "--stat-name-width=", "--stat-count=", "--stat-graph-width=", "--ita-visible-in-index"]
 [subcommands.fetch-pack]
+options = ["--all", "--stdin", "--quiet", "-q", "--keep", "-k", "--thin", "--include-tag", "--upload-pack=", "--depth=", "--no-progress", "--diag-url", "-v", "--exec=", "--shallow-since=", "--shallow-exclude=", "--deepen-relative", "--refetch", "--check-self-contained-and-connected", "--stateless-rpc"]
 [subcommands.fmt-merge-msg]
+options = ["--log=?", "--no-log", "-m=", "--message=", "--no-message", "--into-name=", "--no-into-name", "-F=", "--file=", "--no-file", "--summary", "--no-summary"]
 
 [subcommands.for-each-ref]
-options = ["--count=", "--sort=", "--format=", "--color=?", "--shell", "--perl", "--python", "--tcl", "--points-at=", "--merged=?", "--no-merged=?", "--contains=?", "--no-contains=?", "--ignore-case", "--omit-empty", "--exclude=", "--include-root-refs", "--stdin"]
+options = ["--count=", "--sort=", "--format=", "--color=?", "--shell", "--perl", "--python", "--tcl", "--points-at=", "--merged=", "--no-merged=", "--contains=", "--no-contains=", "--ignore-case", "--omit-empty", "--exclude=", "--include-root-refs", "--stdin", "-s", "--no-shell", "-p", "--no-perl", "--no-python", "--no-tcl", "--no-omit-empty", "--no-count", "--no-format", "--start-after=", "--no-start-after", "--no-color", "--no-exclude", "--no-sort", "--no-points-at", "--no-ignore-case", "--no-stdin", "--no-include-root-refs"]
 
 [subcommands.for-each-repo]
+options = ["--config=", "--no-config", "--keep-going", "--no-keep-going"]
 [subcommands.get-tar-commit-id]
 
 [subcommands.hash-object]
-options = ["-t=", "-w", "--stdin", "--stdin-paths", "--path=", "--no-filters", "--literally"]
+options = ["-t=", "-w", "--stdin", "--stdin-paths", "--path=", "--no-filters", "--literally", "--no-stdin", "--no-stdin-paths", "--filters", "--no-literally", "--no-path"]
 
 [subcommands.hook]
 [subcommands.hook.subcommands.run]
-options = ["--ignore-missing", "--to-stdin="]
+options = ["--ignore-missing", "--to-stdin=", "--no-ignore-missing", "--no-to-stdin"]
 
 [subcommands.http-backend]
 [subcommands.index-pack]
+options = ["-v", "-o=", "--keep=?", "--rev-index", "--no-rev-index", "--verify", "--strict=?", "--fsck-objects=?", "--stdin", "--fix-thin", "--index-version=", "--progress-title", "--check-self-contained-and-connected", "--threads=", "--max-input-size=", "--object-format=", "--promisor=?"]
 [subcommands.interpret-trailers]
+options = ["--in-place", "--no-in-place", "--trim-empty", "--no-trim-empty", "--where=", "--no-where", "--if-exists=", "--no-if-exists", "--if-missing=", "--no-if-missing", "--only-trailers", "--no-only-trailers", "--only-input", "--no-only-input", "--unfold", "--no-unfold", "--parse", "--no-divider", "--divider", "--trailer=", "--no-trailer"]
 [subcommands.ls-files]
-options = ["-c", "--cached", "-d", "--deleted", "-m", "--modified", "-o", "--others", "-i", "--ignored", "-s", "--stage", "--directory", "--no-empty-directory", "-u", "--unmerged", "-k", "--killed", "-z", "-x=", "--exclude=", "-X=", "--exclude-from=", "--exclude-per-directory=", "--exclude-standard", "--error-unmatch", "--with-tree=", "-t", "-v", "-f", "--full-name", "--recurse-submodules", "--abbrev=?", "--debug", "--eol", "--deduplicate", "--sparse", "--format="]
+options = ["-c", "--cached", "-d", "--deleted", "-m", "--modified", "-o", "--others", "-i", "--ignored", "-s", "--stage", "--directory", "--no-empty-directory", "-u", "--unmerged", "-k", "--killed", "-z", "-x=", "--exclude=", "-X=", "--exclude-from=", "--exclude-per-directory=", "--exclude-standard", "--error-unmatch", "--with-tree=", "-t", "-v", "-f", "--full-name", "--recurse-submodules", "--abbrev=?", "--debug", "--eol", "--deduplicate", "--sparse", "--format=", "--no-cached", "--no-deleted", "--no-modified", "--no-others", "--no-ignored", "--no-stage", "--no-killed", "--no-directory", "--no-eol", "--empty-directory", "--no-unmerged", "--resolve-undo", "--no-resolve-undo", "--no-exclude-per-directory", "--no-recurse-submodules", "--no-error-unmatch", "--no-with-tree", "--no-abbrev", "--no-debug", "--no-deduplicate", "--no-sparse"]
 
 [subcommands.ls-remote]
-options = ["-h", "--heads", "-b", "--branches", "-t", "--tags", "--refs", "-q", "--quiet", "--upload-pack=", "--exit-code", "--get-url", "--symref", "--sort=", "-o=", "--server-option="]
+options = ["--heads", "-b", "--branches", "-t", "--tags", "--refs", "-q", "--quiet", "--upload-pack=", "--exit-code", "--get-url", "--symref", "--sort=", "-o=", "--server-option=", "--no-quiet", "--no-upload-pack", "--no-tags", "--no-branches", "--no-refs", "--no-get-url", "--no-sort", "--no-exit-code", "--no-symref", "--no-server-option"]
 
 [subcommands.ls-tree]
-options = ["-d", "-r", "-t", "-l", "--long", "-z", "--name-only", "--name-status", "--object-only", "--full-name", "--full-tree", "--abbrev=?", "--format="]
+options = ["-d", "-r", "-t", "-l", "--long", "-z", "--name-only", "--name-status", "--object-only", "--full-name", "--full-tree", "--abbrev=?", "--format=", "--no-full-name", "--no-full-tree", "--no-abbrev"]
 
 [subcommands.mailinfo]
+options = ["-k", "-b", "-m", "--message-id", "--no-message-id", "-u", "-n", "--encoding=", "--scissors", "--no-scissors", "--quoted-cr="]
 [subcommands.mailsplit]
+options = ["-d=", "-f=", "-b", "--keep-cr", "-o=", "--mboxrd"]
 
 [subcommands.merge-base]
-options = ["-a", "--all", "--octopus", "--independent", "--is-ancestor", "--fork-point"]
+options = ["-a", "--all", "--octopus", "--independent", "--is-ancestor", "--fork-point", "--no-all"]
 
 [subcommands.merge-file]
+options = ["-p", "--stdout", "--no-stdout", "--object-id", "--no-object-id", "--diff3", "--no-diff3", "--zdiff3", "--no-zdiff3", "--ours", "--no-ours", "--theirs", "--no-theirs", "--union", "--no-union", "--diff-algorithm=", "--marker-size=", "--no-marker-size", "-q", "--quiet", "--no-quiet", "-L="]
 [subcommands.merge-index]
+options = ["-o", "-q", "-a"]
 [subcommands.merge-one-file]
 [subcommands.mktag]
+options = ["--strict", "--no-strict"]
 [subcommands.mktree]
+options = ["-z", "--missing", "--no-missing", "--batch", "--no-batch"]
 [subcommands.multi-pack-index]
+options = ["--object-dir=", "--no-object-dir"]
+[subcommands.multi-pack-index.subcommands.expire]
+options = ["--object-dir=", "--no-object-dir", "--progress", "--no-progress"]
+[subcommands.multi-pack-index.subcommands.repack]
+options = ["--object-dir=", "--no-object-dir", "--batch-size=", "--progress", "--no-progress"]
+[subcommands.multi-pack-index.subcommands.verify]
+options = ["--object-dir=", "--no-object-dir", "--progress", "--no-progress"]
+[subcommands.multi-pack-index.subcommands.write]
+options = ["--object-dir=", "--no-object-dir", "--preferred-pack=", "--no-preferred-pack", "--bitmap", "--no-bitmap", "--progress", "--no-progress", "--incremental", "--no-incremental", "--stdin-packs", "--no-stdin-packs", "--refs-snapshot=", "--no-refs-snapshot"]
 
 [subcommands.name-rev]
-options = ["--tags", "--refs=", "--exclude=", "--all", "--annotate-stdin", "--name-only", "--no-undefined", "--always"]
+options = ["--tags", "--refs=", "--exclude=", "--all", "--annotate-stdin", "--name-only", "--no-undefined", "--always", "--no-name-only", "--no-tags", "--no-refs", "--no-exclude", "--no-all", "--no-annotate-stdin", "--undefined", "--no-always"]
 
 [subcommands.pack-objects]
+options = ["-q", "--quiet", "--no-quiet", "--progress", "--no-progress", "--all-progress", "--no-all-progress", "--all-progress-implied", "--no-all-progress-implied", "--index-version=", "--max-pack-size=", "--local", "--no-local", "--incremental", "--no-incremental", "--window=", "--no-window", "--window-memory=", "--depth=", "--no-depth", "--reuse-delta", "--no-reuse-delta", "--reuse-object", "--no-reuse-object", "--delta-base-offset", "--no-delta-base-offset", "--threads=", "--no-threads", "--non-empty", "--no-non-empty", "--revs", "--no-revs", "--unpacked", "--all", "--reflog", "--indexed-objects", "--stdin-packs=?", "--no-stdin-packs", "--stdout", "--no-stdout", "--include-tag", "--no-include-tag", "--keep-unreachable", "--no-keep-unreachable", "--pack-loose-unreachable", "--no-pack-loose-unreachable", "--unpack-unreachable=?", "--no-unpack-unreachable", "--cruft", "--no-cruft", "--cruft-expiration=?", "--no-cruft-expiration", "--sparse", "--no-sparse", "--thin", "--no-thin", "--path-walk", "--no-path-walk", "--shallow", "--no-shallow", "--honor-pack-keep", "--no-honor-pack-keep", "--keep-pack=", "--no-keep-pack", "--compression=", "--no-compression", "--keep-true-parents", "--no-keep-true-parents", "--use-bitmap-index", "--no-use-bitmap-index", "--write-bitmap-index", "--no-write-bitmap-index", "--filter=", "--no-filter", "--missing=", "--exclude-promisor-objects", "--no-exclude-promisor-objects", "--exclude-promisor-objects-best-effort", "--no-exclude-promisor-objects-best-effort", "--delta-islands", "--no-delta-islands", "--uri-protocol=", "--no-uri-protocol", "--name-hash-version=", "--no-name-hash-version"]
 [subcommands.pack-redundant]
+options = ["--verbose", "--alt-odb", "--all", "--i-still-use-this"]
 [subcommands.patch-id]
+options = ["--unstable", "--stable", "--verbatim"]
 [subcommands.prune-packed]
+options = ["-n", "--dry-run", "--no-dry-run", "-q", "--quiet", "--no-quiet"]
 [subcommands.read-tree]
+options = ["--index-output=", "--empty", "--no-empty", "-v", "--verbose", "--no-verbose", "-m", "--trivial", "--no-trivial", "--aggressive", "--no-aggressive", "--reset", "--no-reset", "--prefix=", "-u", "--exclude-per-directory=", "-i", "-n", "--dry-run", "--no-dry-run", "--no-sparse-checkout", "--sparse-checkout", "--debug-unpack", "--no-debug-unpack", "--recurse-submodules=?", "--no-recurse-submodules", "-q", "--quiet", "--no-quiet"]
 [subcommands.receive-pack]
+options = ["-q", "--quiet", "--no-quiet", "--skip-connectivity-check", "--http-backend-info-refs"]
 
 [subcommands.rev-list]
-options = ["--max-count=", "-n=", "--skip=", "--since=", "--after=", "--until=", "--before=", "--author=", "--committer=", "--grep=", "--merges", "--no-merges", "--first-parent", "--not", "--all", "--branches=?", "--tags=?", "--remotes=?", "--glob=", "--exclude=", "--reflog", "--stdin", "--left-right", "--left-only", "--right-only", "--cherry-pick", "--cherry-mark", "--count", "--objects", "--objects-edge", "--no-object-names", "--topo-order", "--date-order", "--reverse", "--boundary", "--parents", "--children", "--timestamp", "--header", "--pretty=?", "--format=", "--abbrev-commit", "--ancestry-path=?", "--bisect", "--filter=", "--missing=", "--disk-usage=?", "--quiet"]
+options = ["--max-count=", "-n=", "--skip=", "--since=", "--after=", "--until=", "--before=", "--author=", "--committer=", "--grep=", "--merges", "--no-merges", "--first-parent", "--not", "--all", "--branches=?", "--tags=?", "--remotes=?", "--glob=", "--exclude=", "--reflog", "--stdin", "--left-right", "--left-only", "--right-only", "--cherry-pick", "--cherry-mark", "--count", "--objects", "--objects-edge", "--no-object-names", "--topo-order", "--date-order", "--reverse", "--boundary", "--parents", "--children", "--timestamp", "--header", "--pretty=?", "--format=", "--abbrev-commit", "--ancestry-path=?", "--bisect", "--filter=", "--missing=", "--disk-usage=?", "--quiet", "--max-age=", "--min-age=", "--sparse", "--min-parents=", "--no-min-parents", "--max-parents=", "--no-max-parents", "--remove-empty", "--exclude-hidden=", "--unpacked", "--object-names", "--abbrev=", "--no-abbrev", "-z", "--bisect-vars", "--bisect-all", "-0", "-1", "-2", "-3", "-4", "-5", "-6", "-7", "-8", "-9", "--since-as-filter=", "--grep-reflog=", "--all-match", "--invert-grep", "-i", "--regexp-ignore-case", "--basic-regexp", "-E", "--extended-regexp", "-F", "--fixed-strings", "-P", "--perl-regexp", "--exclude-first-parent-only", "--alternate-refs", "--single-worktree", "--ignore-missing", "--cherry", "-g", "--walk-reflogs", "--merge", "--use-bitmap-index", "--progress=", "--simplify-by-decoration", "--show-pulls", "--full-history", "--dense", "--simplify-merges", "--author-date-order", "--in-commit-order", "--objects-edge-aggressive", "--indexed-objects", "--no-filter", "--filter-provided-objects", "--filter-print-omitted", "--exclude-promisor-objects", "--no-walk=?", "--do-walk", "--no-abbrev-commit", "--oneline", "--encoding=", "--expand-tabs=?", "--no-expand-tabs", "--show-signature", "--relative-date", "--date=", "--no-commit-header", "--commit-header", "--graph", "--show-linear-break=?"]
 
 [subcommands.rev-parse]
-options = [
-  "--parseopt", "--sq-quote", "--keep-dashdash", "--stop-at-non-option", "--stuck-long",
-  "--revs-only", "--no-revs", "--flags", "--no-flags", "--default=", "--prefix=", "--verify",
-  "-q", "--quiet", "--sq", "--short=?", "--not", "--abbrev-ref=?", "--symbolic",
-  "--symbolic-full-name", "--output-object-format=", "--all", "--branches=?", "--tags=?",
-  "--remotes=?", "--glob=", "--exclude=", "--disambiguate=", "--local-env-vars", "--path-format=",
-  "--git-dir", "--git-common-dir", "--resolve-git-dir=", "--git-path=", "--show-toplevel",
-  "--show-superproject-working-tree", "--shared-index-path", "--absolute-git-dir",
-  "--is-inside-git-dir", "--is-inside-work-tree", "--is-bare-repository",
-  "--is-shallow-repository", "--show-cdup", "--show-prefix", "--show-object-format=?",
-  "--show-ref-format", "--since=", "--after=", "--until=", "--before=",
-]
+options = ["--parseopt", "--sq-quote", "--keep-dashdash", "--stop-at-non-option", "--stuck-long", "--revs-only", "--no-revs", "--flags", "--no-flags", "--default=", "--prefix=", "--verify", "-q", "--quiet", "--sq", "--short=?", "--not", "--abbrev-ref=?", "--symbolic", "--symbolic-full-name", "--output-object-format=", "--all", "--branches=?", "--tags=?", "--remotes=?", "--glob=", "--exclude=", "--disambiguate=", "--local-env-vars", "--path-format=", "--git-dir", "--git-common-dir", "--resolve-git-dir=", "--git-path=", "--show-toplevel", "--show-superproject-working-tree", "--shared-index-path", "--absolute-git-dir", "--is-inside-git-dir", "--is-inside-work-tree", "--is-bare-repository", "--is-shallow-repository", "--show-cdup", "--show-prefix", "--show-object-format=?", "--show-ref-format", "--since=", "--after=", "--until=", "--before=", "--exclude-hidden="]
 
 [subcommands.send-pack]
+options = ["-v", "--verbose", "--no-verbose", "-q", "--quiet", "--no-quiet", "--receive-pack=", "--no-receive-pack", "--exec=", "--no-exec", "--remote=", "--no-remote", "--all", "--no-all", "-n", "--dry-run", "--no-dry-run", "--mirror", "--no-mirror", "-f", "--force", "--no-force", "--signed=?", "--no-signed", "--push-option=", "--no-push-option", "--progress", "--no-progress", "--thin", "--no-thin", "--atomic", "--no-atomic", "--stateless-rpc", "--no-stateless-rpc", "--stdin", "--no-stdin", "--helper-status", "--no-helper-status", "--force-with-lease=?", "--no-force-with-lease", "--force-if-includes", "--no-force-if-includes"]
 [subcommands.sh-i18n]
 [subcommands.sh-setup]
 [subcommands.shell]
 [subcommands.show-index]
+options = ["--object-format=", "--no-object-format"]
 
 [subcommands.show-ref]
-options = ["--head", "--branches", "--heads", "--tags", "-d", "--dereference", "-s", "--hash=?", "--verify", "--exists", "--abbrev=?", "-q", "--quiet", "--exclude-existing=?"]
+options = ["--head", "--branches", "--heads", "--tags", "-d", "--dereference", "-s=?", "--hash=?", "--verify", "--exists", "--abbrev=?", "-q", "--quiet", "--exclude-existing=?", "--no-tags", "--no-branches", "--no-exists", "--no-verify", "--no-head", "--no-dereference", "--no-hash", "--no-abbrev", "--no-quiet"]
 
 [subcommands.stripspace]
+options = ["-s", "--strip-comments", "-c", "--comment-lines"]
 [subcommands.symbolic-ref]
-options = ["-d", "--delete", "-q", "--quiet", "--short", "--recurse", "--no-recurse", "-m="]
+options = ["-d", "--delete", "-q", "--quiet", "--short", "--recurse", "--no-recurse", "-m=", "--no-quiet", "--no-delete", "--no-short"]
 [subcommands.unpack-file]
 [subcommands.unpack-objects]
+options = ["-n", "-q", "-r", "--strict", "--max-input-size="]
 [subcommands.update-index]
+options = ["-q", "--ignore-submodules", "--no-ignore-submodules", "--add", "--no-add", "--replace", "--no-replace", "--remove", "--no-remove", "--unmerged", "--no-unmerged", "--refresh", "--really-refresh", "--cacheinfo=", "--chmod=", "--assume-unchanged", "--no-assume-unchanged", "--skip-worktree", "--no-skip-worktree", "--ignore-skip-worktree-entries", "--no-ignore-skip-worktree-entries", "--info-only", "--no-info-only", "--force-remove", "--no-force-remove", "-z", "--stdin", "--index-info", "--unresolve", "-g", "--again", "--ignore-missing", "--no-ignore-missing", "--verbose", "--no-verbose", "--clear-resolve-undo", "--index-version=", "--no-index-version", "--show-index-version", "--no-show-index-version", "--split-index", "--no-split-index", "--untracked-cache", "--no-untracked-cache", "--test-untracked-cache", "--no-test-untracked-cache", "--force-untracked-cache", "--no-force-untracked-cache", "--force-write-index", "--no-force-write-index", "--fsmonitor", "--no-fsmonitor", "--fsmonitor-valid", "--no-fsmonitor-valid"]
 [subcommands.update-ref]
-options = ["-m=", "--no-deref", "-d", "--stdin", "-z", "--create-reflog", "--batch-updates"]
+options = ["-m=", "--no-deref", "-d", "--stdin", "-z", "--create-reflog", "--batch-updates", "--deref", "--no-stdin", "--no-create-reflog", "-0", "--no-batch-updates"]
 [subcommands.update-server-info]
+options = ["-f", "--force", "--no-force"]
 [subcommands.upload-archive]
 [subcommands.upload-pack]
+options = ["--stateless-rpc", "--no-stateless-rpc", "--strict", "--no-strict", "--timeout=", "--no-timeout", "--advertise-refs", "--http-backend-info-refs"]
 [subcommands.var]
+options = ["-l"]
 [subcommands.verify-pack]
+options = ["-v", "--verbose", "--no-verbose", "-s", "--stat-only", "--no-stat-only", "--object-format=", "--no-object-format"]
 [subcommands.write-tree]
+options = ["--missing-ok", "--no-missing-ok", "--prefix=", "--no-prefix"]
 
 # Common external commands installed as `git-NAME`.
 

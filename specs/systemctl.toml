@@ -1,6 +1,9 @@
+# Verified against: systemd 259 (only `sleep` was compared; `enqueue-marked-jobs` was checked and does not exist).
 # systemctl(1). Complete: systemctl has no plugin mechanism, so an unknown verb is an error. The
 # list includes the compatibility verbs systemctl still accepts (`condrestart`, `force-reload`,
-# `check`, ...). Options are valid before and after the verb.
+# `check`, ...). Options are valid before and after the verb. `sleep` is new in systemd 256
+# (systemctl(1)). `enqueue-marked-jobs` is not a verb: systemd 259 rejects it as an unknown verb and
+# its manual page does not list it. Marked units are enqueued with `reload-or-restart --marked`.
 name = "systemctl"
 complete = true
 common-options = [
@@ -56,7 +59,6 @@ common-options = [
 [subcommands.service-log-target]
 [subcommands.reset-failed]
 [subcommands.whoami]
-[subcommands.enqueue-marked-jobs]
 
 # Unit file commands.
 [subcommands.list-unit-files]

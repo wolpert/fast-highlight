@@ -1,0 +1,71 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "tar --dir src --exclude-b -czf out.tgz ."
+cursor: 0
+  0..3 command "tar"
+  4..9 option "--dir"
+  10..13 path-directory "src"
+  14..25 option "--exclude-b"
+  26..30 option "-czf"
+  39..40 path-directory "."
+
+input: "tar --dir -x"
+cursor: 0
+  0..3 command "tar"
+  4..9 option "--dir"
+
+input: "tar --fil out.tgz -x"
+cursor: 0
+  0..3 command "tar"
+  18..20 option "-x"
+
+input: "tar --exclude-caches --exclude x -c"
+cursor: 0
+  0..3 command "tar"
+  4..20 option "--exclude-caches"
+  21..30 option "--exclude"
+  33..35 option "-c"
+
+input: "tar --strip=1 -xf out.tgz"
+cursor: 0
+  0..3 command "tar"
+  4..13 option "--strip=1"
+  14..17 option "-xf"
+
+input: "xargs --max-a 1 --nu rm --rec"
+cursor: 0
+  0..5 precommand "xargs"
+  6..13 option "--max-a"
+  16..20 option "--nu"
+  21..23 command "rm"
+  24..29 option "--rec"
+
+input: "xargs --ver rm"
+cursor: 0
+  0..5 precommand "xargs"
+  12..14 command "rm"
+
+input: "timeout --sig KILL 5 ls"
+cursor: 0
+  0..7 precommand "timeout"
+  8..13 option "--sig"
+  21..23 command "ls"
+
+input: "timeout --ver 5 ls"
+cursor: 0
+  0..7 precommand "timeout"
+  16..18 command "ls"
+
+input: "nice --adj 5 ls"
+cursor: 0
+  0..4 precommand "nice"
+  5..10 option "--adj"
+  13..15 command "ls"
+
+input: "env --defa ls"
+cursor: 0
+  0..3 precommand "env"
+  4..10 option "--defa"
+  11..13 command "ls"

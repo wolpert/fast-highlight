@@ -1,0 +1,85 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "pip --timeout 30 install -r requirements.txt --no-deps"
+cursor: 0
+  0..3 command "pip"
+  4..13 option "--timeout"
+  17..24 subcommand "install"
+  25..27 option "-r"
+  45..54 option "--no-deps"
+
+input: "pip3 --proxy http://proxy:3128 list --outdated"
+cursor: 0
+  0..4 command "pip3"
+  5..12 option "--proxy"
+  31..35 subcommand "list"
+  36..46 option "--outdated"
+
+input: "pip frobnicate"
+cursor: 0
+  0..3 command "pip"
+  4..14 error "frobnicate"
+
+input: "pip --python python3.12 -v show pytest"
+cursor: 0
+  0..3 command "pip"
+  4..12 option "--python"
+  24..26 option "-v"
+  27..31 subcommand "show"
+
+input: "uv --directory src run --with pytest pytest -x"
+cursor: 0
+  0..2 command "uv"
+  3..14 option "--directory"
+  15..18 path-directory "src"
+  19..22 subcommand "run"
+  23..29 option "--with"
+
+input: "uv --color never add --dev pytest"
+cursor: 0
+  0..2 command "uv"
+  3..10 option "--color"
+  17..20 subcommand "add"
+  21..26 option "--dev"
+
+input: "uv --project proj pip install -r requirements.txt"
+cursor: 0
+  0..2 command "uv"
+  3..12 option "--project"
+  18..21 subcommand "pip"
+  22..29 subcommand "install"
+  30..32 option "-r"
+
+input: "uv tool --directory src ls"
+cursor: 0
+  0..2 command "uv"
+  3..7 subcommand "tool"
+  8..19 option "--directory"
+  20..23 path-directory "src"
+  24..26 subcommand "ls"
+
+input: "uv pip ls"
+cursor: 0
+  0..2 command "uv"
+  3..6 subcommand "pip"
+  7..9 subcommand "ls"
+
+input: "uv pip frobnicate"
+cursor: 0
+  0..2 command "uv"
+  3..6 subcommand "pip"
+  7..17 error "frobnicate"
+
+input: "uv tool run --from ruff ruff check -x"
+cursor: 0
+  0..2 command "uv"
+  3..7 subcommand "tool"
+  8..11 subcommand "run"
+  12..18 option "--from"
+
+input: "uv frobnicate"
+cursor: 0
+  0..2 command "uv"
+  3..13 error "frobnicate"

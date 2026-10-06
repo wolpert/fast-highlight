@@ -48,10 +48,14 @@ fn is_special(c: u8) -> bool {
 /// Accumulates what is known about a word while its parts are lexed.
 pub(super) struct WordAcc {
     pub(super) start: usize,
-    /// The value after quote removal, with expansions kept verbatim.
+    /// The word's text after quote removal. Parameter, command, process, arithmetic, and
+    /// history expansions add nothing to it; glob characters and brace expansions are kept as
+    /// written. Once [`WordAcc::expand`] has been called it is not the word's value.
     pub(super) text: String,
     /// Contains an expansion of any kind or an unquoted glob character.
-    pub(super) expanded: bool,
+    expanded: bool,
+    /// [`Word::name_eq`] as recorded by the first [`WordAcc::expand`].
+    name_eq: bool,
     pub(super) has_glob: bool,
     pub(super) tilde: bool,
     /// Contains quoting of any kind (relevant for here-document delimiters).
@@ -68,6 +72,7 @@ impl WordAcc {
             start,
             text: String::new(),
             expanded: false,
+            name_eq: false,
             has_glob: false,
             tilde: false,
             quoted: false,
@@ -96,18 +101,35 @@ impl WordAcc {
         }
     }
 
+    /// Marks the word as containing an expansion. The first call decides [`Word::name_eq`] from
+    /// `text` so far, so call it before the expansion adds text. (A brace expansion calls it at
+    /// its `}`, after its `{`, which is no name character, has been added; the result is the
+    /// same.)
+    pub(super) fn expand(&mut self) {
+        if !self.expanded {
+            self.expanded = true;
+            self.name_eq = self.collect && super::is_name_eq(&self.text);
+        }
+    }
+
     fn glob(&mut self) {
         self.has_glob = true;
-        self.expanded = true;
+        self.expand();
     }
 
     pub(super) fn into_word(self, end: usize) -> Word {
+        let name_eq = if self.expanded {
+            self.name_eq
+        } else {
+            self.collect && super::is_name_eq(&self.text)
+        };
         Word {
             start: self.start,
             end,
             literal: (!self.expanded && self.collect).then_some(self.text),
             tilde: self.tilde,
             has_glob: self.has_glob,
+            name_eq,
         }
     }
 }
@@ -238,7 +260,7 @@ impl Parser<'_> {
                     && !acc.assignment
                 {
                     self.push(open, start + 1, TokenKind::BraceExpansion);
-                    acc.expanded = true;
+                    acc.expand();
                 }
                 self.literal_run(acc);
             }
@@ -713,7 +735,7 @@ impl Parser<'_> {
 
     fn backquote(&mut self, acc: &mut WordAcc) {
         let s = self.pos;
-        acc.expanded = true;
+        acc.expand();
         let mut i = s + 1;
         let mut close = None;
         while i < self.end {
@@ -758,7 +780,7 @@ impl Parser<'_> {
                     };
                     if let Some((content_end, end)) = arith {
                         self.arith(s, s + 3, content_end, end);
-                        acc.expanded = true;
+                        acc.expand();
                         return;
                     }
                 }
@@ -785,7 +807,7 @@ impl Parser<'_> {
         let s = self.pos;
         self.pos += 2;
         self.push(s, self.pos, kind);
-        acc.expanded = true;
+        acc.expand();
         if self.enter() {
             self.parse_list(Term::Paren);
             self.leave();
@@ -884,7 +906,7 @@ impl Parser<'_> {
             Err(_) => (self.end, self.end),
         };
         self.arith(s, s + 2, content_end, end);
-        acc.expanded = true;
+        acc.expand();
     }
 
     /// Highlights expansions and quoting inside `[start, end)` without moving the cursor. Used
@@ -966,7 +988,7 @@ impl Parser<'_> {
         }
         self.push(s, e, TokenKind::Parameter);
         self.pos = e;
-        acc.expanded = true;
+        acc.expand();
         true
     }
 
@@ -1046,7 +1068,7 @@ impl Parser<'_> {
     fn brace_param(&mut self, acc: &mut WordAcc, quoted: bool) {
         let s = self.pos;
         self.pos += 2;
-        acc.expanded = true;
+        acc.expand();
         if self.enter() {
             if self.peek() == Some(b'(') {
                 self.param_flags();
@@ -1187,7 +1209,7 @@ impl Parser<'_> {
         }
         self.push(s, i, TokenKind::HistoryExpansion);
         self.pos = i;
-        acc.expanded = true;
+        acc.expand();
         true
     }
 }
