@@ -58,6 +58,7 @@ pub(super) struct WordAcc {
     name_eq: bool,
     pub(super) has_glob: bool,
     pub(super) tilde: bool,
+    pub(super) equals: bool,
     /// Contains quoting of any kind (relevant for here-document delimiters).
     pub(super) quoted: bool,
     /// The value of an assignment: no globbing or brace expansion, and a `}` at the end stays
@@ -75,6 +76,7 @@ impl WordAcc {
             name_eq: false,
             has_glob: false,
             tilde: false,
+            equals: false,
             quoted: false,
             assignment: false,
             collect: true,
@@ -130,6 +132,7 @@ impl WordAcc {
             tilde: self.tilde,
             has_glob: self.has_glob,
             name_eq,
+            equals: self.equals,
         }
     }
 }
@@ -169,8 +172,10 @@ impl Parser<'_> {
             match c {
                 b' ' | b'\t' | b'\n' | b';' | b'&' | b'|' | b')' => break,
                 // zsh ends a word before a `}` that closes no `{` of the word and is followed by
-                // a terminator (`{echo hi}`), except in an assignment value (`x=a}`).
+                // a terminator (`{echo hi}`), except in an assignment value (`x=a}`) or with
+                // IGNORE_BRACES.
                 b'}' if !acc.assignment
+                    && !self.opts.ignore_braces
                     && braces.is_empty()
                     && self.pos > acc.start
                     && self.byte(self.pos + 1).is_none_or(is_word_term) =>
@@ -190,7 +195,16 @@ impl Parser<'_> {
                     if self.empty_parens_ahead() {
                         break;
                     }
-                    self.glob_group(acc, self.pos, false);
+                    if self.opts.sh_glob {
+                        // With SH_GLOB the group is a parse error in zsh.
+                        let open = self.pos;
+                        let before = self.span_count();
+                        self.glob_group(acc, open, false);
+                        self.truncate_spans(before);
+                        self.push(open, self.pos, TokenKind::Error);
+                    } else {
+                        self.glob_group(acc, self.pos, false);
+                    }
                 }
                 _ => self.unquoted_part(acc, &mut braces),
             }
@@ -255,8 +269,10 @@ impl Parser<'_> {
                 acc.push_str("..");
             }
             b'}' => {
+                // BRACE_CCL expands braces with no separator, unless they are empty (`{}`).
                 if let Some((open, sep)) = braces.pop()
-                    && sep
+                    && (sep || (self.opts.brace_ccl && start > open + 1))
+                    && !self.opts.ignore_braces
                     && !acc.assignment
                 {
                     self.push(open, start + 1, TokenKind::BraceExpansion);
@@ -282,6 +298,10 @@ impl Parser<'_> {
             }
             b'=' if first && next == Some(b'(') => {
                 self.substitution(acc, TokenKind::ProcessSubstitution)
+            }
+            b'=' if first => {
+                acc.equals = true;
+                self.literal_run(acc);
             }
             _ => self.literal_run(acc),
         }
@@ -516,14 +536,15 @@ impl Parser<'_> {
     }
 
     /// The end of a parameter name starting at `i`: a letter or `_`, then letters, digits, and
-    /// `_`. Non-ASCII alphanumerics are accepted, as zsh does with `MULTIBYTE`.
+    /// `_`. Non-ASCII alphanumerics are accepted, as zsh does with `MULTIBYTE`, unless
+    /// `POSIX_IDENTIFIERS` is set.
     pub(super) fn name_end(&self, i: usize) -> Option<usize> {
         let mut j = i;
         while j < self.end {
             let c = self.b[j];
             if c.is_ascii_alphabetic() || c == b'_' || (c.is_ascii_digit() && j > i) {
                 j += 1;
-            } else if c >= 0x80 {
+            } else if c >= 0x80 && !self.opts.posix_identifiers {
                 let ch = self.src.get(j..self.end)?.chars().next()?;
                 if !ch.is_alphanumeric() {
                     break;
@@ -556,17 +577,25 @@ impl Parser<'_> {
         self.push(s, self.pos, TokenKind::Escape);
     }
 
+    /// `'...'` at the cursor. With `RC_QUOTES`, `''` inside it is a quote character.
     fn single_quoted(&mut self, acc: &mut WordAcc) {
         let s = self.pos;
         self.pos += 1;
-        let close = self.b[self.pos..self.end]
-            .iter()
-            .position(|&c| c == b'\'')
-            .map(|n| self.pos + n);
-        let content_end = close.unwrap_or(self.end);
-        acc.push_str(&self.src[self.pos..content_end]);
         acc.quoted = true;
-        self.pos = close.map_or(self.end, |c| c + 1);
+        loop {
+            let close = self.b[self.pos..self.end]
+                .iter()
+                .position(|&c| c == b'\'')
+                .map(|n| self.pos + n);
+            let content_end = close.unwrap_or(self.end);
+            acc.push_str(&self.src[self.pos..content_end]);
+            self.pos = close.map_or(self.end, |c| c + 1);
+            if close.is_none() || !self.opts.rc_quotes || self.peek() != Some(b'\'') {
+                break;
+            }
+            acc.push_str("'");
+            self.pos += 1;
+        }
         self.push(s, self.pos, TokenKind::SingleQuoted);
     }
 
@@ -959,9 +988,13 @@ impl Parser<'_> {
         }
         let mut end = None;
         if matches!(self.byte(i), Some(b'#' | b'+')) {
-            end = self
-                .name_end(i + 1)
-                .or((self.byte(i) == Some(b'#')).then_some(i + 1));
+            // With POSIX_IDENTIFIERS, `$#name` is `$#` followed by `name`.
+            let length = self.byte(i) == Some(b'#');
+            end = match length && self.opts.posix_identifiers {
+                true => None,
+                false => self.name_end(i + 1),
+            }
+            .or(length.then_some(i + 1));
         }
         if end.is_none() {
             end = self.name_end(i).or_else(|| match self.byte(i) {
@@ -977,10 +1010,11 @@ impl Parser<'_> {
             });
         }
         let Some(mut e) = end else { return false };
-        while self.byte(e) == Some(b'[') {
+        // With KSH_ARRAYS, a subscript or modifier needs braces: `$a[1]` is `$a` and a glob.
+        while self.byte(e) == Some(b'[') && !self.opts.ksh_arrays {
             e = self.subscript(e);
         }
-        while self.byte(e) == Some(b':') {
+        while self.byte(e) == Some(b':') && !self.opts.ksh_arrays {
             match self.modifier_end(e + 1, false) {
                 Some(m) => e = m,
                 None => break,

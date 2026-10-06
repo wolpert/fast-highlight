@@ -1,0 +1,19 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "echo 'it''s' $'a''b'"
+cursor: 0
+  0..4 builtin "echo"
+  5..9 single-quoted "'it'"
+  9..12 single-quoted "'s'"
+  13..17 dollar-quoted "$'a'"
+  17..20 single-quoted "'b'"
+
+input: "echo 'it''s' $'a''b'"
+cursor: 0
+opts: "r"
+  0..4 builtin "echo"
+  5..12 single-quoted "'it''s'"
+  13..17 dollar-quoted "$'a'"
+  17..20 single-quoted "'b'"

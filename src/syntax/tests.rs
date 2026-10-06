@@ -47,6 +47,7 @@ fn opts(ic: bool, eg: bool, kg: bool) -> ParseOptions {
         interactive_comments: ic,
         extended_glob: eg,
         ksh_glob: kg,
+        ..ParseOptions::default()
     }
 }
 
@@ -2248,5 +2249,339 @@ fn memoised_scans_match_a_fresh_scan() {
                 _ => {}
             }
         }
+    }
+}
+
+// -------------------------------------------------------------------------------------------
+// Shell options
+// -------------------------------------------------------------------------------------------
+
+/// The spans of a parse with `o`, as `(kind, text)` pairs.
+fn spans_with(input: &str, o: ParseOptions) -> Vec<(TokenKind, String)> {
+    spans_of(input, &parse_with(input, o))
+}
+
+#[track_caller]
+fn assert_has_with(input: &str, o: ParseOptions, kind: TokenKind, text: &str) {
+    let s = spans_with(input, o);
+    assert!(
+        s.iter().any(|(k, t)| *k == kind && t == text),
+        "no {kind} {text:?} in {input:?} with {o:?}: {s:?}"
+    );
+}
+
+#[track_caller]
+fn assert_lacks_with(input: &str, o: ParseOptions, kind: TokenKind, text: &str) {
+    let s = spans_with(input, o);
+    assert!(
+        !s.iter().any(|(k, t)| *k == kind && t == text),
+        "unexpected {kind} {text:?} in {input:?} with {o:?}: {s:?}"
+    );
+}
+
+#[track_caller]
+fn assert_no_error_with(input: &str, o: ParseOptions) {
+    let s = spans_with(input, o);
+    assert!(
+        s.iter().all(|(k, _)| *k != K::Error),
+        "unexpected error in {input:?} with {o:?}: {s:?}"
+    );
+}
+
+/// The commands of a parse with `o`, as lists of word texts.
+fn cmds_with(input: &str, o: ParseOptions) -> Vec<Vec<String>> {
+    parse_with(input, o)
+        .commands
+        .iter()
+        .map(|c| {
+            c.words
+                .iter()
+                .map(|w| input[w.start..w.end].to_string())
+                .collect()
+        })
+        .collect()
+}
+
+#[test]
+fn rc_quotes_joins_doubled_quotes() {
+    let rc = ParseOptions {
+        rc_quotes: true,
+        ..ParseOptions::default()
+    };
+    let input = "echo 'it''s'";
+    assert_eq!(
+        spans_with(input, rc),
+        vec![(K::SingleQuoted, "'it''s'".to_string())]
+    );
+    assert_eq!(
+        parse_with(input, rc).commands[0].words[1]
+            .literal
+            .as_deref(),
+        Some("it's")
+    );
+    assert_eq!(
+        spans(input),
+        vec![
+            (K::SingleQuoted, "'it'".to_string()),
+            (K::SingleQuoted, "'s'".to_string())
+        ]
+    );
+    assert_eq!(word(input, 1).literal.as_deref(), Some("its"));
+    let w = &parse_with("echo ''''", rc).commands[0].words[1];
+    assert_eq!(w.literal.as_deref(), Some("'"));
+    // Not inside `$'...'`, where `\'` is the quote.
+    assert_has_with("echo $'a''b'", rc, K::DollarQuoted, "$'a'");
+    assert_has_with("echo $'a''b'", rc, K::SingleQuoted, "'b'");
+    // A doubled quote at the end of the input leaves the string open.
+    assert_has_with("echo 'a''", rc, K::SingleQuoted, "'a''");
+}
+
+#[test]
+fn equals_marks_the_word() {
+    let w = word("ls =ls", 1);
+    assert!(w.equals, "{w:?}");
+    assert_eq!(w.literal.as_deref(), Some("=ls"));
+    assert!(word("=ls -l", 0).equals);
+    assert!(word("echo ='ls'", 1).equals);
+    for input in ["echo \\=ls", "echo \"=ls\"", "echo a=ls", "echo x"] {
+        assert!(!word(input, 1).equals, "{input:?}");
+    }
+    assert_has("cat =(ls)", K::ProcessSubstitution, "=(");
+    assert!(!word("cat =(ls)", 1).equals);
+}
+
+#[test]
+fn ignore_braces() {
+    let ib = ParseOptions {
+        ignore_braces: true,
+        ..ParseOptions::default()
+    };
+    // A `{` is a reserved word only as a whole word, and a `}` is never split off.
+    assert_eq!(cmds_with("{echo hi}", ib), vec![v(&["{echo", "hi}"])]);
+    assert_lacks_with("{echo hi}", ib, K::ReservedWord, "{");
+    assert_has_with("{ echo hi; }", ib, K::ReservedWord, "}");
+    assert_no_error_with("echo a} b; for x in a }; do :; done", ib);
+    assert_eq!(cmds_with("echo a} }", ib), vec![v(&["echo", "a}", "}"])]);
+    // No brace expansion, and `{fd}>` is no redirection.
+    assert_lacks_with("echo {a,b} {1..3}", ib, K::BraceExpansion, "{a,b}");
+    assert_lacks_with("echo {a,b} {1..3}", ib, K::BraceExpansion, "{1..3}");
+    assert_eq!(cmds_with("exec {fd}>x", ib), vec![v(&["exec", "{fd}"])]);
+    assert_has_with("exec {fd}>x", ib, K::Redirection, ">");
+    assert_has("exec {fd}>x", K::Redirection, "{fd}>");
+    // The groups of compound commands still work.
+    for input in [
+        "if [[ x ]] { echo y; }",
+        "for x (a) { echo $x; }",
+        "f() { echo; }",
+        "{ a; } always { b; }",
+        "x && { y; }",
+    ] {
+        assert_no_error_with(input, ib);
+        assert_has_with(input, ib, K::ReservedWord, "{");
+    }
+}
+
+#[test]
+fn ignore_close_braces() {
+    let icb = ParseOptions {
+        ignore_close_braces: true,
+        ..ParseOptions::default()
+    };
+    let ib = ParseOptions {
+        ignore_braces: true,
+        ..ParseOptions::default()
+    };
+    for o in [icb, ib] {
+        // Only in command position does a `}` close a group.
+        assert_eq!(cmds_with("{ echo a }", o), vec![v(&["echo", "a", "}"])]);
+        assert_lacks_with("{ echo a }", o, K::ReservedWord, "}");
+        assert_has_with("{ echo a; }", o, K::ReservedWord, "}");
+        assert_no_error_with("echo }; for x in a }; do :; done", o);
+        assert_eq!(cmds_with("echo > }", o), vec![v(&["echo"])]);
+        assert_no_error_with("echo > }", o);
+        // After `esac`, `}`, `)`, `))`, and `]]` it is in command position, but not after
+        // `fi`, `done`, and `end`.
+        for input in [
+            "{ case a in a) b;; esac }",
+            "{ { a; } }",
+            "{ (a) }",
+            "{ (( 1 )) }",
+            "{ [[ a ]] }",
+            "{ (a) > f }",
+        ] {
+            assert_no_error_with(input, o);
+            assert_eq!(
+                spans_with(input, o)
+                    .iter()
+                    .filter(|(k, t)| *k == K::ReservedWord && t == "}")
+                    .count(),
+                input.matches('}').count(),
+                "{input:?} with {o:?}"
+            );
+        }
+        for input in [
+            "{ if a; then b; fi }",
+            "{ for x in a; do b; done }",
+            "{ while a; do b; done }",
+            "{ foreach x (a) b; end }",
+            "{ if a; then b; fi > f }",
+        ] {
+            assert_has_with(input, o, K::Error, "}");
+        }
+        assert_no_error_with("{ if a; then b; fi; }", o);
+        // An anonymous function takes a `}` as an argument, and a `case ... {` is closed only
+        // by `esac`.
+        assert_eq!(parse_with("() { a; } }", o).path_words.len(), 1);
+        assert_lacks_with("case x { x) a;; }", o, K::ReservedWord, "}");
+        assert_no_error_with("case x { x) a;; esac", o);
+    }
+    // IGNORE_CLOSE_BRACES alone still splits a `}` off the end of a word, as an argument.
+    assert_eq!(cmds_with("echo a}", icb), vec![v(&["echo", "a", "}"])]);
+    assert_no_error_with("echo a}", icb);
+    assert_has_with("{echo a; }", icb, K::ReservedWord, "{");
+    assert_has_with("echo {a,b}", icb, K::BraceExpansion, "{a,b}");
+    assert_has_with("exec {fd}>x", icb, K::Redirection, "{fd}>");
+    // Without either option, `esac` closes a `case ... {` too.
+    assert_no_error("case x { x) a;; esac");
+}
+
+#[test]
+fn ksh_arrays_needs_braces() {
+    let ka = ParseOptions {
+        ksh_arrays: true,
+        ..ParseOptions::default()
+    };
+    let input = "echo $a[1] $b:h ${c[1]} \"$d[2]\"";
+    assert_has_with(input, ka, K::Parameter, "$a");
+    assert_has_with(input, ka, K::Glob, "[1]");
+    assert_has_with(input, ka, K::Parameter, "$b");
+    assert_has_with(input, ka, K::Parameter, "${c[1]}");
+    assert_has_with(input, ka, K::Parameter, "$d");
+    assert_has(input, K::Parameter, "$a[1]");
+    assert_has(input, K::Parameter, "$b:h");
+    assert_has(input, K::Parameter, "$d[2]");
+}
+
+#[test]
+fn posix_identifiers_are_ascii() {
+    let pi = ParseOptions {
+        posix_identifiers: true,
+        ..ParseOptions::default()
+    };
+    let input = "echo $#a $+a $é $aé";
+    assert_has_with(input, pi, K::Parameter, "$#");
+    assert_has_with(input, pi, K::Parameter, "$+a");
+    assert_lacks_with(input, pi, K::Parameter, "$é");
+    assert_has_with(input, pi, K::Parameter, "$a");
+    assert_has(input, K::Parameter, "$#a");
+    assert_has(input, K::Parameter, "$é");
+    assert_has(input, K::Parameter, "$aé");
+    assert_eq!(cmds_with("é=1", pi), vec![v(&["é=1"])]);
+    assert_has("é=1", K::Assignment, "é=");
+}
+
+#[test]
+fn sh_glob_rejects_glob_groups() {
+    let sg = ParseOptions {
+        sh_glob: true,
+        ..ParseOptions::default()
+    };
+    let input = "echo a(b) *(.) (a|b) <1-5>";
+    for group in ["(b)", "(.)", "(a|b)"] {
+        assert_has_with(input, sg, K::Error, group);
+        assert_has(input, K::Glob, &group[..1]);
+    }
+    assert_has_with(input, sg, K::Glob, "*");
+    assert_has_with(input, sg, K::Glob, "<1-5>");
+    assert_has_with("x=a(b)", sg, K::Error, "(b)");
+    assert_has_with("[[ a == (a|b) ]]", sg, K::Error, "(a|b)");
+    let eg = ParseOptions {
+        extended_glob: true,
+        ..sg
+    };
+    assert_has_with("ls (#i)a", eg, K::Error, "(#i)");
+    for input in [
+        "(a) && b",
+        "f() a",
+        "x=(a b)",
+        "for x (a b) c",
+        "case a in (a|b) c;; esac",
+        "cat <(a) =(b) >(c)",
+        "echo \\(a\\)",
+    ] {
+        assert_no_error_with(input, sg);
+    }
+    let ks = ParseOptions {
+        ksh_glob: true,
+        ..sg
+    };
+    assert_no_error_with("ls @(a|b)", ks);
+    assert_has_with("ls @(a|b)", ks, K::Glob, "@(");
+}
+
+#[test]
+fn brace_ccl_expands_braces_without_separator() {
+    let bc = ParseOptions {
+        brace_ccl: true,
+        ..ParseOptions::default()
+    };
+    let input = "echo {abc} {} x{ba}y {a,b} {a-z";
+    for text in ["{abc}", "{ba}", "{a,b}"] {
+        assert_has_with(input, bc, K::BraceExpansion, text);
+    }
+    assert_lacks_with(input, bc, K::BraceExpansion, "{}");
+    assert_lacks_with(input, ParseOptions::default(), K::BraceExpansion, "{abc}");
+    let ib = ParseOptions {
+        ignore_braces: true,
+        ..bc
+    };
+    assert_lacks_with(input, ib, K::BraceExpansion, "{abc}");
+    assert!(word("echo {abc}", 1).literal.is_some());
+    assert!(
+        parse_with("echo {abc}", bc).commands[0].words[1]
+            .literal
+            .is_none()
+    );
+}
+
+#[test]
+fn no_short_loops_needs_do_or_brace() {
+    let nsl = ParseOptions {
+        no_short_loops: true,
+        ..ParseOptions::default()
+    };
+    for (input, bad) in [
+        ("for x in a; echo $x", "echo"),
+        ("for x (a b) echo $x", "echo"),
+        ("for ((i = 0; i < 2; i++)) echo", "echo"),
+        ("select x in a; echo", "echo"),
+        ("repeat 2 echo r", "echo"),
+        ("for x in a; if a; then b; fi", "if"),
+        ("for x in a; (echo)", "(echo)"),
+        ("for x in a\n[[ a ]]", "[["),
+    ] {
+        assert_has_with(input, nsl, K::Error, bad);
+        assert_no_error(input);
+    }
+    // The rejected body is not a command, so the semantic pass adds no second span to it.
+    assert!(cmds_with("for x in a; echo $x", nsl).is_empty());
+    assert_has_with("for x in a; doo", nsl, K::Error, "doo");
+    // A prefix of `do` at the end of the input is still being typed; not at the end, it is a
+    // body.
+    for input in ["for x in a; d", "for x in a\nd", "repeat 2 d"] {
+        assert_no_error_with(input, nsl);
+    }
+    assert_has_with("for x in a; d; done", nsl, K::Error, "d");
+    for input in [
+        "for x (a) { echo; }",
+        "for x in a; do echo; done",
+        "for x in a\ndo echo; done",
+        "for x in a; {echo}",
+        "repeat 2 { echo; }",
+        "foreach x (a) echo; end",
+        "while a; do b; done",
+        "for x in a; ; do b; done",
+    ] {
+        assert_no_error_with(input, nsl);
     }
 }

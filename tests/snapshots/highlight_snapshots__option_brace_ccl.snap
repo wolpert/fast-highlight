@@ -1,0 +1,14 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "echo {abc} {} x{ba}y"
+cursor: 0
+  0..4 builtin "echo"
+
+input: "echo {abc} {} x{ba}y"
+cursor: 0
+opts: "C"
+  0..4 builtin "echo"
+  5..10 brace-expansion "{abc}"
+  15..19 brace-expansion "{ba}"

@@ -285,7 +285,11 @@ A command word that names a shell builtin.
 .B command
 A command word that names an external command found in
 .B PATH
-or by an explicit path.
+or by an explicit path, and a word
+.BI = cmd
+that expands to the path of one when
+.B EQUALS
+is set.
 .TP
 .B precommand
 A precommand modifier or wrapper:

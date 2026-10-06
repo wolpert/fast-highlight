@@ -1,0 +1,46 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "for f in *.txt; cat $f; repeat 2 ls"
+cursor: 0
+  0..3 reserved-word "for"
+  6..8 reserved-word "in"
+  9..10 glob "*"
+  14..15 separator ";"
+  16..19 command "cat"
+  20..22 parameter "$f"
+  22..23 separator ";"
+  24..30 reserved-word "repeat"
+  33..35 command "ls"
+
+input: "for f in *.txt; cat $f; repeat 2 ls"
+cursor: 0
+opts: "L"
+  0..3 reserved-word "for"
+  6..8 reserved-word "in"
+  9..10 glob "*"
+  14..15 separator ";"
+  16..19 error "cat"
+  20..22 parameter "$f"
+  22..23 separator ";"
+  24..30 reserved-word "repeat"
+  33..35 error "ls"
+
+input: "for f in *.txt; do cat $f; done; repeat 2 { ls }"
+cursor: 0
+opts: "L"
+  0..3 reserved-word "for"
+  6..8 reserved-word "in"
+  9..10 glob "*"
+  14..15 separator ";"
+  16..18 reserved-word "do"
+  19..22 command "cat"
+  23..25 parameter "$f"
+  25..26 separator ";"
+  27..31 reserved-word "done"
+  31..32 separator ";"
+  33..39 reserved-word "repeat"
+  42..43 reserved-word "{"
+  44..46 command "ls"
+  47..48 reserved-word "}"

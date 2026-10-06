@@ -1,0 +1,16 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "é=1 ls $#a $é"
+cursor: 0
+  0..2 assignment "é="
+  4..6 command "ls"
+  7..10 parameter "$#a"
+  11..13 parameter "$é"
+
+input: "é=1 ls $#a $é"
+cursor: 0
+opts: "p"
+  0..3 error "é=1"
+  7..9 parameter "$#"

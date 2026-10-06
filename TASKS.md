@@ -228,9 +228,11 @@ Acceptance criteria:
 
 ## zsh syntax coverage
 
-### 8. Shell option modelling
+### 8. Shell option modelling (done)
 
-The parser assumes default option settings and `SHORT_LOOPS` set. It does not model
+Status: done.
+
+The parser assumed default option settings and `SHORT_LOOPS` set. It does not model
 `IGNORE_BRACES`, `IGNORE_CLOSE_BRACES`, `RC_QUOTES`, `KSH_ARRAYS`, `POSIX_IDENTIFIERS`, `SH_GLOB`,
 `BRACE_CCL`, or `EQUALS`, so `=cmd` gets no span. The plugin would have to send the relevant option
 state to the daemon.
@@ -241,6 +243,53 @@ Acceptance criteria:
 - With `RC_QUOTES` set, `echo 'it''s'` is one string span; without it, two.
 - With `EQUALS` set, `=ls` gets a command-path span; with `NO_EQUALS`, it does not.
 - A snapshot test per modelled option covers both settings.
+
+The `opt` field gained one letter per option: `b` `IGNORE_BRACES`, `B` `IGNORE_CLOSE_BRACES`, `r`
+`RC_QUOTES`, `K` `KSH_ARRAYS`, `p` `POSIX_IDENTIFIERS`, `s` `SH_GLOB`, `C` `BRACE_CCL`, `E`
+`NO_EQUALS`, and `L` `NO_SHORT_LOOPS`. A letter marks an option that is not in its zsh default
+state, as the existing letters already did, so an empty field is a shell with default options and
+the plugin sends no extra letters for one. An older daemon ignores the new letters; an older plugin
+sends none of them, and its users get the defaults, `EQUALS` included. The plugin reads the options
+at every redraw. The effects are documented in the section "Shell options" of the README, the
+letters in `docs/protocol.md` and under `--opts` in `fast-highlight(1)`, and each one is covered by
+a snapshot `option_*` in `tests/highlight_snapshots.rs`, by unit tests in `src/syntax/tests.rs`,
+and by fuzz seeds for the new extra option byte of the `lexer` and `highlight` targets.
+
+The options behave as in zsh 5.9:
+
+- `=cmd` is a `command` span when `cmd` is a `$PATH` command, or with a `/` an executable file, and
+  an error otherwise, since zsh fails on it; aliases, functions, and builtins do not count (`=echo`
+  is `/usr/bin/echo`). The command name is not a token kind of its own: `command` already names
+  external commands, and the acceptance criterion's command-path span is that. In command position
+  the word is looked up as after `command`, its spec applies (`sudo =ls`), and after `builtin` it
+  is an error. Redirection targets, `for` lists, and `[[ ... ]]` operands expand too.
+- `IGNORE_CLOSE_BRACES` still splits a `}` off the end of a word, as an ordinary argument
+  (`echo a}` prints `a }`). zsh takes a `}` as being in command position after `esac`, `}`, `)`,
+  `))`, and `]]`, but not after `fi`, `done`, and `end`, so `{ if a; then b; fi }` is an error with
+  either brace option. A `case ... {` cannot be closed by `}` with either option; zsh lets `esac`
+  close it in every mode, and the parser now accepts that too, without options as well.
+- `IGNORE_BRACES` makes `{echo` a command word and `{fd}` a command word before a redirection.
+- `POSIX_IDENTIFIERS` changes `$#name` only; `$+name` keeps its meaning.
+- `SH_GLOB` makes zsh fail to parse a glob group or qualifier list, which the parser marks as an
+  error from `(` to its `)`. `<1-5>` stays a glob.
+- With `NO_SHORT_LOOPS`, the word that starts a short body of `for`, `select`, or `repeat` is an
+  error, and the words after it are its arguments. The body is not recorded as a command, so the
+  error is the word's only span. A prefix of `do` at the end of the input (`for i in a; d`) is
+  partial input and not an error.
+
+Not modelled:
+
+- `=` expansion in an assignment value (`x==ls`, `PATH=$PATH:=ls`), in a brace expansion
+  (`{=ls,=cat}`), and in a word with another expansion (`=$cmd`).
+- The short form `function f() cmd`, which zsh rejects with `SHORT_LOOPS` unset.
+- A group nested in a `KSH_GLOB` group (`@(a|(b))`), a bad pattern with `SH_GLOB` set.
+
+`KSH_ARRAYS` and `SH_GLOB` break the dispatcher of zsh 5.9's own `add-zle-hook-widget`, which runs
+under the user's options, so `test_parse_options` in `tests/zsh/run.zsh` checks their letters by a
+direct call rather than in a redraw.
+
+The committed fuzz seeds lag behind `fuzz/make_seeds.py`: running it also adds seeds for every
+snapshot added since the seeds were last generated. Only the new option seeds were added.
 
 ### 9. Glob qualifier validation
 

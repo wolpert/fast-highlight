@@ -712,6 +712,15 @@ _fasthl_capture_opts() {
   [[ -o autocd ]] && _fasthl_uo+=a
   [[ -o extendedglob ]] && _fasthl_uo+=e
   [[ -o kshglob ]] && _fasthl_uo+=k
+  [[ -o ignorebraces ]] && _fasthl_uo+=b
+  [[ -o ignoreclosebraces ]] && _fasthl_uo+=B
+  [[ -o rcquotes ]] && _fasthl_uo+=r
+  [[ -o ksharrays ]] && _fasthl_uo+=K
+  [[ -o posixidentifiers ]] && _fasthl_uo+=p
+  [[ -o shglob ]] && _fasthl_uo+=s
+  [[ -o braceccl ]] && _fasthl_uo+=C
+  [[ -o equals ]] || _fasthl_uo+=E
+  [[ -o shortloops ]] || _fasthl_uo+=L
   return 0
 }
 

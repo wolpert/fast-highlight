@@ -1,0 +1,69 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "echo =ls =nosuch = =echo =./build.sh =./notes.txt"
+cursor: 0
+  0..4 builtin "echo"
+  5..8 command "=ls"
+  9..16 error "=nosuch"
+  19..24 error "=echo"
+  25..36 command "=./build.sh"
+  37..49 error "=./notes.txt"
+
+input: "echo =ls =nosuch = =echo =./build.sh =./notes.txt"
+cursor: 0
+opts: "E"
+  0..4 builtin "echo"
+
+input: "=ls -l; =nosuch src; sudo =ls; builtin =ls; command -v =ls"
+cursor: 0
+  0..3 command "=ls"
+  6..7 separator ";"
+  8..15 error "=nosuch"
+  16..19 path-directory "src"
+  19..20 separator ";"
+  21..25 precommand "sudo"
+  26..29 command "=ls"
+  29..30 separator ";"
+  31..38 precommand "builtin"
+  39..42 error "=ls"
+  42..43 separator ";"
+  44..51 precommand "command"
+  52..54 option "-v"
+  55..58 command "=ls"
+
+input: "=ls -l; =nosuch src; sudo =ls; builtin =ls; command -v =ls"
+cursor: 0
+opts: "E"
+  0..3 error "=ls"
+  6..7 separator ";"
+  8..15 error "=nosuch"
+  16..19 path-directory "src"
+  19..20 separator ";"
+  21..25 precommand "sudo"
+  26..29 error "=ls"
+  29..30 separator ";"
+  31..38 precommand "builtin"
+  39..42 error "=ls"
+  42..43 separator ";"
+  44..51 precommand "command"
+  52..54 option "-v"
+  55..58 error "=ls"
+
+input: "[[ =ls -ef =git ]] > =cat"
+cursor: 0
+  0..2 reserved-word "[["
+  3..6 command "=ls"
+  7..10 operator "-ef"
+  11..15 command "=git"
+  16..18 reserved-word "]]"
+  19..20 redirection ">"
+  21..25 command "=cat"
+
+input: "ls =gi"
+  0..2 command "ls"
+
+input: "ls =zz"
+  0..2 command "ls"
+  3..6 error "=zz"

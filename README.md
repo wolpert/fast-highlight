@@ -25,6 +25,7 @@ The wire protocol between the plugin and the daemon is specified in
 - [Removal of other highlighters](#removal-of-other-highlighters)
 - [Runtime controls](#runtime-controls)
 - [Token types](#token-types)
+- [Shell options](#shell-options)
 - [Configuration](#configuration)
 - [Themes](#themes)
 - [Command specs](#command-specs)
@@ -243,7 +244,7 @@ zsh applies the inner style over the outer one.
 | `global-alias`         | A word anywhere on the line that names a global alias (`alias -g`).        | `fg=magenta,bold`  |
 | `function`             | A command word that names a shell function, or the name in a function definition. | `fg=green`  |
 | `builtin`              | A command word that names a shell builtin.                                 | `fg=green`         |
-| `command`              | A command word that names an external command in `$PATH` or by explicit path. | `fg=green`     |
+| `command`              | A command word that names an external command in `$PATH` or by explicit path, and a word `=cmd` that expands to the path of one. | `fg=green` |
 | `precommand`           | A precommand modifier such as `sudo`, `noglob`, `exec`, `command`, `env`, or `time`. | `fg=green,underline` |
 | `separator`            | A command separator or pipeline operator: `;`, `&`, `&&`, `\|\|`, `\|`, `\|&`, `&!`, `&\|`. | `bold` |
 | `redirection`          | A redirection operator with any fd prefix: `>`, `2>`, `>&2`, `<<`, `<<<`, `&>`. | `bold`        |
@@ -272,6 +273,35 @@ zsh applies the inner style over the outer one.
 | `option`               | An option known to the command's spec (`--verbose`, `-C`).                 | `fg=cyan`          |
 
 `fg=8` is bright black, which terminals with 16 or more colours show as grey.
+
+## Shell options
+
+The plugin sends the state of the zsh options that change how a command line is read with every
+request, and the daemon highlights the line as zsh with those options reads it. The option letters
+are listed in [`docs/protocol.md`](docs/protocol.md).
+
+| Option                 | Effect on highlighting                                                     |
+|------------------------|----------------------------------------------------------------------------|
+| `INTERACTIVE_COMMENTS` | A word starting with `#` begins a comment.                                 |
+| `AUTO_CD`              | A directory in command position is valid.                                  |
+| `EXTENDED_GLOB`        | `#`, `##`, `~`, `^`, and globbing flags such as `(#i)` are glob operators. |
+| `KSH_GLOB`             | `@(...)`, `*(...)`, `+(...)`, `?(...)`, and `!(...)` are glob patterns.    |
+| `IGNORE_BRACES`        | No brace expansion. A `{` is a reserved word only as a whole word, `{fd}>` is no redirection, and a `}` is never split off the end of a word. Includes the effect of `IGNORE_CLOSE_BRACES`. |
+| `IGNORE_CLOSE_BRACES`  | A `}` closes a group only in command position, so `{ echo a }` leaves the group open. After `fi`, `done`, and `end`, a `}` is an error. A `case ... {` is closed only by `esac`. |
+| `RC_QUOTES`            | `''` inside a single-quoted string is a quote character: `'it''s'` is one string. |
+| `KSH_ARRAYS`           | An unbraced parameter takes no subscript and no modifier: `$a[1]` is the parameter `$a` followed by the glob `[1]`. |
+| `POSIX_IDENTIFIERS`    | Parameter and assignment names are ASCII only, and `$#name` is `$#` followed by `name`. |
+| `SH_GLOB`              | A parenthesised glob group or qualifier list (`*(.)`, `a(b)`, `(a|b)`) is an error. |
+| `BRACE_CCL`            | Braces with no comma and no `..`, such as `{abc}`, are a brace expansion.  |
+| `EQUALS`               | Set by default. A word `=cmd` is a `command` when `cmd` is an external command, and an error otherwise. |
+| `SHORT_LOOPS`          | Set by default. When it is unset, a `for`, `select`, or `repeat` body that starts with neither `do` nor `{` is an error. |
+
+The following effects of these options are not modelled:
+
+- `=` expansion in an assignment value (`x==ls`, `PATH=$PATH:=ls`), in a brace expansion
+  (`{=ls,=cat}`), and in a word with another expansion (`=$cmd`).
+- The short form `function f() cmd`, which zsh rejects with `SHORT_LOOPS` unset.
+- A group nested in a `KSH_GLOB` group (`@(a|(b))`), which is a bad pattern with `SH_GLOB` set.
 
 ## Configuration
 
@@ -785,7 +815,7 @@ resolves relative paths against the directory it started in until a request name
 | Option                    | Effect                                                                 |
 |---------------------------|------------------------------------------------------------------------|
 | `--cwd DIR`               | Resolves relative paths against `DIR`. Default: the current directory. |
-| `--opts LETTERS`          | Request option letters from [`docs/protocol.md`](docs/protocol.md): `u` character offsets, `c` `INTERACTIVE_COMMENTS`, `a` `AUTO_CD`, `e` `EXTENDED_GLOB`, `k` `KSH_GLOB`. Default: `u`. |
+| `--opts LETTERS`          | Request option letters from [`docs/protocol.md`](docs/protocol.md): `u` character offsets, and one letter per [shell option](#shell-options) not in its default state, such as `c` for `INTERACTIVE_COMMENTS` or `E` for `NO_EQUALS`. Default: `u`. |
 | `--format spans`          | Prints one `start end kind "text"` line per range. The default.        |
 | `--format ansi`           | Prints the text coloured with the active theme.                        |
 | `--timing`                | Prints the minimum, median, and maximum processing time to standard error. |

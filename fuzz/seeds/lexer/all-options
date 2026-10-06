@@ -1,0 +1,1 @@
+ÿfor x (a) echo {ab}'c''d' $a[1] (x) }

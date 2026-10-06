@@ -1,0 +1,45 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "{echo hi}; echo {a,b} a} b"
+cursor: 0
+  0..1 reserved-word "{"
+  1..5 builtin "echo"
+  8..9 reserved-word "}"
+  9..10 separator ";"
+  11..15 builtin "echo"
+  16..21 brace-expansion "{a,b}"
+  23..24 error "}"
+  25..26 error "b"
+
+input: "{echo hi}; echo {a,b} a} b"
+cursor: 0
+opts: "b"
+  0..5 error "{echo"
+  9..10 separator ";"
+  11..15 builtin "echo"
+
+input: "exec {fd}>notes.txt; { ls; }"
+cursor: 0
+  0..4 precommand "exec"
+  5..10 redirection "{fd}>"
+  10..19 path "notes.txt"
+  19..20 separator ";"
+  21..22 reserved-word "{"
+  23..25 command "ls"
+  25..26 separator ";"
+  27..28 reserved-word "}"
+
+input: "exec {fd}>notes.txt; { ls; }"
+cursor: 0
+opts: "b"
+  0..4 precommand "exec"
+  5..9 error "{fd}"
+  9..10 redirection ">"
+  10..19 path "notes.txt"
+  19..20 separator ";"
+  21..22 reserved-word "{"
+  23..25 command "ls"
+  25..26 separator ";"
+  27..28 reserved-word "}"

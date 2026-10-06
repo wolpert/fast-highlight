@@ -294,6 +294,11 @@ const fn with_opts(buf: &'static str, opts: &'static str) -> Case {
     }
 }
 
+/// [`idle`] with option letters.
+const fn idle_with(buf: &'static str, opts: &'static str) -> Case {
+    Case { opts, ..idle(buf) }
+}
+
 const fn continued(pre: &'static str, buf: &'static str) -> Case {
     Case { pre, ..at_end(buf) }
 }
@@ -1391,5 +1396,118 @@ fn multibyte_wire_offsets() {
     assert_eq!(
         triples(f.wire("", "日本 arg", Some(0), "u")),
         vec![(0, 2, K::Error)]
+    );
+}
+
+// Shell options: each snapshot shows its inputs without and then with the option letter.
+
+#[test]
+fn option_ignore_braces() {
+    snap(
+        "option_ignore_braces",
+        &[
+            idle("{echo hi}; echo {a,b} a} b"),
+            idle_with("{echo hi}; echo {a,b} a} b", "b"),
+            idle("exec {fd}>notes.txt; { ls; }"),
+            idle_with("exec {fd}>notes.txt; { ls; }", "b"),
+        ],
+    );
+}
+
+#[test]
+fn option_ignore_close_braces() {
+    snap(
+        "option_ignore_close_braces",
+        &[
+            idle("{ echo a }; echo a} b"),
+            idle_with("{ echo a }; echo a} b", "B"),
+            idle("{ if true; then ls; fi }; { (ls) }"),
+            idle_with("{ if true; then ls; fi }; { (ls) }", "B"),
+        ],
+    );
+}
+
+#[test]
+fn option_rc_quotes() {
+    snap(
+        "option_rc_quotes",
+        &[
+            idle("echo 'it''s' $'a''b'"),
+            idle_with("echo 'it''s' $'a''b'", "r"),
+        ],
+    );
+}
+
+#[test]
+fn option_ksh_arrays() {
+    snap(
+        "option_ksh_arrays",
+        &[
+            idle("echo $a[1] $PWD:h ${a[1]} \"$a[2]\""),
+            idle_with("echo $a[1] $PWD:h ${a[1]} \"$a[2]\"", "K"),
+        ],
+    );
+}
+
+#[test]
+fn option_posix_identifiers() {
+    snap(
+        "option_posix_identifiers",
+        &[idle("é=1 ls $#a $é"), idle_with("é=1 ls $#a $é", "p")],
+    );
+}
+
+#[test]
+fn option_sh_glob() {
+    snap(
+        "option_sh_glob",
+        &[
+            idle("ls *(.) a(b) (a|b) <1-5>"),
+            idle_with("ls *(.) a(b) (a|b) <1-5>", "s"),
+        ],
+    );
+}
+
+#[test]
+fn option_brace_ccl() {
+    snap(
+        "option_brace_ccl",
+        &[
+            idle("echo {abc} {} x{ba}y"),
+            idle_with("echo {abc} {} x{ba}y", "C"),
+        ],
+    );
+}
+
+#[test]
+fn option_equals() {
+    // With `EQUALS`, the default, `=cmd` names an external command; `E` sets `NO_EQUALS`.
+    snap(
+        "option_equals",
+        &[
+            idle("echo =ls =nosuch = =echo =./build.sh =./notes.txt"),
+            idle_with("echo =ls =nosuch = =echo =./build.sh =./notes.txt", "E"),
+            idle("=ls -l; =nosuch src; sudo =ls; builtin =ls; command -v =ls"),
+            idle_with(
+                "=ls -l; =nosuch src; sudo =ls; builtin =ls; command -v =ls",
+                "E",
+            ),
+            idle("[[ =ls -ef =git ]] > =cat"),
+            at_end("ls =gi"),
+            at_end("ls =zz"),
+        ],
+    );
+}
+
+#[test]
+fn option_short_loops() {
+    // `L` sets `NO_SHORT_LOOPS`.
+    snap(
+        "option_short_loops",
+        &[
+            idle("for f in *.txt; cat $f; repeat 2 ls"),
+            idle_with("for f in *.txt; cat $f; repeat 2 ls", "L"),
+            idle_with("for f in *.txt; do cat $f; done; repeat 2 { ls }", "L"),
+        ],
     );
 }

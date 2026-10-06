@@ -1,0 +1,1 @@
+€for x in a; echo $x; repeat 2 ls; for x (a) { ls; }

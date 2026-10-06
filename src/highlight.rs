@@ -21,6 +21,9 @@ pub struct RequestOptions {
     pub parse: ParseOptions,
     /// `AUTO_CD`: a directory in command position is valid.
     pub auto_cd: bool,
+    /// `NO_EQUALS`: a word starting with an unquoted `=` is an ordinary word. With `EQUALS`, the
+    /// zsh default, it names an external command (see [`Word::equals`]).
+    pub no_equals: bool,
 }
 
 /// One highlight request in byte offsets.
@@ -381,12 +384,18 @@ impl Pass<'_, '_> {
                 self.args(None, args, arg_in);
                 return;
             };
+            // `=cmd` runs the external command `cmd`, found as after `command`. After
+            // `builtin` the path it expands to is never a builtin, so the word is kept whole.
+            let (name, wrap_word) = match self.equals_target(cmd, name) {
+                Some(target) if wrap != Wrap::Builtin => (target, Wrap::Command),
+                _ => (name, wrap),
+            };
             let spec = self.specs.spec(name);
             let precommand = match spec {
                 Some(s) => s.is_precommand(),
                 None => FALLBACK_PRECOMMANDS.contains(&name),
             };
-            let kind = match self.wrapped_word(wrap, cmd, name, precommand) {
+            let kind = match self.wrapped_word(wrap_word, cmd, name, precommand) {
                 Wrapped::Kind(kind) => kind,
                 Wrapped::Precommand => {
                     self.push(cmd, TokenKind::Precommand);
@@ -415,8 +424,8 @@ impl Pass<'_, '_> {
                 self.push(cmd, k);
             }
             // A word `builtin` or `command` would not run wraps nothing, whatever its spec
-            // says: its arguments are only checked as paths.
-            if wrap != Wrap::None && kind == Some(TokenKind::Error) {
+            // says: its arguments are only checked as paths. So does an unknown `=cmd`.
+            if wrap_word != Wrap::None && kind == Some(TokenKind::Error) {
                 self.args(None, args, arg_in);
                 return;
             }
@@ -481,11 +490,36 @@ impl Pass<'_, '_> {
         let Some(name) = w.literal.as_deref() else {
             return;
         };
+        if let Some(target) = self.equals_target(w, name) {
+            if let Some(k) = self.external_command(w, target) {
+                self.push(w, k);
+            }
+            return;
+        }
         let kind = class_kind(self.state.classify_name(name, false))
             .or_else(|| self.unknown_command(w, name, Lookup::Query));
         if let Some(k) = kind {
             self.push(w, k);
         }
+    }
+
+    /// The command name in a word subject to `=` expansion: the literal after the `=`, when
+    /// `EQUALS` is set and the word is not a lone `=`.
+    fn equals_target<'w>(&self, w: &Word, literal: &'w str) -> Option<&'w str> {
+        if self.req.opts.no_equals || !w.equals {
+            return None;
+        }
+        literal.strip_prefix('=').filter(|n| !n.is_empty())
+    }
+
+    /// The span for the word `w` expanding to the path of the external command `name`
+    /// (`=name`): a `$PATH` command, or with a `/` an executable file, is a command; zsh fails
+    /// on anything else. While typed, see [`Lookup::External`].
+    fn external_command(&mut self, w: &Word, name: &str) -> Option<TokenKind> {
+        if self.state.is_path_command(name) {
+            return Some(TokenKind::Command);
+        }
+        self.unknown_command(w, name, Lookup::External)
     }
 
     /// A precommand's own arguments: global aliases and spec classification. Their plain
@@ -623,7 +657,8 @@ impl Pass<'_, '_> {
 
     /// Checks a literal word as a path. Only the word being typed can be a path-prefix; a
     /// missing path gets no span. A word starting with `-` is an option and not checked unless
-    /// `options_ended` (it follows `--`).
+    /// `options_ended` (it follows `--`). A word subject to `=` expansion is checked as an
+    /// external command instead (see [`Pass::external_command`]).
     fn path_arg(&mut self, w: &Word, options_ended: bool) {
         // Spans wholly inside PREBUFFER are clipped away, so skip the filesystem work.
         if w.end <= self.req.buffer_start || w.has_glob {
@@ -632,6 +667,12 @@ impl Pass<'_, '_> {
         let Some(lit) = w.literal.as_deref() else {
             return;
         };
+        if let Some(target) = self.equals_target(w, lit) {
+            if let Some(k) = self.external_command(w, target) {
+                self.push(w, k);
+            }
+            return;
+        }
         if lit.starts_with('-') && !options_ended {
             return;
         }
@@ -892,6 +933,7 @@ mod tests {
                     tilde: w.starts_with('~'),
                     has_glob,
                     name_eq: crate::syntax::is_name_eq(&head.replace(['\'', '"', '\\'], "")),
+                    equals: w.starts_with('='),
                 });
             }
             pos += w.len() + 1;

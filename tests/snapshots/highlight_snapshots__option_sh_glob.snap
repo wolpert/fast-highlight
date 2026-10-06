@@ -1,0 +1,24 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "ls *(.) a(b) (a|b) <1-5>"
+cursor: 0
+  0..2 command "ls"
+  3..4 glob "*"
+  4..7 glob-qualifier "(.)"
+  9..12 glob-qualifier "(b)"
+  13..14 glob "("
+  15..16 glob "|"
+  17..18 glob ")"
+  19..24 glob "<1-5>"
+
+input: "ls *(.) a(b) (a|b) <1-5>"
+cursor: 0
+opts: "s"
+  0..2 command "ls"
+  3..4 glob "*"
+  4..7 error "(.)"
+  9..12 error "(b)"
+  13..18 error "(a|b)"
+  19..24 glob "<1-5>"

@@ -95,7 +95,8 @@ the first `cwd`, it uses the directory it was started in. The daemon process its
 working directory to `/` at startup, so it never holds a file system busy. The plugin `SHOULD`
 send `cwd` only when it changes.
 
-The `opt` field holds one letter per enabled option:
+The `opt` field holds one letter per option that is not in its zsh default state, and the
+letter `u` for the offset unit. Letters are case-sensitive.
 
 | Letter | Meaning                                                                         |
 |--------|---------------------------------------------------------------------------------|
@@ -104,8 +105,18 @@ The `opt` field holds one letter per enabled option:
 | `a`    | `AUTO_CD` is set.                                                               |
 | `e`    | `EXTENDED_GLOB` is set.                                                         |
 | `k`    | `KSH_GLOB` is set.                                                              |
+| `b`    | `IGNORE_BRACES` is set.                                                         |
+| `B`    | `IGNORE_CLOSE_BRACES` is set.                                                   |
+| `r`    | `RC_QUOTES` is set.                                                             |
+| `K`    | `KSH_ARRAYS` is set.                                                            |
+| `p`    | `POSIX_IDENTIFIERS` is set.                                                     |
+| `s`    | `SH_GLOB` is set.                                                               |
+| `C`    | `BRACE_CCL` is set.                                                             |
+| `E`    | `EQUALS` is unset.                                                              |
+| `L`    | `SHORT_LOOPS` is unset.                                                         |
 
-Unknown letters are ignored.
+An empty `opt` field therefore describes a shell with every listed option in its default state:
+`EQUALS` and `SHORT_LOOPS` set, the others unset. Unknown letters are ignored.
 
 The daemon parses `pre` followed immediately by `buf` as one text, so syntax that starts in an
 earlier line continues into the current one. It reports only the parts of spans that fall inside

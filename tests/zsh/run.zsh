@@ -298,6 +298,21 @@ test_options() {
   t_check_output
 }
 
+# Options that change parsing get letters too, two of them for being unset; the plugin works
+# under them. KSH_ARRAYS and SH_GLOB break the dispatcher of zsh's add-zle-hook-widget, which
+# runs under the user's options, so their letters are checked by a direct call only.
+test_parse_options() {
+  T_USE_MOCK=1
+  T_POST='_t_letters() { _fasthl_capture_opts; print -r -- $_fasthl_uo >$FHT_DIR/uo; }
+setopt ignorebraces ignoreclosebraces rcquotes posixidentifiers braceccl noequals noshortloops'
+  t_spawn || return
+  t_run 'setopt ksharrays shglob; _t_letters; unsetopt ksharrays shglob'
+  [[ $(<$T/uo) == bBrKpsCEL ]] || t_fail "letters of KSH_ARRAYS and SH_GLOB wrong: $(<$T/uo)"
+  t_type 'ls'
+  t_log_has 'H <-> buf=ls cur=2 cwd=* opt=ubBrpCEL pre=-' || t_fail "option letters wrong"
+  t_check_output
+}
+
 # Continuation lines send PREBUFFER.
 test_prebuffer() {
   T_USE_MOCK=1

@@ -3,7 +3,7 @@ source: tests/syntax_snapshots.rs
 expression: "render(input, opts)"
 ---
 input: "x=~/foo y=a~b z=*.rs a=(*.rs ~/x) local p=~/a:*.c"
-options: ParseOptions { interactive_comments: true, extended_glob: true, ksh_glob: false }
+options: ParseOptions { interactive_comments: true, extended_glob: true, ksh_glob: false, ignore_braces: false, ignore_close_braces: false, rc_quotes: false, ksh_arrays: false, posix_identifiers: false, sh_glob: false, brace_ccl: false, no_short_loops: false }
 spans:
   0..2 assignment "x="
   8..10 assignment "y="

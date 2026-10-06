@@ -3,7 +3,7 @@ source: tests/syntax_snapshots.rs
 expression: "render(input, opts)"
 ---
 input: "ls ^*.o *.c~x.c a## (#i)y *(#qN) ~/d # list $files"
-options: ParseOptions { interactive_comments: true, extended_glob: true, ksh_glob: false }
+options: ParseOptions { interactive_comments: true, extended_glob: true, ksh_glob: false, ignore_braces: false, ignore_close_braces: false, rc_quotes: false, ksh_arrays: false, posix_identifiers: false, sh_glob: false, brace_ccl: false, no_short_loops: false }
 spans:
   3..4 glob "^"
   4..5 glob "*"

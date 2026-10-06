@@ -6,6 +6,9 @@
 //! - bit 1: `extended_glob`
 //! - bit 2: `ksh_glob`
 //! - bit 3: decode with `String::from_utf8_lossy` instead of `text::decode`
+//! - bit 4: byte 1 holds more option bits, and the text starts at byte 2: 0 `ignore_braces`,
+//!   1 `ignore_close_braces`, 2 `rc_quotes`, 3 `ksh_arrays`, 4 `posix_identifiers`,
+//!   5 `sh_glob`, 6 `brace_ccl`, 7 `no_short_loops`
 //!
 //! Asserts that parsing never panics, that the spans satisfy `token::check_spans`, and that every
 //! word in `commands` and `path_words` is non-empty, in bounds, and on character boundaries.
@@ -31,15 +34,38 @@ fn check_word(input: &str, w: &Word, what: &str) {
     );
 }
 
+/// The parse options of the extra option byte (see the input layout above).
+fn more_options(opts: ParseOptions, bits: u8) -> ParseOptions {
+    ParseOptions {
+        ignore_braces: bits & 1 != 0,
+        ignore_close_braces: bits & 2 != 0,
+        rc_quotes: bits & 4 != 0,
+        ksh_arrays: bits & 8 != 0,
+        posix_identifiers: bits & 16 != 0,
+        sh_glob: bits & 32 != 0,
+        brace_ccl: bits & 64 != 0,
+        no_short_loops: bits & 128 != 0,
+        ..opts
+    }
+}
+
 fuzz_target!(|data: &[u8]| {
-    let Some((&flags, rest)) = data.split_first() else {
+    let Some((&flags, mut rest)) = data.split_first() else {
         return;
     };
-    let opts = ParseOptions {
+    let mut opts = ParseOptions {
         interactive_comments: flags & 1 != 0,
         extended_glob: flags & 2 != 0,
         ksh_glob: flags & 4 != 0,
+        ..ParseOptions::default()
     };
+    if flags & 16 != 0 {
+        let Some((&more, text)) = rest.split_first() else {
+            return;
+        };
+        opts = more_options(opts, more);
+        rest = text;
+    }
     let input = if flags & 8 != 0 {
         String::from_utf8_lossy(rest).into_owned()
     } else {

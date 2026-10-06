@@ -60,16 +60,39 @@ fn check_word(input: &str, w: &Word, what: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// The parse options of the extra option byte, as `fuzz_targets/lexer.rs` decodes them.
+fn more_options(opts: ParseOptions, bits: u8) -> ParseOptions {
+    ParseOptions {
+        ignore_braces: bits & 1 != 0,
+        ignore_close_braces: bits & 2 != 0,
+        rc_quotes: bits & 4 != 0,
+        ksh_arrays: bits & 8 != 0,
+        posix_identifiers: bits & 16 != 0,
+        sh_glob: bits & 32 != 0,
+        brace_ccl: bits & 64 != 0,
+        no_short_loops: bits & 128 != 0,
+        ..opts
+    }
+}
+
 /// `fuzz_targets/lexer.rs`.
 fn replay_lexer(data: &[u8]) -> Result<(), String> {
-    let Some((&flags, rest)) = data.split_first() else {
+    let Some((&flags, mut rest)) = data.split_first() else {
         return Ok(());
     };
-    let opts = ParseOptions {
+    let mut opts = ParseOptions {
         interactive_comments: flags & 1 != 0,
         extended_glob: flags & 2 != 0,
         ksh_glob: flags & 4 != 0,
+        ..ParseOptions::default()
     };
+    if flags & 16 != 0 {
+        let Some((&more, text)) = rest.split_first() else {
+            return Ok(());
+        };
+        opts = more_options(opts, more);
+        rest = text;
+    }
     let input = if flags & 8 != 0 {
         String::from_utf8_lossy(rest).into_owned()
     } else {
@@ -180,23 +203,33 @@ fn highlight_env() -> HighlightEnv {
 
 /// `fuzz_targets/highlight.rs`.
 fn replay_highlight(env: &mut HighlightEnv, data: &[u8]) -> Result<(), String> {
-    let Some((header, rest)) = data.split_first_chunk::<5>() else {
+    let Some((header, mut rest)) = data.split_first_chunk::<5>() else {
         return Ok(());
     };
     let flags = header[0];
+    let mut more = 0;
+    if flags & 128 != 0 {
+        let Some((&m, text)) = rest.split_first() else {
+            return Ok(());
+        };
+        (more, rest) = (m, text);
+    }
     let split = usize::from(u16::from_le_bytes([header[1], header[2]])) % (rest.len() + 1);
     let cursor = match u16::from_le_bytes([header[3], header[4]]) {
         u16::MAX => None,
         c => Some(usize::from(c)),
     };
     let (prebuffer, buffer) = rest.split_at(split);
+    let parse = ParseOptions {
+        interactive_comments: flags & 1 != 0,
+        extended_glob: flags & 2 != 0,
+        ksh_glob: flags & 4 != 0,
+        ..ParseOptions::default()
+    };
     let opts = RequestOptions {
-        parse: ParseOptions {
-            interactive_comments: flags & 1 != 0,
-            extended_glob: flags & 2 != 0,
-            ksh_glob: flags & 4 != 0,
-        },
+        parse: more_options(parse, more),
         auto_cd: flags & 8 != 0,
+        no_equals: flags & 64 != 0,
     };
     let cursor_unit = Unit::from_char_offsets(flags & 16 != 0);
     let highlighter = if flags & 32 != 0 {

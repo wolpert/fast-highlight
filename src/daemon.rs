@@ -99,8 +99,17 @@ pub fn request_options(letters: &str) -> RequestOptions {
             interactive_comments: has('c'),
             extended_glob: has('e'),
             ksh_glob: has('k'),
+            ignore_braces: has('b'),
+            ignore_close_braces: has('B'),
+            rc_quotes: has('r'),
+            ksh_arrays: has('K'),
+            posix_identifiers: has('p'),
+            sh_glob: has('s'),
+            brace_ccl: has('C'),
+            no_short_loops: has('L'),
         },
         auto_cd: has('a'),
+        no_equals: has('E'),
     }
 }
 
@@ -754,8 +763,10 @@ mod tests {
                     interactive_comments: true,
                     extended_glob: true,
                     ksh_glob: true,
+                    ..ParseOptions::default()
                 },
                 auto_cd: true,
+                ..RequestOptions::default()
             }
         );
         // Byte units: cursor 1 lands inside é and rounds down; no cursor means end of text.
@@ -1299,5 +1310,17 @@ mod tests {
         assert!(request_options("a").auto_cd);
         assert!(request_options("e").parse.extended_glob);
         assert!(request_options("k").parse.ksh_glob);
+        assert!(request_options("b").parse.ignore_braces);
+        assert!(request_options("B").parse.ignore_close_braces);
+        assert!(request_options("r").parse.rc_quotes);
+        assert!(request_options("K").parse.ksh_arrays);
+        assert!(request_options("p").parse.posix_identifiers);
+        assert!(request_options("s").parse.sh_glob);
+        assert!(request_options("C").parse.brace_ccl);
+        assert!(request_options("E").no_equals);
+        assert!(request_options("L").parse.no_short_loops);
+        // Letters are case-sensitive.
+        assert!(!request_options("b").parse.ignore_close_braces);
+        assert!(!request_options("K").parse.ksh_glob);
     }
 }

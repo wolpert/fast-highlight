@@ -19,6 +19,10 @@ mod tests;
 mod word;
 
 /// Shell options that change how the input is lexed.
+///
+/// Each field is named for the setting its `true` stands for, and every option is in its zsh
+/// default state when its field is false, so the default value is zsh's default parse. Hence
+/// `SHORT_LOOPS`, set by default, is modelled as [`ParseOptions::no_short_loops`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ParseOptions {
     /// `INTERACTIVE_COMMENTS`: a word starting with `#` begins a comment to end of line.
@@ -27,6 +31,33 @@ pub struct ParseOptions {
     pub extended_glob: bool,
     /// `KSH_GLOB`: `@(...)`, `*(...)`, `+(...)`, `?(...)`, `!(...)` are glob patterns.
     pub ksh_glob: bool,
+    /// `IGNORE_BRACES`: no brace expansion, `{` is a reserved word only as a whole word, `{fd}>`
+    /// is no redirection, and a `}` is never split off the end of a word. Implies the effect
+    /// of [`ParseOptions::ignore_close_braces`].
+    pub ignore_braces: bool,
+    /// `IGNORE_CLOSE_BRACES`: a `}` closes a group only in command position.
+    pub ignore_close_braces: bool,
+    /// `RC_QUOTES`: `''` inside a single-quoted string is a quote character.
+    pub rc_quotes: bool,
+    /// `KSH_ARRAYS`: an unbraced parameter takes no subscript and no modifiers (`$a[1]` is `$a`
+    /// followed by the glob `[1]`).
+    pub ksh_arrays: bool,
+    /// `POSIX_IDENTIFIERS`: names are ASCII only, and `$#name` is `$#` followed by `name`.
+    pub posix_identifiers: bool,
+    /// `SH_GLOB`: a `(` inside a word or in argument position is a syntax error rather than a
+    /// glob group or qualifier list.
+    pub sh_glob: bool,
+    /// `BRACE_CCL`: `{abc}` and `{a-z}`, braces with no comma or `..`, are brace expansions.
+    pub brace_ccl: bool,
+    /// `NO_SHORT_LOOPS`: the body of `for`, `select`, and `repeat` must start with `do` or `{`.
+    pub no_short_loops: bool,
+}
+
+impl ParseOptions {
+    /// `}` is significant only in command position: `IGNORE_BRACES` or `IGNORE_CLOSE_BRACES`.
+    pub(crate) fn close_braces_ignored(&self) -> bool {
+        self.ignore_braces || self.ignore_close_braces
+    }
 }
 
 /// One shell word as it appears in the input.
@@ -52,6 +83,10 @@ pub struct Word {
     /// `NAME=value` argument, not a shell assignment: an assignment before the command is not a
     /// word of a [`SimpleCommand`], but a declaration builtin's argument is.
     pub name_eq: bool,
+    /// The word starts with an unquoted `=` that does not begin a process substitution `=(`,
+    /// so `=` expansion applies to it when `EQUALS` is set: `=ls` expands to the path of the
+    /// external command `ls`. The `=` is kept verbatim in the literal, as a leading `~` is.
+    pub equals: bool,
 }
 
 /// `NAME=` followed by anything, with `NAME` an ASCII shell identifier: `[A-Za-z_][A-Za-z0-9_]*`.

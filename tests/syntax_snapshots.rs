@@ -65,11 +65,13 @@ fn snap_with(name: &str, input: &str, opts: ParseOptions) {
     insta::assert_snapshot!(name, render(input, opts));
 }
 
-const ALL_OPTIONS: ParseOptions = ParseOptions {
-    interactive_comments: true,
-    extended_glob: true,
-    ksh_glob: false,
-};
+fn all_options() -> ParseOptions {
+    ParseOptions {
+        interactive_comments: true,
+        extended_glob: true,
+        ..ParseOptions::default()
+    }
+}
 
 #[test]
 fn pipeline_with_redirections() {
@@ -132,7 +134,7 @@ fn extended_glob_and_comments() {
     snap_with(
         "extended_glob_and_comments",
         "ls ^*.o *.c~x.c a## (#i)y *(#qN) ~/d # list $files",
-        ALL_OPTIONS,
+        all_options(),
     );
 }
 
@@ -293,7 +295,7 @@ fn assignment_values_with_extended_glob() {
     snap_with(
         "assignment_values_with_extended_glob",
         "x=~/foo y=a~b z=*.rs a=(*.rs ~/x) local p=~/a:*.c",
-        ALL_OPTIONS,
+        all_options(),
     );
 }
 

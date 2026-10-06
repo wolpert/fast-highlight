@@ -34,7 +34,8 @@ pub enum TokenKind {
     Function,
     /// A command word that names a shell builtin.
     Builtin,
-    /// A command word that names an external command found in `$PATH` or by explicit path.
+    /// A command word that names an external command found in `$PATH` or by explicit path, and
+    /// a word `=cmd` that expands to the path of one (`EQUALS`).
     Command,
     /// A precommand modifier: `sudo`, `noglob`, `nocorrect`, `exec`, `command`, `builtin`,
     /// `env`, `time`, and similar wrappers.

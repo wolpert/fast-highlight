@@ -48,8 +48,10 @@ enum Last {
     Cmd,
     /// Right after the end of a compound command (`fi`, `}`, `)`, `]]`, `))`, ...). Only a
     /// separator, a redirection, or a reserved word that continues an enclosing construct may
-    /// follow, and `always` when the construct was a plain `{ ... }` group.
-    Compound { always: bool },
+    /// follow, and `always` when the construct was a plain `{ ... }` group. `rbrace` is false
+    /// after `fi`, `done`, and `end`, where zsh does not take a `}` as being in command
+    /// position, so with `IGNORE_BRACES` or `IGNORE_CLOSE_BRACES` it is an ordinary word.
+    Compound { always: bool, rbrace: bool },
     /// After the body of an anonymous function: the words up to the next separator are the
     /// function's arguments.
     Args,
@@ -144,7 +146,7 @@ enum Class {
     Done,
     /// `end`: a `foreach`.
     End,
-    /// `esac`: a `case ... in`.
+    /// `esac`: a `case ... in`, or a `case ... {`, which zsh lets `esac` close too.
     Esac,
     /// `;;`, `;&`, `;|`: the body of a case item.
     CaseSep,
@@ -179,7 +181,7 @@ impl Open {
             }
             Open::Case { brace, state } => {
                 (if brace {
-                    bit(Class::RBrace)
+                    bit(Class::RBrace) | bit(Class::Esac)
                 } else {
                     bit(Class::Esac)
                 }) | if state == CaseState::Body {
@@ -383,7 +385,8 @@ struct Cmd {
     decl_globbed: bool,
     /// Every word so far is a precommand modifier (`builtin`, `command`, ...).
     chain: bool,
-    /// Words are lexed but no command is recorded (after `^old^new`).
+    /// Words are lexed but no command is recorded (after `^old^new`, and after a short-form
+    /// body rejected by `NO_SHORT_LOOPS`).
     suppressed: bool,
 }
 
@@ -771,6 +774,10 @@ impl<'a> Parser<'a> {
             } else {
                 guard = (self.pos, 0);
             }
+            if self.short_body_ahead(f, c) {
+                self.short_body_error(f);
+                continue;
+            }
             match c {
                 b'\n' => {
                     self.end_cmd(f);
@@ -853,6 +860,35 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// True when, with `NO_SHORT_LOOPS`, the token at the cursor (starting with `c`) begins the
+    /// short-form body of a `for`, `select`, or `repeat` header, which needs `do` or `{`. A
+    /// prefix of `do` at the end of the input is partial input, not a body.
+    fn short_body_ahead(&self, f: &Frame, c: u8) -> bool {
+        if !self.opts.no_short_loops
+            || f.stack.last() != Some(Open::Loop(LoopKind::For, LoopState::ExpectDo))
+            || matches!(c, b'\n' | b';' | b'&' | b'|' | b')')
+            || (c == b'#' && self.opts.interactive_comments)
+            || self.lbrace_at(self.pos)
+        {
+            return false;
+        }
+        match self.plain_word_at(self.pos) {
+            Some("do") => false,
+            Some(p) => !("do".starts_with(p) && self.pos + p.len() == self.b.len()),
+            None => true,
+        }
+    }
+
+    /// Marks the word that starts a short-form body as an error, as zsh rejects it, and drops
+    /// the loop. The words after it are its arguments, and no command is recorded, so the
+    /// error is the word's only span.
+    fn short_body_error(&mut self, f: &mut Frame) {
+        f.stack.pop();
+        self.error_word();
+        f.cmd.suppressed = true;
+        f.last = Last::Cmd;
+    }
+
     /// Completes short-form `if`s that cannot be continued by what follows.
     fn settle(f: &mut Frame) {
         while f.stack.last() == Some(Open::If(IfState::ShortDone)) {
@@ -861,9 +897,22 @@ impl<'a> Parser<'a> {
     }
 
     /// True when a `}` at `i` is a word of its own: unquoted and followed by a word terminator
-    /// or the end. Without `IGNORE_CLOSE_BRACES` such a `}` closes a group wherever it appears.
+    /// or the end. Without `IGNORE_CLOSE_BRACES` (and `IGNORE_BRACES`) such a `}` closes a group
+    /// wherever it appears; with either, it is never significant where this is asked.
     fn rbrace_at(&self, i: usize) -> bool {
-        self.byte(i) == Some(b'}') && self.byte(i + 1).is_none_or(is_word_term)
+        !self.opts.close_braces_ignored()
+            && self.byte(i) == Some(b'}')
+            && self.byte(i + 1).is_none_or(is_word_term)
+    }
+
+    /// True when the word at `i` starts with a `{` that is a reserved word in command position:
+    /// zsh splits a `{` off the start of a word (`{echo hi}` is a group), but with
+    /// `IGNORE_BRACES` only a whole `{` word counts.
+    fn lbrace_at(&self, i: usize) -> bool {
+        match self.opts.ignore_braces {
+            true => self.plain_word_at(i) == Some("{"),
+            false => self.byte(i) == Some(b'{'),
+        }
     }
 
     /// Consumes the word at the cursor and marks all of it as an error.
@@ -879,11 +928,13 @@ impl<'a> Parser<'a> {
         let start = self.pos;
         let plain = self.plain_word_at(start);
         let kw = plain.and_then(keyword);
-        // Without IGNORE_BRACES, zsh splits a `{` off the start of a word in command position
-        // (`{echo hi}` is a group), and `{fd}>` has already been taken as a redirection.
-        let brace = self.b[start] == b'{';
+        // `{fd}>` has already been taken as a redirection.
+        let brace = self.lbrace_at(start);
+        // With IGNORE_BRACES or IGNORE_CLOSE_BRACES, a `}` is significant only in command
+        // position.
+        let close_ignored = self.opts.close_braces_ignored();
         match f.last {
-            Last::Compound { always } => {
+            Last::Compound { always, rbrace } => {
                 if always && plain == Some("always") {
                     self.push(start, start + 6, TokenKind::ReservedWord);
                     self.pos = start + 6;
@@ -892,6 +943,7 @@ impl<'a> Parser<'a> {
                     self.keyword(f, Kw::LBrace, start, 1);
                 } else if let Some(kw) = kw
                     && kw.continues_compound()
+                    && (kw != Kw::RBrace || rbrace || !close_ignored)
                 {
                     self.keyword(f, kw, start, plain.map_or(0, str::len));
                 } else {
@@ -908,7 +960,7 @@ impl<'a> Parser<'a> {
                 }
                 return;
             }
-            Last::Args if kw != Some(Kw::RBrace) => {
+            Last::Args if kw != Some(Kw::RBrace) || close_ignored => {
                 // Arguments of an anonymous function: plain words, even reserved ones.
                 let w = self.lex_word();
                 self.path_word(w);
@@ -916,7 +968,7 @@ impl<'a> Parser<'a> {
             }
             _ => {}
         }
-        if kw == Some(Kw::RBrace) {
+        if kw == Some(Kw::RBrace) && !close_ignored {
             // Without IGNORE_CLOSE_BRACES a lone `}` is significant anywhere in a command.
             self.end_cmd(f);
             self.keyword(f, Kw::RBrace, start, 1);
@@ -957,6 +1009,7 @@ impl<'a> Parser<'a> {
                         tilde: false,
                         has_glob: false,
                         name_eq: false,
+                        equals: false,
                     });
                     f.last = Last::Cmd;
                     return;
@@ -1078,7 +1131,10 @@ impl<'a> Parser<'a> {
                     top = Some(false);
                 }
                 self.push(start, end, ok(top));
-                f.last = Last::Compound { always: false };
+                f.last = Last::Compound {
+                    always: false,
+                    rbrace: false,
+                };
             }
             Kw::For | Kw::Repeat | Kw::Foreach => {
                 self.note_command_start(f);
@@ -1133,7 +1189,10 @@ impl<'a> Parser<'a> {
                     top = Some(false);
                 }
                 self.push(start, end, ok(top));
-                f.last = Last::Compound { always: false };
+                f.last = Last::Compound {
+                    always: false,
+                    rbrace: false,
+                };
             }
             Kw::Case => {
                 self.note_command_start(f);
@@ -1149,7 +1208,10 @@ impl<'a> Parser<'a> {
                     f.stack.pop();
                 }
                 self.push(start, end, ok(top));
-                f.last = Last::Compound { always: false };
+                f.last = Last::Compound {
+                    always: false,
+                    rbrace: true,
+                };
             }
             Kw::LBrace => {
                 let kind = match f.last {
@@ -1194,7 +1256,10 @@ impl<'a> Parser<'a> {
             Kw::RBrace => {
                 Self::settle(f);
                 let top = f.stack.find(Class::RBrace);
-                let mut last = Last::Compound { always: false };
+                let mut last = Last::Compound {
+                    always: false,
+                    rbrace: true,
+                };
                 if top.is_some() {
                     match f.stack.pop() {
                         Some(Open::Brace(BraceKind::Short)) => match f.stack.last() {
@@ -1208,7 +1273,10 @@ impl<'a> Parser<'a> {
                             _ => {}
                         },
                         Some(Open::Brace(BraceKind::Plain)) => {
-                            last = Last::Compound { always: true };
+                            last = Last::Compound {
+                                always: true,
+                                rbrace: true,
+                            };
                         }
                         Some(Open::Brace(BraceKind::Anon)) => last = Last::Args,
                         _ => {}
@@ -1257,7 +1325,10 @@ impl<'a> Parser<'a> {
         let anon = matches!(f.last, Last::FuncBody { anon: true, .. });
         self.note_command_start(f);
         if self.peek_at(1) == Some(b'(') && self.arith_command() {
-            f.last = Last::Compound { always: false };
+            f.last = Last::Compound {
+                always: false,
+                rbrace: true,
+            };
             return;
         }
         if self.peek_at(1) == Some(b')') {
@@ -1294,7 +1365,10 @@ impl<'a> Parser<'a> {
                 f.last = if anon {
                     Last::Args
                 } else {
-                    Last::Compound { always: false }
+                    Last::Compound {
+                        always: false,
+                        rbrace: true,
+                    }
                 };
                 false
             }
@@ -1609,7 +1683,7 @@ impl<'a> Parser<'a> {
                 self.keyword(f, Kw::Esac, start, 4);
                 return;
             }
-            Some("}") => {
+            Some("}") if !self.opts.close_braces_ignored() => {
                 self.keyword(f, Kw::RBrace, start, 1);
                 return;
             }
@@ -1693,7 +1767,10 @@ impl<'a> Parser<'a> {
                 b']' if self.peek_at(1) == Some(b']') && self.term_at(start + 2) => {
                     self.push(start, start + 2, TokenKind::ReservedWord);
                     self.pos += 2;
-                    f.last = Last::Compound { always: false };
+                    f.last = Last::Compound {
+                        always: false,
+                        rbrace: true,
+                    };
                     return;
                 }
                 b'&' | b'|' if self.peek_at(1) == Some(c) => {
@@ -1874,8 +1951,11 @@ impl<'a> Parser<'a> {
         matches!(self.byte(i), Some(b'<' | b'>')) && self.byte(i + 1) != Some(b'(')
     }
 
-    /// `{name}` directly followed by `<` or `>`.
+    /// `{name}` directly followed by `<` or `>`, unless `IGNORE_BRACES` is set.
     fn brace_fd_ahead(&self) -> bool {
+        if self.opts.ignore_braces {
+            return false;
+        }
         let Some(e) = self.name_end(self.pos + 1) else {
             return false;
         };
@@ -1965,7 +2045,12 @@ impl<'a> Parser<'a> {
         let op_end = op_end.min(self.end);
         match f.last {
             // `always` must directly follow the `}` of the group.
-            Last::Compound { .. } => f.last = Last::Compound { always: false },
+            Last::Compound { rbrace, .. } => {
+                f.last = Last::Compound {
+                    always: false,
+                    rbrace,
+                }
+            }
             Last::Args => {}
             _ => {
                 if f.cmd.words.is_empty() && !f.cmd.prefix() {

@@ -33,6 +33,32 @@ HIGHLIGHT_EXTRA = [
     "npm run test -- --watch",
 ]
 
+# Lines for the options of the extra option byte, with that byte's bits (see
+# fuzz_targets/lexer.rs).
+OPTION_EXTRA = [
+    ("ignore-braces", "{echo a}; { echo {a,b} a} }; exec {fd}>x", 1),
+    ("ignore-close-braces", "{echo a}; { echo a } }; { if :; then :; fi }", 2),
+    ("rc-quotes", "echo 'it''s' '''' $'a''b' 'open''", 4),
+    ("ksh-arrays", "echo $a[1] $PWD:h ${a[1]} \"$a[2]\"", 8),
+    ("posix-identifiers", "é=1 echo $#a $+a $é", 16),
+    ("sh-glob", "echo a(b) *(.) (a|b) <1-5> x=a(b) [[ a == (a|b) ]]", 32),
+    ("brace-ccl", "echo {abc} {} x{ba}y {a-z", 64),
+    ("no-short-loops", "for x in a; echo $x; repeat 2 ls; for x (a) { ls; }", 128),
+    ("all-options", "for x (a) echo {ab}'c''d' $a[1] (x) }", 255),
+]
+
+# Parse options after the first three, in the bit order of the extra option byte.
+MORE_OPTIONS = [
+    "ignore_braces",
+    "ignore_close_braces",
+    "rc_quotes",
+    "ksh_arrays",
+    "posix_identifiers",
+    "sh_glob",
+    "brace_ccl",
+    "no_short_loops",
+]
+
 
 def rust_unescape(s):
     """Undoes Rust's `{:?}` escaping of a string body (without the quotes)."""
@@ -59,20 +85,24 @@ def rust_unescape(s):
 
 
 def snapshot_inputs():
-    """Yields (name, text, option bits) for every snapshot input."""
+    """Yields (name, text, option bits, extra option bits) for every snapshot input."""
     for snap in sorted((ROOT / "tests" / "snapshots").glob("*.snap")):
         body = snap.read_text(encoding="utf-8")
         m = re.search(r'^input: "(.*)"$', body, re.M)
         if not m:
             continue
         bits = 0
+        more = 0
         o = re.search(r"^options: ParseOptions \{(.*)\}$", body, re.M)
         if o:
             for bit, name in enumerate(["interactive_comments", "extended_glob", "ksh_glob"]):
-                if f"{name}: true" in o.group(1):
+                if re.search(rf"\b{name}: true", o.group(1)):
                     bits |= 1 << bit
+            for bit, name in enumerate(MORE_OPTIONS):
+                if re.search(rf"\b{name}: true", o.group(1)):
+                    more |= 1 << bit
         name = snap.stem.split("__", 1)[-1]
-        yield name, rust_unescape(m.group(1)), bits
+        yield name, rust_unescape(m.group(1)), bits, more
 
 
 def frame(kind, ident, body=b""):
@@ -132,15 +162,21 @@ def write(target, name, data):
 def main():
     shutil.rmtree(SEEDS, ignore_errors=True)
     inputs = list(snapshot_inputs())
-    for name, text, bits in inputs:
+    inputs += [(name, text, 0, more) for name, text, more in OPTION_EXTRA]
+    for name, text, bits, more in inputs:
         raw = text.encode("utf-8")
-        write("lexer", name, bytes([bits]) + raw)
+        # The extra option byte, present only when one of its options is set.
+        lexer_bits, highlight_bits, extra = bits, bits, b""
+        if more:
+            lexer_bits, highlight_bits, extra = bits | 16, bits | 128, bytes([more])
+        write("lexer", name, bytes([lexer_bits]) + extra + raw)
         # Whole text as BUFFER, no cursor.
-        write("highlight", name, bytes([bits]) + struct.pack("<HH", 0, 0xFFFF) + raw)
+        header = bytes([highlight_bits]) + struct.pack("<HH", 0, 0xFFFF) + extra
+        write("highlight", name, header + raw)
         # Multi-line text: everything up to the last line as PREBUFFER, cursor at 2 chars.
         nl = raw.rfind(b"\n")
         if nl >= 0:
-            header = bytes([bits | 16]) + struct.pack("<HH", nl + 1, 2)
+            header = bytes([highlight_bits | 16]) + struct.pack("<HH", nl + 1, 2) + extra
             write("highlight", name + "-prebuffer", header + raw)
     write("lexer", "invalid-utf8", b"\x00echo \xff\xc3 \xe6\x97 x")
     write("lexer", "invalid-utf8-lossy", b"\x08echo \xff\xc3 \xe6\x97 x")

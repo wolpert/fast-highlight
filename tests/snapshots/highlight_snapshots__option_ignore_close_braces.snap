@@ -1,0 +1,58 @@
+---
+source: tests/highlight_snapshots.rs
+expression: f.cases(cases)
+---
+input: "{ echo a }; echo a} b"
+cursor: 0
+  0..1 reserved-word "{"
+  2..6 builtin "echo"
+  9..10 reserved-word "}"
+  10..11 separator ";"
+  12..16 builtin "echo"
+  18..19 error "}"
+  20..21 error "b"
+
+input: "{ echo a }; echo a} b"
+cursor: 0
+opts: "B"
+  0..1 reserved-word "{"
+  2..6 builtin "echo"
+  10..11 separator ";"
+  12..16 builtin "echo"
+
+input: "{ if true; then ls; fi }; { (ls) }"
+cursor: 0
+  0..1 reserved-word "{"
+  2..4 reserved-word "if"
+  5..9 builtin "true"
+  9..10 separator ";"
+  11..15 reserved-word "then"
+  16..18 command "ls"
+  18..19 separator ";"
+  20..22 reserved-word "fi"
+  23..24 reserved-word "}"
+  24..25 separator ";"
+  26..27 reserved-word "{"
+  28..29 grouping "("
+  29..31 command "ls"
+  31..32 grouping ")"
+  33..34 reserved-word "}"
+
+input: "{ if true; then ls; fi }; { (ls) }"
+cursor: 0
+opts: "B"
+  0..1 reserved-word "{"
+  2..4 reserved-word "if"
+  5..9 builtin "true"
+  9..10 separator ";"
+  11..15 reserved-word "then"
+  16..18 command "ls"
+  18..19 separator ";"
+  20..22 reserved-word "fi"
+  23..24 error "}"
+  24..25 separator ";"
+  26..27 reserved-word "{"
+  28..29 grouping "("
+  29..31 command "ls"
+  31..32 grouping ")"
+  33..34 reserved-word "}"

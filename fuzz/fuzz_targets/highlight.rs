@@ -4,10 +4,14 @@
 //!
 //! - byte 0, option bits: 0 `interactive_comments`, 1 `extended_glob`, 2 `ksh_glob`,
 //!   3 `auto_cd`, 4 cursor in characters (else bytes), 5 use tight limits (lex-only above 64
-//!   bytes, 2 filesystem checks per request) instead of the defaults
+//!   bytes, 2 filesystem checks per request) instead of the defaults, 6 `no_equals`, 7 a sixth
+//!   header byte follows
 //! - bytes 1-2, little endian: where the text splits into `PREBUFFER` and `BUFFER`, taken modulo
 //!   the text length plus one
 //! - bytes 3-4, little endian: the cursor; `0xffff` means no cursor (end of buffer)
+//! - byte 5, with bit 7 of byte 0 only: more parse option bits, 0 `ignore_braces`,
+//!   1 `ignore_close_braces`, 2 `rc_quotes`, 3 `ksh_arrays`, 4 `posix_identifiers`,
+//!   5 `sh_glob`, 6 `brace_ccl`, 7 `no_short_loops`
 //!
 //! Asserts that highlighting never panics, that the cursor offset and the spans are valid for
 //! the decoded text, and that the wire spans in both units are non-empty, within the buffer's
@@ -106,24 +110,49 @@ fn setup() -> Env {
     }
 }
 
+/// The parse options of the extra option byte (see the input layout above).
+fn more_options(opts: ParseOptions, bits: u8) -> ParseOptions {
+    ParseOptions {
+        ignore_braces: bits & 1 != 0,
+        ignore_close_braces: bits & 2 != 0,
+        rc_quotes: bits & 4 != 0,
+        ksh_arrays: bits & 8 != 0,
+        posix_identifiers: bits & 16 != 0,
+        sh_glob: bits & 32 != 0,
+        brace_ccl: bits & 64 != 0,
+        no_short_loops: bits & 128 != 0,
+        ..opts
+    }
+}
+
 fuzz_target!(|data: &[u8]| {
-    let Some((header, rest)) = data.split_first_chunk::<5>() else {
+    let Some((header, mut rest)) = data.split_first_chunk::<5>() else {
         return;
     };
     let flags = header[0];
+    let mut more = 0;
+    if flags & 128 != 0 {
+        let Some((&m, text)) = rest.split_first() else {
+            return;
+        };
+        (more, rest) = (m, text);
+    }
     let split = usize::from(u16::from_le_bytes([header[1], header[2]])) % (rest.len() + 1);
     let cursor = match u16::from_le_bytes([header[3], header[4]]) {
         u16::MAX => None,
         c => Some(usize::from(c)),
     };
     let (prebuffer, buffer) = rest.split_at(split);
+    let parse = ParseOptions {
+        interactive_comments: flags & 1 != 0,
+        extended_glob: flags & 2 != 0,
+        ksh_glob: flags & 4 != 0,
+        ..ParseOptions::default()
+    };
     let opts = RequestOptions {
-        parse: ParseOptions {
-            interactive_comments: flags & 1 != 0,
-            extended_glob: flags & 2 != 0,
-            ksh_glob: flags & 4 != 0,
-        },
+        parse: more_options(parse, more),
         auto_cd: flags & 8 != 0,
+        no_equals: flags & 64 != 0,
     };
     let cursor_unit = Unit::from_char_offsets(flags & 16 != 0);
     let env = &*ENV;
